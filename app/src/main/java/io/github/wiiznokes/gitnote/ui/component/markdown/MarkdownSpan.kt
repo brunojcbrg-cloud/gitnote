@@ -29,4 +29,11 @@ data class MdSpan(
     val range: IntRange,
     val markers: List<IntRange>,
     val line: Int,
+    val wikilink: WikilinkParts? = null,
+)
+
+data class WikilinkParts(
+    val target: String,
+    val section: String?,
+    val alias: String?,
 )

@@ -93,6 +93,8 @@ fun MarkDownContent(
                     val wikilink = parseWikilinkUri(uri)
                     if (wikilink == null) {
                         originalUriHandler.openUri(uri)
+                    } else if (wikilink.isSection) {
+                        vm.showSectionNavigationUnavailable()
                     } else if (wikilink.isMissing) {
                         vm.showMissingWikilink(wikilink.name)
                     } else {

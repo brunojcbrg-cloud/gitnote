@@ -25,16 +25,18 @@ import java.util.Locale
 private const val WIKILINK_SCHEME = "gitnote"
 private const val WIKILINK_HOST = "note"
 private const val MISSING_WIKILINK_HOST = "missing-note"
+private const val SECTION_WIKILINK_HOST = "section"
 
 data class WikilinkUri(
     val name: String,
     val isMissing: Boolean,
+    val isSection: Boolean,
 )
 
 fun wikilinkNames(source: String): Set<String> = MarkdownScanner.scan(source)
     .asSequence()
     .filter { it.kind == MdKind.WIKILINK }
-    .map { source.substring(it.range) }
+    .mapNotNull { it.wikilink?.target?.takeIf { target -> target.isNotEmpty() } }
     .toSet()
 
 fun preprocessWikilinksForReading(
@@ -51,14 +53,17 @@ fun preprocessWikilinksForReading(
         wikilinks.forEach { wikilink ->
             val fullStart = wikilink.markers.first().first
             val fullEnd = wikilink.markers.last().last + 1
-            val name = source.substring(wikilink.range)
-            val isMissing = existingNames != null && name !in existingNames
+            val displayText = source.substring(wikilink.range)
+            val parts = checkNotNull(wikilink.wikilink)
+            val isSection = parts.target.isEmpty()
+            val name = if (isSection) checkNotNull(parts.section) else parts.target
+            val isMissing = !isSection && existingNames != null && name !in existingNames
 
             append(source, sourceOffset, fullStart)
             append('[')
-            append(escapeMarkdownLinkText(name))
+            append(escapeMarkdownLinkText(displayText))
             append("](")
-            append(wikilinkUri(name, isMissing))
+            append(wikilinkUri(name, isMissing, isSection))
             append(')')
             sourceOffset = fullEnd
         }
@@ -70,9 +75,10 @@ fun parseWikilinkUri(value: String): WikilinkUri? {
     val uri = runCatching { URI(value) }.getOrNull() ?: return null
     if (!uri.scheme.equals(WIKILINK_SCHEME, ignoreCase = true)) return null
 
-    val isMissing = when {
-        uri.host.equals(WIKILINK_HOST, ignoreCase = true) -> false
-        uri.host.equals(MISSING_WIKILINK_HOST, ignoreCase = true) -> true
+    val type = when {
+        uri.host.equals(WIKILINK_HOST, ignoreCase = true) -> false to false
+        uri.host.equals(MISSING_WIKILINK_HOST, ignoreCase = true) -> true to false
+        uri.host.equals(SECTION_WIKILINK_HOST, ignoreCase = true) -> false to true
         else -> return null
     }
     val encodedName = uri.rawQuery
@@ -90,7 +96,7 @@ fun parseWikilinkUri(value: String): WikilinkUri? {
         URLDecoder.decode(encodedName, StandardCharsets.UTF_8.name())
     }.getOrNull()?.takeIf { it.isNotBlank() } ?: return null
 
-    return WikilinkUri(name = name, isMissing = isMissing)
+    return WikilinkUri(name = name, isMissing = type.first, isSection = type.second)
 }
 
 fun resolveWikilinkTargets(
@@ -146,6 +152,11 @@ fun missingWikilinkAnnotator(warningColor: Color): MarkdownAnnotator {
             val wikilink = parseWikilinkUri(destination)
                 ?.takeIf { it.isMissing }
                 ?: return@markdownAnnotator false
+            val displayText = child.findChildOfType(MarkdownElementTypes.LINK_TEXT)
+                ?.getUnescapedTextInNode(content)
+                ?.removePrefix("[")
+                ?.removeSuffix("]")
+                ?: wikilink.name
 
             withLink(
                 LinkAnnotation.Url(
@@ -154,15 +165,19 @@ fun missingWikilinkAnnotator(warningColor: Color): MarkdownAnnotator {
                     linkInteractionListener = linkInteractionListener,
                 )
             ) {
-                append(wikilink.name)
+                append(displayText)
             }
             true
         }
     }
 }
 
-private fun wikilinkUri(name: String, isMissing: Boolean): String {
-    val host = if (isMissing) MISSING_WIKILINK_HOST else WIKILINK_HOST
+private fun wikilinkUri(name: String, isMissing: Boolean, isSection: Boolean): String {
+    val host = when {
+        isSection -> SECTION_WIKILINK_HOST
+        isMissing -> MISSING_WIKILINK_HOST
+        else -> WIKILINK_HOST
+    }
     val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.name())
         .replace("+", "%20")
     return "$WIKILINK_SCHEME://$host?name=$encodedName"

@@ -108,6 +108,10 @@ class MarkDownVM : TextVM {
     fun showMissingWikilink(name: String) {
         uiHelper.makeToast(uiHelper.getString(R.string.error_wikilink_not_found, name))
     }
+
+    fun showSectionNavigationUnavailable() {
+        uiHelper.makeToast(uiHelper.getString(R.string.wikilink_section_navigation_unavailable))
+    }
 }
 
 

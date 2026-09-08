@@ -61,6 +61,7 @@
     <string name="select_multiple_notes">Select multiple notes</string>
     <string name="error_invalid_link">Invalid link, can\'t open it</string>
     <string name="error_wikilink_not_found">Note not found: %1$s</string>
+    <string name="wikilink_section_navigation_unavailable">Section navigation is not available yet</string>
     <string name="error_file_already_exist">File already exist</string>
     <string name="error_create_file">Can\'t create file: %1$s</string>
     <string name="error_delete_file">Can\'t delete file %1$s: %2$s</string>

@@ -8,16 +8,23 @@ import kotlin.test.assertTrue
 
 class WikilinkSupportTest {
     @Test
-    fun preprocessesOnlySimpleWikilinksOutsideCode() {
-        val source = "[[Nota á]] `[[codigo]]` ![[embed]] [[Nome|alias]] [[Nome#secao]]"
+    fun preprocessesAllSixWikilinkFormsOutsideCode() {
+        val source = "[[Nome]] [[Nome|apelido]] [[Nome#Secao]] " +
+            "[[Nome#Secao|apelido]] [[#Secao]] [[#Secao|apelido]] " +
+            "`[[codigo]]` ![[embed]]"
         val rendered = preprocessWikilinksForReading(source)
 
         assertEquals(
-            "[Nota á](gitnote://note?name=Nota%20%C3%A1) `[[codigo]]` " +
-                "![[embed]] [[Nome|alias]] [[Nome#secao]]",
+            "[Nome](gitnote://note?name=Nome) " +
+                "[apelido](gitnote://note?name=Nome) " +
+                "[Nome](gitnote://note?name=Nome) " +
+                "[apelido](gitnote://note?name=Nome) " +
+                "[Secao](gitnote://section?name=Secao) " +
+                "[apelido](gitnote://section?name=Secao) " +
+                "`[[codigo]]` ![[embed]]",
             rendered,
         )
-        assertEquals(setOf("Nota á"), wikilinkNames(source))
+        assertEquals(setOf("Nome"), wikilinkNames(source))
     }
 
     @Test
@@ -35,6 +42,35 @@ class WikilinkSupportTest {
     }
 
     @Test
+    fun aliasUsesTheTargetForResolutionAndMissingState() {
+        val source = "[[Nome da Nota|Inspeção 🩺 #2]]"
+        val rendered = preprocessWikilinksForReading(
+            source,
+            existingNames = setOf("Nome da Nota"),
+        )
+
+        assertEquals(
+            "[Inspeção 🩺 #2](gitnote://note?name=Nome%20da%20Nota)",
+            rendered,
+        )
+        assertEquals(setOf("Nome da Nota"), wikilinkNames(source))
+        assertFalse(rendered.contains("missing-note"))
+    }
+
+    @Test
+    fun internalSectionHasItsOwnNonNavigatingUriType() {
+        val rendered = preprocessWikilinksForReading("[[#Inspeção|ver achados]]")
+        val uri = rendered.substringAfter("](").removeSuffix(")")
+        val parsed = parseWikilinkUri(uri)
+
+        assertEquals("[ver achados](gitnote://section?name=Inspe%C3%A7%C3%A3o)", rendered)
+        assertEquals("Inspeção", parsed?.name)
+        assertTrue(parsed?.isSection == true)
+        assertFalse(parsed?.isMissing ?: true)
+        assertEquals(emptySet(), wikilinkNames("[[#Inspeção|ver achados]]"))
+    }
+
+    @Test
     fun uriRoundTripPreservesSpacesUnicodeAndReservedCharacters() {
         val name = "R&D + Kotlin á"
         val rendered = preprocessWikilinksForReading("[[$name]]")
@@ -42,6 +78,7 @@ class WikilinkSupportTest {
 
         assertEquals(name, parseWikilinkUri(uri)?.name)
         assertFalse(parseWikilinkUri(uri)?.isMissing ?: true)
+        assertFalse(parseWikilinkUri(uri)?.isSection ?: true)
         assertNull(parseWikilinkUri("https://example.com"))
         assertNull(parseWikilinkUri("gitnote://other?name=Nota"))
     }

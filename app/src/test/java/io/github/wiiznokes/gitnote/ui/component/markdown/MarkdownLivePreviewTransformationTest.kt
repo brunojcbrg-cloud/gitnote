@@ -145,6 +145,31 @@ class MarkdownLivePreviewTransformationTest {
     }
 
     @Test
+    fun allWikilinkFormsPreserveOffsetMappingsInsideAndOutsideTheActiveLine() {
+        val cases = listOf(
+            "[[Nome]]" to "Nome",
+            "[[Nome|apelido]]" to "apelido",
+            "[[Nome#Secao]]" to "Nome",
+            "[[Nome#Secao|apelido]]" to "apelido",
+            "[[#Secao]]" to "Secao",
+            "[[#Secao|apelido]]" to "apelido",
+        )
+
+        cases.forEach { (wikilink, display) ->
+            val source = "$wikilink\nplain"
+            val insideLines = activeMarkdownLines(source, 2, 2)
+            val outsideLines = activeMarkdownLines(source, source.lastIndex, source.lastIndex)
+            val inside = transform(source, insideLines)
+            val outside = transform(source, outsideLines)
+
+            assertEquals(source, inside.text.text, "inside $wikilink")
+            assertEquals("$display\nplain", outside.text.text, "outside $wikilink")
+            assertMappingsAreSafeAndMonotonic(source, inside.text.text, inside.offsetMapping)
+            assertMappingsAreSafeAndMonotonic(source, outside.text.text, outside.offsetMapping)
+        }
+    }
+
+    @Test
     fun utf16EmojiAndAccentsKeepValidOffsets() {
         val source = "**á😀**"
         val result = transform(source)

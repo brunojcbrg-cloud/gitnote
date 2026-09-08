@@ -78,20 +78,85 @@ class MarkdownScannerTest {
     }
 
     @Test
-    fun scansSimpleWikilinksWithOriginalCoordinates() {
-        val source = "See [[Nome da Nota]] and [[Outra]]."
-        val wikilinks = MarkdownScanner.scan(source).filter { it.kind == MdKind.WIKILINK }
+    fun scansAllSupportedWikilinkFormsWithOriginalCoordinates() {
+        val cases = listOf(
+            WikilinkCase("[[Nome]]", "Nome", "Nome", null, null),
+            WikilinkCase("[[Nome|apelido]]", "apelido", "Nome", null, "apelido"),
+            WikilinkCase("[[Nome#Secao]]", "Nome", "Nome", "Secao", null),
+            WikilinkCase(
+                "[[Nome#Secao|apelido]]",
+                "apelido",
+                "Nome",
+                "Secao",
+                "apelido",
+            ),
+            WikilinkCase("[[#Secao]]", "Secao", "", "Secao", null),
+            WikilinkCase("[[#Secao|apelido]]", "apelido", "", "Secao", "apelido"),
+        )
 
-        assertEquals(listOf("Nome da Nota", "Outra"), wikilinks.map { source.substring(it.range) })
-        assertEquals("[[", source.substring(wikilinks.first().markers.first()))
-        assertEquals("]]", source.substring(wikilinks.first().markers.last()))
+        cases.forEach { case ->
+            val wikilink = MarkdownScanner.scan(case.source)
+                .single { it.kind == MdKind.WIKILINK }
+
+            assertEquals(case.display, case.source.substring(wikilink.range), case.source)
+            assertEquals(
+                WikilinkParts(case.target, case.section, case.alias),
+                wikilink.wikilink,
+                case.source,
+            )
+            assertEquals(
+                case.source.removeRange(wikilink.markers.last())
+                    .removeRange(wikilink.markers.first()),
+                case.display,
+                case.source,
+            )
+        }
     }
 
     @Test
-    fun ignoresOutOfScopeAndUnsafeWikilinkForms() {
-        val source = "[[Nome|alias]] [[Nome#secao]] ![[embed]] \\[[escaped]] [[ ]] [[unclosed"
+    fun parsesAccentsEmojiHashInAliasAndSpacesInTarget() {
+        val cases = listOf(
+            WikilinkCase(
+                "[[Exame físico|Inspeção e Percussão 🩺]]",
+                "Inspeção e Percussão 🩺",
+                "Exame físico",
+                null,
+                "Inspeção e Percussão 🩺",
+            ),
+            WikilinkCase(
+                "[[Nome#Secao|passo #2]]",
+                "passo #2",
+                "Nome",
+                "Secao",
+                "passo #2",
+            ),
+        )
+
+        cases.forEach { case ->
+            val wikilink = MarkdownScanner.scan(case.source)
+                .single { it.kind == MdKind.WIKILINK }
+            assertEquals(case.display, case.source.substring(wikilink.range))
+            assertEquals(WikilinkParts(case.target, case.section, case.alias), wikilink.wikilink)
+        }
+    }
+
+    @Test
+    fun ignoresDegenerateEmbeddedEscapedAndUnclosedWikilinks() {
+        val source = "[[]] [[|]] [[#]] [[|alias]] [[#|alias]] [[ ]] ![[embed]] " +
+            "\\[[escaped]] stray ]] [[unclosed"
 
         assertFalse(MarkdownScanner.scan(source).any { it.kind == MdKind.WIKILINK })
+    }
+
+    @Test
+    fun emptyAliasWinsAndProducesAnEmptyContiguousDisplayRange() {
+        val noteLink = MarkdownScanner.scan("[[Nome|]]").single()
+        val sectionLink = MarkdownScanner.scan("[[#Secao|]]").single()
+
+        assertTrue(noteLink.range.isEmpty())
+        assertEquals(WikilinkParts("Nome", null, ""), noteLink.wikilink)
+        assertTrue(sectionLink.range.isEmpty())
+        assertEquals(WikilinkParts("", "Secao", ""), sectionLink.wikilink)
     }
 
     @Test
@@ -119,4 +184,12 @@ class MarkdownScannerTest {
         assertTrue(spans.isNotEmpty())
         assertTrue(elapsedMillis < 2_000, "24k scan took ${elapsedMillis}ms")
     }
+
+    private data class WikilinkCase(
+        val source: String,
+        val display: String,
+        val target: String,
+        val section: String?,
+        val alias: String?,
+    )
 }

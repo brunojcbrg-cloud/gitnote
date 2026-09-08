@@ -263,16 +263,17 @@ object MarkdownScanner {
                 is WikilinkOpen -> {
                     if (startsWith(text, index, end, "]]")) {
                         val contentStart = current.markerStart + 2
-                        val content = text.substring(contentStart, index)
-                        if (content.isNotBlank() && '|' !in content && '#' !in content) {
+                        val parsed = parseWikilink(text, contentStart, index)
+                        if (parsed != null) {
                             spans += MdSpan(
                                 kind = MdKind.WIKILINK,
-                                range = contentStart until index,
+                                range = parsed.displayStart until parsed.displayEnd,
                                 markers = listOf(
-                                    current.markerStart until contentStart,
-                                    index until index + 2,
+                                    current.markerStart until parsed.displayStart,
+                                    parsed.displayEnd until index + 2,
                                 ),
                                 line = line,
+                                wikilink = parsed.parts,
                             )
                         }
                         index += 2
@@ -283,6 +284,58 @@ object MarkdownScanner {
                 }
             }
         }
+    }
+
+    private fun parseWikilink(text: String, contentStart: Int, contentEnd: Int): ParsedWikilink? {
+        val aliasSeparator = indexOf(text, '|', contentStart, contentEnd)
+        val targetAndSectionEnd = aliasSeparator ?: contentEnd
+        val sectionSeparator = indexOf(text, '#', contentStart, targetAndSectionEnd)
+        val targetEnd = sectionSeparator ?: targetAndSectionEnd
+
+        val rawTarget = text.substring(contentStart, targetEnd)
+        val target = if (rawTarget.isBlank()) "" else rawTarget
+        val section = sectionSeparator?.let { text.substring(it + 1, targetAndSectionEnd) }
+        val alias = aliasSeparator?.let { text.substring(it + 1, contentEnd) }
+
+        if (target.isEmpty() && section.isNullOrBlank()) return null
+
+        val displayStart: Int
+        val displayEnd: Int
+        when {
+            aliasSeparator != null -> {
+                displayStart = aliasSeparator + 1
+                displayEnd = contentEnd
+            }
+            target.isNotEmpty() -> {
+                displayStart = contentStart
+                displayEnd = targetEnd
+            }
+            else -> {
+                displayStart = (sectionSeparator ?: return null) + 1
+                displayEnd = targetAndSectionEnd
+            }
+        }
+        return ParsedWikilink(
+            displayStart = displayStart,
+            displayEnd = displayEnd,
+            parts = WikilinkParts(
+                target = target,
+                section = section,
+                alias = alias,
+            ),
+        )
+    }
+
+    private fun indexOf(
+        text: String,
+        character: Char,
+        start: Int,
+        end: Int,
+    ): Int? {
+        for (index in start until end) {
+            if (text[index] == character) return index
+        }
+        return null
     }
 
     private fun openingDelimiter(text: String, index: Int, end: Int): Pair<MdKind, Int>? =
@@ -368,4 +421,10 @@ object MarkdownScanner {
     private data class WikilinkOpen(
         val markerStart: Int,
     ) : InlineOpen
+
+    private data class ParsedWikilink(
+        val displayStart: Int,
+        val displayEnd: Int,
+        val parts: WikilinkParts,
+    )
 }
