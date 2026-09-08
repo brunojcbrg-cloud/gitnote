@@ -1,11 +1,21 @@
 # Workflow proprio do fork (nao existe no upstream).
 #
-# Compila a variante "nightly" (release otimizado, assinado com a chave versionada no
-# repo) e publica como release do GitHub, para que o Obtainium detecte a atualizacao no
-# celular.
+# Estrutura em tres jobs para que NADA seja publicado sem testes verdes:
 #
-# Arquivo separado de proposito: editar nightly.yml geraria conflito a cada merge do
-# upstream. Aqui nao ha conflito porque o upstream nao conhece este arquivo.
+#   rust-tests ─┐
+#               ├─> publish   (so roda se os dois passarem)
+#   build ──────┘
+#
+# O job "build" compila a lib Rust, roda os testes unitarios JVM e so entao
+# monta o APK, que sobe como artefato. O job "publish" depende dos dois e e o
+# unico que cria o release. Se qualquer teste falhar, o release nao acontece.
+#
+# Os dois jobs de teste correm em paralelo, entao o portao custa pouco tempo de
+# relogio: a compilacao longa nao fica esperando os testes de Rust.
+#
+# Arquivo separado de proposito: editar nightly.yml geraria conflito a cada
+# merge do upstream. Aqui nao ha conflito porque o upstream nao conhece este
+# arquivo.
 
 name: Fork Release
 
@@ -35,10 +45,27 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fork-release:
+  # ---------------------------------------------------------------- testes Rust
+  rust-tests:
+    name: Rust tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup update
+      - uses: taiki-e/install-action@just
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./app/src/main/rust/"
+
+      - name: Run tests
+        working-directory: "./app/src/main/rust/"
+        run: cargo test --verbose
+
+  # ------------------------------------------------- testes JVM + build do APK
+  build:
+    name: Unit tests + APK
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -72,6 +99,20 @@ jobs:
           unzip -q "./android-ndk-${{ steps.versions.outputs.ndk }}-linux.zip"
           make SOURCE_DATE_EPOCH=0 NDK_PATH="$(pwd)/android-ndk-${{ steps.versions.outputs.ndk }}/toolchains/llvm/prebuilt/linux-x86_64/bin" DEBUG=0 -C app/src/main/rust build_install
 
+      # PORTAO: roda antes de montar o APK. Se falhar, o job para aqui e o job
+      # "publish" nunca chega a executar.
+      - name: Run unit tests
+        run: ./gradlew testNightlyUnitTest --stacktrace
+
+      # O relatorio so interessa quando algo quebra.
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report-${{ github.run_number }}
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+
       - name: Build App
         run: |
           ./gradlew assembleNightly
@@ -79,13 +120,26 @@ jobs:
           mkdir -p packages
           mv app/build/outputs/apk/nightly/app-nightly.apk packages/gitnote-fork-${{ github.run_number }}.apk
 
-      # Guarda o APK como artefato tambem: se a publicacao do release falhar, o binario
-      # que ja custou ~20 min de compilacao nao se perde.
       - uses: actions/upload-artifact@v7
         with:
           name: gitnote-fork-${{ github.run_number }}
           path: packages/*
           if-no-files-found: error
+
+  # ------------------------------------------------------------------ publicar
+  publish:
+    name: Publish release
+    needs: [rust-tests, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: gitnote-fork-${{ github.run_number }}
+          path: packages
 
       - name: Publish release
         run: |
@@ -106,6 +160,7 @@ jobs:
 
           ${{ inputs.note }}
 
+          Testes JVM e Rust passaram antes desta publicacao.
           Instala ao lado do Gitnote oficial, sem substitui-lo.
           EOF
 
