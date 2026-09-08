@@ -12,6 +12,7 @@ import io.github.wiiznokes.gitnote.ui.model.NoteMinWidth
 import io.github.wiiznokes.gitnote.ui.model.NoteViewType
 import io.github.wiiznokes.gitnote.ui.model.SortOrder
 import io.github.wiiznokes.gitnote.ui.model.StorageConfiguration
+import io.github.wiiznokes.gitnote.ui.theme.MarkdownTheme
 import io.github.wiiznokes.gitnote.ui.theme.Theme
 import kotlinx.coroutines.runBlocking
 import kotlin.io.path.pathString
@@ -178,6 +179,8 @@ class AppPreferences(
     }
 
     val isReadOnlyModeActive = booleanPreference("isReadOnlyModeActive", false)
+    val isMarkdownThemeActive = booleanPreference("isMarkdownThemeActive", true)
+    val markdownColorTheme = enumPreference("markdownColorTheme", MarkdownTheme.MATERIAL)
 
 }
 

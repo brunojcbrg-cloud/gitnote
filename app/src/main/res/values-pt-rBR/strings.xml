@@ -48,6 +48,14 @@
     <string name="az_sort_order">A-Z</string>
     <string name="delete_this_folder">Deletar esta pasta</string>
     <string name="theme">Tema</string>
+    <string name="markdown_theme_enabled">Edição Markdown temática</string>
+    <string name="markdown_theme_enabled_subtitle">Oculta os marcadores Markdown fora da linha ativa e colore a sintaxe</string>
+    <string name="markdown_color_theme">Tema de cores do Markdown</string>
+    <string name="markdown_theme_activate">Ativar edição Markdown temática</string>
+    <string name="markdown_theme_deactivate">Desativar edição Markdown temática</string>
+    <string name="markdown_theme_material">Material</string>
+    <string name="markdown_theme_obsidian">Obsidian</string>
+    <string name="markdown_theme_solarized">Solarized</string>
     <string name="delete_this_note">Deletar esta nota</string>
     <string name="select_multiple_notes">Selecionar múltiplas notas</string>
     <string name="error_invalid_link">Link inválido, não pôde ser aberto</string>

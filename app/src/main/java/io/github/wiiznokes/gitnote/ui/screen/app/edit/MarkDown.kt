@@ -22,15 +22,26 @@ import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Title
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
+import io.github.wiiznokes.gitnote.R
+import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
+import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
+import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 
 @Composable
@@ -56,11 +67,37 @@ fun MarkDownContent(
             }
         }
     } else {
+        val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
+        val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
+        val colors = markdownColorScheme(markdownTheme)
+        val baseFontSize = MaterialTheme.typography.bodyLarge.fontSize
+        val visualTransformation = remember(
+            textContent.text,
+            textContent.selection,
+            colors,
+            isMarkdownThemeActive,
+            baseFontSize,
+        ) {
+            if (!isMarkdownThemeActive) {
+                VisualTransformation.None
+            } else {
+                MarkdownLivePreviewTransformation(
+                    colors = colors,
+                    activeLines = activeMarkdownLines(
+                        text = textContent.text,
+                        selectionStart = textContent.selection.start,
+                        selectionEnd = textContent.selection.end,
+                    ),
+                    baseFontSize = baseFontSize,
+                )
+            }
+        }
         GenericTextField(
             vm = vm,
             textFocusRequester = textFocusRequester,
             onFinished = onFinished,
-            textContent = textContent
+            textContent = textContent,
+            visualTransformation = visualTransformation,
         )
     }
 }
@@ -72,6 +109,7 @@ fun TextFormatRow(
     modifier: Modifier = Modifier,
     textFormatExpanded: MutableState<Boolean>
 ) {
+    val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
 
     Row(
         modifier = modifier
@@ -99,6 +137,22 @@ fun TextFormatRow(
         )
 
         SmallSeparator()
+
+        SmallButton(
+            onClick = { vm.setMarkdownTheme(!isMarkdownThemeActive) },
+            imageVector = if (isMarkdownThemeActive) {
+                Icons.Default.Palette
+            } else {
+                Icons.Outlined.Palette
+            },
+            contentDescription = stringResource(
+                if (isMarkdownThemeActive) {
+                    R.string.markdown_theme_deactivate
+                } else {
+                    R.string.markdown_theme_activate
+                }
+            ),
+        )
 
         SmallButton(
             onClick = { vm.onLink() },

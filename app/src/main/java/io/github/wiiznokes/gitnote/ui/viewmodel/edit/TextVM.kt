@@ -273,6 +273,12 @@ open class TextVM() : ViewModel() {
         }
     }
 
+    fun setMarkdownTheme(value: Boolean) {
+        viewModelScope.launch {
+            prefs.isMarkdownThemeActive.update(value)
+        }
+    }
+
     private val storageManager: StorageManager = MyApp.appModule.storageManager
     private val uiHelper: UiHelper = MyApp.appModule.uiHelper
     val prefs = MyApp.appModule.appPreferences

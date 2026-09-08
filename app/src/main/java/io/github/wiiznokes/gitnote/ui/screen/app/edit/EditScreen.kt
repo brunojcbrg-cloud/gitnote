@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.manager.ExtensionType
@@ -293,6 +294,7 @@ fun GenericTextField(
     onFinished: () -> Unit,
     isReadOnlyModeActive: Boolean = false,
     textContent: TextFieldValue,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     TextField(
         modifier = Modifier
@@ -311,6 +313,7 @@ fun GenericTextField(
         keyboardActions = KeyboardActions(
             onDone = { vm.save(onSuccess = onFinished) }
         ),
+        visualTransformation = visualTransformation,
         readOnly = isReadOnlyModeActive
     )
 

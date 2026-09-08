@@ -38,6 +38,7 @@ import io.github.wiiznokes.gitnote.ui.destination.SettingsDestination
 import io.github.wiiznokes.gitnote.ui.model.FileExtension
 import io.github.wiiznokes.gitnote.ui.model.NoteMinWidth
 import io.github.wiiznokes.gitnote.ui.model.SortOrder
+import io.github.wiiznokes.gitnote.ui.theme.MarkdownTheme
 import io.github.wiiznokes.gitnote.ui.theme.Theme
 import io.github.wiiznokes.gitnote.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
@@ -180,6 +181,27 @@ fun SettingsScreen(
                 options = FileExtension.entries,
                 onOptionClick = {
                     vm.update { vm.prefs.defaultExtension.update(it.text) }
+                }
+            )
+
+            val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
+            ToggleableSettings(
+                title = stringResource(R.string.markdown_theme_enabled),
+                subtitle = stringResource(R.string.markdown_theme_enabled_subtitle),
+                checked = isMarkdownThemeActive,
+                onCheckedChange = {
+                    vm.update { vm.prefs.isMarkdownThemeActive.update(it) }
+                }
+            )
+
+            val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
+            MultipleChoiceSettings(
+                title = stringResource(R.string.markdown_color_theme),
+                subtitle = markdownTheme.toString(),
+                startIcon = Icons.Default.Palette,
+                options = MarkdownTheme.entries,
+                onOptionClick = {
+                    vm.update { vm.prefs.markdownColorTheme.update(it) }
                 }
             )
 
