@@ -102,7 +102,7 @@ jobs:
       # PORTAO: roda antes de montar o APK. Se falhar, o job para aqui e o job
       # "publish" nunca chega a executar.
       - name: Run unit tests
-        run: ./gradlew testNightlyUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest --stacktrace
 
       # O relatorio so interessa quando algo quebra.
       - name: Upload test report on failure
