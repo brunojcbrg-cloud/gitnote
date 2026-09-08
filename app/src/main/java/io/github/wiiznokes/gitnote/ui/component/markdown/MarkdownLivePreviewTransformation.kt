@@ -95,7 +95,7 @@ class MarkdownLivePreviewTransformation(
         MdKind.QUOTE -> SpanStyle(color = colors.quote, fontStyle = FontStyle.Italic)
         MdKind.BULLET, MdKind.ORDERED, MdKind.TASK_DONE, MdKind.TASK_TODO ->
             SpanStyle(color = colors.listMarker)
-        MdKind.LINK_TEXT -> SpanStyle(
+        MdKind.WIKILINK, MdKind.LINK_TEXT -> SpanStyle(
             color = colors.link,
             textDecoration = TextDecoration.Underline,
         )

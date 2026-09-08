@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
+import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.manager.ExtensionType
 import io.github.wiiznokes.gitnote.manager.extensionType
 import io.github.wiiznokes.gitnote.ui.component.RequestConfirmationDialog
@@ -64,6 +65,7 @@ private const val TAG = "EditScreen"
 fun EditScreen(
     editParams: EditParams,
     onFinished: () -> Unit,
+    onOpenNote: (Note) -> Unit = {},
 ) {
 
 
@@ -78,6 +80,10 @@ fun EditScreen(
     val showShouldQuitDialog = rememberSaveable {
         mutableStateOf(false)
     }
+    val showShouldOpenNoteDialog = rememberSaveable {
+        mutableStateOf(false)
+    }
+    var pendingOpenNote by rememberSaveable { mutableStateOf<Note?>(null) }
 
     RequestConfirmationDialog(
         expanded = showShouldQuitDialog,
@@ -86,6 +92,18 @@ fun EditScreen(
             vm.shouldSaveWhenQuitting = false
             onFinished()
         }
+    )
+
+    RequestConfirmationDialog(
+        expanded = showShouldOpenNoteDialog,
+        text = stringResource(R.string.confirmation_quit_edit_dialog),
+        onConfirmation = {
+            pendingOpenNote?.let { note ->
+                vm.shouldSaveWhenQuitting = false
+                pendingOpenNote = null
+                onOpenNote(note)
+            }
+        },
     )
 
     BackHandler {
@@ -231,6 +249,14 @@ fun EditScreen(
                             vm = vm,
                             textFocusRequester = textFocusRequester,
                             onFinished = onFinished,
+                            onOpenNote = { note ->
+                                if (vm.isPreviousNoteTheSame()) {
+                                    onOpenNote(note)
+                                } else {
+                                    pendingOpenNote = note
+                                    showShouldOpenNoteDialog.value = true
+                                }
+                            },
                             isReadOnlyModeActive = isReadOnlyModeActive,
                             textContent = textContent
                         )

@@ -184,6 +184,11 @@ object MarkdownScanner {
                     if (delimiter != null) {
                         open = DelimitedOpen(delimiter.first, index, delimiter.second)
                         index += delimiter.second
+                    } else if (startsWith(text, index, end, "[[") &&
+                        (index == start || (text[index - 1] != '!' && text[index - 1] != '\\'))
+                    ) {
+                        open = WikilinkOpen(markerStart = index)
+                        index += 2
                     } else if (text[index] == '[') {
                         open = LinkOpen(markerStart = index)
                         index++
@@ -250,6 +255,28 @@ object MarkdownScanner {
                         }
                         open = null
                         index++
+                    } else {
+                        index++
+                    }
+                }
+
+                is WikilinkOpen -> {
+                    if (startsWith(text, index, end, "]]")) {
+                        val contentStart = current.markerStart + 2
+                        val content = text.substring(contentStart, index)
+                        if (content.isNotBlank() && '|' !in content && '#' !in content) {
+                            spans += MdSpan(
+                                kind = MdKind.WIKILINK,
+                                range = contentStart until index,
+                                markers = listOf(
+                                    current.markerStart until contentStart,
+                                    index until index + 2,
+                                ),
+                                line = line,
+                            )
+                        }
+                        index += 2
+                        open = null
                     } else {
                         index++
                     }
@@ -336,5 +363,9 @@ object MarkdownScanner {
         val markerStart: Int,
         var textEnd: Int? = null,
         var urlStart: Int? = null,
+    ) : InlineOpen
+
+    private data class WikilinkOpen(
+        val markerStart: Int,
     ) : InlineOpen
 }

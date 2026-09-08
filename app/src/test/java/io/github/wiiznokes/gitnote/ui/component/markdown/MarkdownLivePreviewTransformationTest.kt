@@ -128,6 +128,23 @@ class MarkdownLivePreviewTransformationTest {
     }
 
     @Test
+    fun hidesWikilinkMarkersWithoutChangingTheRawCoordinates() {
+        val source = "Open [[Nome da Nota]] now"
+        val result = transform(source)
+
+        assertEquals("Open Nome da Nota now", result.text.text)
+        assertMappingsAreSafeAndMonotonic(source, result.text.text, result.offsetMapping)
+        assertTrue(result.text.spanStyles.any { it.item.color == colors.link })
+    }
+
+    @Test
+    fun revealsWikilinkMarkersOnTheActiveLine() {
+        val source = "Open [[Nome da Nota]]"
+
+        assertEquals(source, transform(source, setOf(0)).text.text)
+    }
+
+    @Test
     fun utf16EmojiAndAccentsKeepValidOffsets() {
         val source = "**á😀**"
         val result = transform(source)

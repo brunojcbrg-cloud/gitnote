@@ -61,6 +61,7 @@ abstract class RepoDatabase : RoomDatabase() {
                 config.functions.add(SQLiteFunction("rank", 1, Rank))
                 config.functions.add(SQLiteFunction("parentPath", 1, ParentPath))
                 config.functions.add(SQLiteFunction("fullName", 1, FullName))
+                config.functions.add(SQLiteFunction("caseFold", 1, CaseFold))
 
                 val options = RequerySQLiteOpenHelperFactory.ConfigurationOptions { config }
                 RequerySQLiteOpenHelperFactory(listOf(options)).create(configuration)

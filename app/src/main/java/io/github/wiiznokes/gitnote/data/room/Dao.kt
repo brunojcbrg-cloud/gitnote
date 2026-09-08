@@ -21,11 +21,16 @@ import io.requery.android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Locale
 
 
 private const val TAG = "Dao"
 
 private const val LIMIT_FILE_SIZE_DB = 2 * 1024 * 1024
+
+data class WikilinkCandidate(
+    val relativePath: String,
+)
 
 @Dao
 interface RepoDatabaseDao {
@@ -136,8 +141,37 @@ interface RepoDatabaseDao {
     )
     suspend fun isNoteExist(relativePath: String): Boolean
 
+    @Query("SELECT * FROM Notes WHERE relativePath = :relativePath")
+    suspend fun noteByRelativePath(relativePath: String): Note?
+
     @RawQuery(observedEntities = [Note::class])
     fun gridNotesRaw(query: SupportSQLiteQuery): PagingSource<Int, GridNote>
+
+    @RawQuery(observedEntities = [Note::class])
+    suspend fun wikilinkCandidatesRaw(query: SupportSQLiteQuery): List<WikilinkCandidate>
+
+    suspend fun wikilinkCandidates(names: Set<String>): List<WikilinkCandidate> {
+        val fileNames = names.asSequence()
+            .map { "$it.md".lowercase(Locale.ROOT) }
+            .distinct()
+            .toList()
+        if (fileNames.isEmpty()) return emptyList()
+
+        return fileNames.chunked(900)
+            .flatMap { chunk ->
+                val placeholders = List(chunk.size) { "?" }.joinToString(",")
+                val query = SimpleSQLiteQuery(
+                    """
+                    SELECT relativePath FROM Notes
+                    WHERE caseFold(fullName(relativePath)) IN ($placeholders)
+                    ORDER BY relativePath COLLATE NOCASE ASC, relativePath ASC
+                    """.trimIndent(),
+                    chunk.map { it as Any? }.toTypedArray(),
+                )
+                wikilinkCandidatesRaw(query)
+            }
+            .distinctBy { it.relativePath }
+    }
 
     fun gridNotes(
         currentNoteFolderRelativePath: String,
@@ -414,5 +448,17 @@ object FullName : SQLiteDatabase.Function {
         val path = args.getString(0) ?: return
 
         result.set(path.substringAfterLast("/"))
+    }
+}
+
+object CaseFold : SQLiteDatabase.Function {
+    override fun callback(
+        args: SQLiteDatabase.Function.Args?,
+        result: SQLiteDatabase.Function.Result?,
+    ) {
+        if (args == null || result == null) return
+
+        val value = args.getString(0) ?: return
+        result.set(value.lowercase(Locale.ROOT))
     }
 }

@@ -78,6 +78,33 @@ class MarkdownScannerTest {
     }
 
     @Test
+    fun scansSimpleWikilinksWithOriginalCoordinates() {
+        val source = "See [[Nome da Nota]] and [[Outra]]."
+        val wikilinks = MarkdownScanner.scan(source).filter { it.kind == MdKind.WIKILINK }
+
+        assertEquals(listOf("Nome da Nota", "Outra"), wikilinks.map { source.substring(it.range) })
+        assertEquals("[[", source.substring(wikilinks.first().markers.first()))
+        assertEquals("]]", source.substring(wikilinks.first().markers.last()))
+    }
+
+    @Test
+    fun ignoresOutOfScopeAndUnsafeWikilinkForms() {
+        val source = "[[Nome|alias]] [[Nome#secao]] ![[embed]] \\[[escaped]] [[ ]] [[unclosed"
+
+        assertFalse(MarkdownScanner.scan(source).any { it.kind == MdKind.WIKILINK })
+    }
+
+    @Test
+    fun codeKeepsPrecedenceOverWikilinks() {
+        val source = "`[[inline]]`\n```\n[[fenced]]\n```\n[[visible]]"
+        val spans = MarkdownScanner.scan(source)
+
+        assertEquals(listOf("visible"), spans.filter { it.kind == MdKind.WIKILINK }.map {
+            source.substring(it.range)
+        })
+    }
+
+    @Test
     fun scansTwentyFourThousandCharactersInLinearTime() {
         val line = "## Heading **emphasis** and `code`\n"
         val source = buildString {

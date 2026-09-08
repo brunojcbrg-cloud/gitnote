@@ -19,6 +19,7 @@ enum class MdKind {
     ORDERED,
     TASK_DONE,
     TASK_TODO,
+    WIKILINK,
     LINK_TEXT,
     LINK_URL,
 }

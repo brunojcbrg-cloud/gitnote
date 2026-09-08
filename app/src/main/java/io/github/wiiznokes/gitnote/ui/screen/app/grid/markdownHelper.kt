@@ -44,6 +44,7 @@ import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.markdownExtendedSpans
 import com.mikepenz.markdown.model.markdownInlineContent
 import com.mikepenz.markdown.model.markdownPadding
+import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
@@ -164,4 +165,61 @@ fun markdownTypographyScaled(
             )
             .toSpanStyle()
     )
+)
+
+@Composable
+fun markdownColorsThemed(
+    colors: MarkdownColorScheme,
+): MarkdownColors = markdownColor(
+    codeBackground = colors.codeBackground,
+    inlineCodeBackground = colors.codeBackground,
+)
+
+@Composable
+fun markdownTypographyThemed(
+    colors: MarkdownColorScheme,
+    scale: Float = 1f,
+): MarkdownTypography = markdownTypography(
+    h1 = MaterialTheme.typography.headlineLarge.copy(color = colors.h1),
+    h2 = MaterialTheme.typography.headlineMedium.copy(color = colors.h2),
+    h3 = MaterialTheme.typography.headlineSmall.copy(color = colors.h3),
+    h4 = MaterialTheme.typography.titleLarge.copy(color = colors.h4),
+    h5 = MaterialTheme.typography.titleMedium.copy(color = colors.h4),
+    h6 = MaterialTheme.typography.titleSmall.copy(color = colors.h4),
+    text = MaterialTheme.typography.bodyLarge.scaled(scale),
+    code = MaterialTheme.typography.bodyMedium
+        .scaled(scale)
+        .copy(
+            color = colors.code,
+            fontFamily = FontFamily.Monospace,
+        ),
+    inlineCode = MaterialTheme.typography.bodyLarge
+        .scaled(scale)
+        .copy(
+            color = colors.code,
+            fontFamily = FontFamily.Monospace,
+        ),
+    quote = MaterialTheme.typography.bodyMedium
+        .scaled(scale)
+        .copy(color = colors.quote)
+        .plus(SpanStyle(fontStyle = FontStyle.Italic)),
+    paragraph = MaterialTheme.typography.bodyLarge.scaled(scale),
+    ordered = MaterialTheme.typography.bodyLarge
+        .scaled(scale)
+        .copy(color = colors.listMarker),
+    bullet = MaterialTheme.typography.bodyLarge
+        .scaled(scale)
+        .copy(color = colors.listMarker),
+    list = MaterialTheme.typography.bodyLarge.scaled(scale),
+    table = MaterialTheme.typography.bodyLarge.scaled(scale),
+    textLink = TextLinkStyles(
+        style = MaterialTheme.typography.bodyLarge
+            .scaled(scale)
+            .copy(
+                color = colors.link,
+                fontWeight = FontWeight.Bold,
+                textDecoration = TextDecoration.Underline,
+            )
+            .toSpanStyle(),
+    ),
 )

@@ -2,16 +2,24 @@ package io.github.wiiznokes.gitnote.ui.viewmodel.edit
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.wiiznokes.gitnote.MyApp
+import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
+import io.github.wiiznokes.gitnote.ui.component.markdown.resolveWikilinkTargets
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.viewmodel.viewModelFactory
+import kotlinx.coroutines.launch
 
 private const val TAG = "MarkDownVM"
 
 
 class MarkDownVM : TextVM {
+
+    private val dao = MyApp.appModule.repoDatabase.repoDatabaseDao
+    private val uiHelper = MyApp.appModule.uiHelper
 
     constructor(editType: EditType, previousNote: Note) : super(editType, previousNote)
 
@@ -71,6 +79,34 @@ class MarkDownVM : TextVM {
     fun onTaskList() {
         val newValue = onTaskList(content.value)
         super.onValueChange(newValue)
+    }
+
+    suspend fun resolveWikilinks(names: Set<String>): Map<String, String?> {
+        val candidates = dao.wikilinkCandidates(names)
+        return resolveWikilinkTargets(
+            names = names,
+            currentParentPath = previousNote.parentPath(),
+            candidatePaths = candidates.map { it.relativePath },
+        )
+    }
+
+    fun openResolvedWikilink(
+        relativePath: String,
+        name: String,
+        onOpenNote: (Note) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val note = dao.noteByRelativePath(relativePath)
+            if (note == null) {
+                showMissingWikilink(name)
+            } else {
+                onOpenNote(note)
+            }
+        }
+    }
+
+    fun showMissingWikilink(name: String) {
+        uiHelper.makeToast(uiHelper.getString(R.string.error_wikilink_not_found, name))
     }
 }
 
