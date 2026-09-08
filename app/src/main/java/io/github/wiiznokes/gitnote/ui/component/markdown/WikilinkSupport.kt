@@ -12,7 +12,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import com.mikepenz.markdown.model.MarkdownAnnotator
+import com.mikepenz.markdown.model.MarkdownAnnotatorConfig
 import com.mikepenz.markdown.model.markdownAnnotator
+import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.ast.findChildOfType
@@ -128,9 +130,12 @@ fun resolveWikilinkTargets(
 }
 
 @Composable
-fun missingWikilinkAnnotator(warningColor: Color): MarkdownAnnotator {
+fun missingWikilinkAnnotator(
+    warningColor: Color,
+    config: MarkdownAnnotatorConfig = markdownAnnotatorConfig(),
+): MarkdownAnnotator {
     val uriHandler = LocalUriHandler.current
-    return remember(uriHandler, warningColor) {
+    return remember(uriHandler, warningColor, config) {
         val linkStyles = TextLinkStyles(
             style = SpanStyle(
                 color = warningColor,
@@ -142,7 +147,7 @@ fun missingWikilinkAnnotator(warningColor: Color): MarkdownAnnotator {
             (link as? LinkAnnotation.Url)?.url?.let(uriHandler::openUri)
         }
 
-        markdownAnnotator { content, child ->
+        markdownAnnotator(config = config) { content, child ->
             if (child.type != MarkdownElementTypes.INLINE_LINK) {
                 return@markdownAnnotator false
             }
