@@ -1,0 +1,117 @@
+# Workflow proprio do fork (nao existe no upstream).
+#
+# Compila a variante "nightly" (release otimizado, assinado com a chave versionada no
+# repo) e publica como release do GitHub, para que o Obtainium detecte a atualizacao no
+# celular.
+#
+# Arquivo separado de proposito: editar nightly.yml geraria conflito a cada merge do
+# upstream. Aqui nao ha conflito porque o upstream nao conhece este arquivo.
+
+name: Fork Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Nota que aparece no release (opcional)"
+        required: false
+        type: string
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "**.md"
+      - "metadata/**"
+      - ".vscode/**"
+
+concurrency:
+  group: ${{ github.workflow }}-fork-release
+  cancel-in-progress: true
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fork-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5.6.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: gradle
+
+      - name: Read versions from files
+        id: versions
+        run: |
+          echo "rust=$(cat app/src/main/rust/RUST_VERSION)" >> $GITHUB_OUTPUT
+          echo "ndk=$(cat app/src/main/rust/NDK_VERSION)" >> $GITHUB_OUTPUT
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.versions.outputs.rust }}
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./app/src/main/rust/"
+
+      - name: Compile Rust lib
+        run: |
+          wget -q "https://dl.google.com/android/repository/android-ndk-${{ steps.versions.outputs.ndk }}-linux.zip"
+          unzip -q "./android-ndk-${{ steps.versions.outputs.ndk }}-linux.zip"
+          make SOURCE_DATE_EPOCH=0 NDK_PATH="$(pwd)/android-ndk-${{ steps.versions.outputs.ndk }}/toolchains/llvm/prebuilt/linux-x86_64/bin" DEBUG=0 -C app/src/main/rust build_install
+
+      - name: Build App
+        run: |
+          ./gradlew assembleNightly
+
+          mkdir -p packages
+          mv app/build/outputs/apk/nightly/app-nightly.apk packages/gitnote-fork-${{ github.run_number }}.apk
+
+      # Guarda o APK como artefato tambem: se a publicacao do release falhar, o binario
+      # que ja custou ~20 min de compilacao nao se perde.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gitnote-fork-${{ github.run_number }}
+          path: packages/*
+          if-no-files-found: error
+
+      - name: Publish release
+        run: |
+          TAG="b${{ github.run_number }}"
+
+          # versionCode = 20 + run_number, definido em app/build.gradle.kts
+          VERSION_CODE=$(( 20 + ${{ github.run_number }} ))
+
+          cat > notes.md <<EOF
+          Build automatica do fork.
+
+          | | |
+          |---|---|
+          | versionName | \`26.08.1.${{ github.run_number }}\` |
+          | versionCode | \`$VERSION_CODE\` |
+          | commit | \`${{ github.sha }}\` |
+          | applicationId | \`io.github.wiiznokes.gitnote.nightly\` |
+
+          ${{ inputs.note }}
+
+          Instala ao lado do Gitnote oficial, sem substitui-lo.
+          EOF
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
+          gh release create "$TAG" --title "$TAG — 26.08.1.${{ github.run_number }}" \
+            --verify-tag --notes-file notes.md --target "$GITHUB_SHA" \
+            ./packages/*

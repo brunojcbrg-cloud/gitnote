@@ -51,8 +51,13 @@ android {
         applicationId = "io.github.wiiznokes.gitnote"
         minSdk = 30
 
-        versionCode = 20
-        versionName = "26.08.1"
+        // Fork: o versionCode precisa crescer a cada build, senao nenhum atualizador
+        // (Obtainium, F-Droid) detecta que existe versao nova. GITHUB_RUN_NUMBER e
+        // monotonico por workflow; fora do CI vale 0 e mantem o comportamento original.
+        val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+
+        versionCode = 20 + buildNumber
+        versionName = if (buildNumber > 0) "26.08.1.$buildNumber" else "26.08.1"
 
         buildConfigField(
             "String",
