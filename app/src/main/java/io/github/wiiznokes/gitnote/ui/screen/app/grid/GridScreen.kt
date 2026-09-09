@@ -77,6 +77,7 @@ import io.github.wiiznokes.gitnote.ui.model.GridNote
 import io.github.wiiznokes.gitnote.ui.model.NoteViewType
 import io.github.wiiznokes.gitnote.ui.screen.app.DrawerScreen
 import io.github.wiiznokes.gitnote.ui.viewmodel.GridViewModel
+import io.github.wiiznokes.gitnote.ui.viewmodel.FlashcardViewModel
 
 
 private const val TAG = "GridScreen"
@@ -91,9 +92,12 @@ internal val topSpacerHeight = topBarHeight + 40.dp + 15.dp
 fun GridScreen(
     onSettingsClick: () -> Unit,
     onEditClick: (Note, EditType) -> Unit,
+    onFlashcardsClick: () -> Unit,
 ) {
 
     val vm: GridViewModel = viewModel()
+    val flashcardVm: FlashcardViewModel = viewModel()
+    val availableFlashcards by flashcardVm.availableCount.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
@@ -134,6 +138,8 @@ fun GridScreen(
                         vm = vm,
                         offset = offset.floatValue,
                         onEditClick = onEditClick,
+                        onFlashcardsClick = onFlashcardsClick,
+                        availableFlashcards = availableFlashcards,
                     )
                 }
 

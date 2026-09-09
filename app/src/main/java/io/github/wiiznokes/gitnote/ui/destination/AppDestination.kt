@@ -12,6 +12,15 @@ sealed interface AppDestination : Parcelable {
     data object Grid : AppDestination
 
     @Parcelize
+    data object FlashcardDecks : AppDestination
+
+    @Parcelize
+    data class FlashcardReview(
+        val deckPath: String,
+        val folderPath: String?,
+    ) : AppDestination
+
+    @Parcelize
     data class Edit(val params: EditParams) : AppDestination
 
     @Parcelize

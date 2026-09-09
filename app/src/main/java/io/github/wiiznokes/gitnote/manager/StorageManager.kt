@@ -7,6 +7,7 @@ import io.github.wiiznokes.gitnote.data.AppPreferences
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.data.room.NoteFolder
 import io.github.wiiznokes.gitnote.data.room.RepoDatabase
+import io.github.wiiznokes.gitnote.flashcard.ConcurrentNoteChangeException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -164,11 +165,20 @@ class StorageManager {
         update(
             commitMessage = "gitnote modified ${previous.relativePath}"
         ) {
-            dao.removeNote(previous)
-            dao.insertNote(new)
-
             val rootPath = prefs.repoPath()
             val previousFile = previous.toFileFs(rootPath)
+            val diskContent = runCatching { previousFile.readText() }.getOrElse {
+                return@update failure(it)
+            }
+            if (diskContent != previous.content) {
+                val error = ConcurrentNoteChangeException()
+                Log.w(TAG, "Refusing to overwrite externally changed note: ${previous.relativePath}")
+                uiHelper.makeToast(error.message ?: "Note changed on disk")
+                return@update failure(error)
+            }
+
+            dao.removeNote(previous)
+            dao.insertNote(new)
 
             previousFile.delete().onFailure {
                 val message =

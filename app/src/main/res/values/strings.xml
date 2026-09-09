@@ -178,5 +178,19 @@
     <string name="go_back">Go back</string>
     <string name="confirmation_quit_edit_dialog">Are you sure you want to quit ? You will lose all changes.</string>
     <string name="warning_folder_deletion">WARNING: Are you sure you want to continue? The directory will be deleted.</string>
+    <string name="flashcards">Flashcards</string>
+    <string name="all_folders">All folders</string>
+    <string name="flashcard_deck_count">%1$d available · %2$d total</string>
+    <string name="no_flashcards_in_filter">No flashcards were found in this folder.</string>
+    <string name="open_source_note">Open source note</string>
+    <string name="reveal_answer">Reveal answer</string>
+    <string name="review_complete">Review complete</string>
+    <string name="reviewed_cards_count">%1$d cards reviewed</string>
+    <string name="flashcard_again">Again</string>
+    <string name="flashcard_hard">Hard</string>
+    <string name="flashcard_good">Good</string>
+    <string name="flashcard_easy">Easy</string>
+    <string name="flashcard_one_minute">1 min</string>
+    <string name="flashcard_days_interval">%1$d day(s)</string>
 
 </resources>

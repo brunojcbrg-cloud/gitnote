@@ -158,4 +158,18 @@
     <string name="cancel">Cancelar</string>
     <string name="go_back">Voltar</string>
     <string name="git_author_name">Nome do autor Git</string>
+    <string name="flashcards">Flashcards</string>
+    <string name="all_folders">Todas as pastas</string>
+    <string name="flashcard_deck_count">%1$d disponíveis · %2$d no total</string>
+    <string name="no_flashcards_in_filter">Nenhum flashcard foi encontrado nesta pasta.</string>
+    <string name="open_source_note">Abrir nota de origem</string>
+    <string name="reveal_answer">Revelar resposta</string>
+    <string name="review_complete">Revisão concluída</string>
+    <string name="reviewed_cards_count">%1$d cards revisados</string>
+    <string name="flashcard_again">Errei</string>
+    <string name="flashcard_hard">Difícil</string>
+    <string name="flashcard_good">Bom</string>
+    <string name="flashcard_easy">Fácil</string>
+    <string name="flashcard_one_minute">1 min</string>
+    <string name="flashcard_days_interval">%1$d dia(s)</string>
 </resources>

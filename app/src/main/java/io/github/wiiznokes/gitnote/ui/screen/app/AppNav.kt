@@ -18,6 +18,8 @@ import io.github.wiiznokes.gitnote.ui.destination.EditParams
 import io.github.wiiznokes.gitnote.ui.destination.SettingsDestination
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.screen.app.edit.EditScreen
+import io.github.wiiznokes.gitnote.ui.screen.app.flashcard.FlashcardDeckScreen
+import io.github.wiiznokes.gitnote.ui.screen.app.flashcard.FlashcardReviewScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.GridScreen
 import io.github.wiiznokes.gitnote.ui.screen.settings.SettingsNav
 import io.github.wiiznokes.gitnote.ui.utils.crossFade
@@ -81,8 +83,29 @@ fun AppScreen(
                     onEditClick = { note, editType ->
                         navController.navigate(AppDestination.Edit(EditParams.Idle(note, editType)))
                     },
+                    onFlashcardsClick = {
+                        navController.navigate(AppDestination.FlashcardDecks)
+                    },
                 )
             }
+
+            is AppDestination.FlashcardDecks -> FlashcardDeckScreen(
+                onBack = { navController.pop() },
+                onReview = { deckPath, folderPath ->
+                    navController.navigate(AppDestination.FlashcardReview(deckPath, folderPath))
+                },
+            )
+
+            is AppDestination.FlashcardReview -> FlashcardReviewScreen(
+                deckPath = it.deckPath,
+                folderPath = it.folderPath,
+                onBack = { navController.pop() },
+                onOpenNote = { note ->
+                    navController.navigate(
+                        AppDestination.Edit(EditParams.Idle(note, EditType.Update))
+                    )
+                },
+            )
 
             is AppDestination.Edit -> EditScreen(
                 editParams = it.params,
@@ -122,6 +145,9 @@ private object AppNavTransitionSpec : NavTransitionSpec<AppDestination> {
                     crossFade()
                 }
             }
+
+            AppDestination.FlashcardDecks,
+            is AppDestination.FlashcardReview -> crossFade()
 
             is AppDestination.Settings -> slide(backWard = true)
         }
