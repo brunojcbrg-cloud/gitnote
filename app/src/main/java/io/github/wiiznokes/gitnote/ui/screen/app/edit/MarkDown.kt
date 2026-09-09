@@ -50,7 +50,6 @@ import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
 import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
 import io.github.wiiznokes.gitnote.ui.component.markdown.missingWikilinkAnnotator
-import io.github.wiiznokes.gitnote.ui.component.markdown.obsidianLineBreaksAnnotatorConfig
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.wikilinkNames
@@ -130,10 +129,7 @@ fun MarkDownContent(
                 } else {
                     markdownTypography()
                 }
-                val annotator = missingWikilinkAnnotator(
-                    warningColor = MaterialTheme.colorScheme.error,
-                    config = obsidianLineBreaksAnnotatorConfig,
-                )
+                val annotator = missingWikilinkAnnotator(MaterialTheme.colorScheme.error)
 
                 SelectionContainer {
                     MarkdownCustomInner(

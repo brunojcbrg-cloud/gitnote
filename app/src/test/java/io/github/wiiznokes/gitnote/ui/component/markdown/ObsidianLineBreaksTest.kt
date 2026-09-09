@@ -303,7 +303,7 @@ class ObsidianLineBreaksTest {
         source.buildMarkdownAnnotatedString(
             style = TextStyle.Default,
             annotator = if (obsidianLineBreaks) {
-                markdownAnnotator(config = obsidianLineBreaksAnnotatorConfig)
+                obsidianLineBreaksAnnotator()
             } else {
                 markdownAnnotator()
             },

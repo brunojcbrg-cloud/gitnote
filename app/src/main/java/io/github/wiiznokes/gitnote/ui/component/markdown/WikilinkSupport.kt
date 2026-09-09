@@ -12,9 +12,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import com.mikepenz.markdown.model.MarkdownAnnotator
-import com.mikepenz.markdown.model.MarkdownAnnotatorConfig
-import com.mikepenz.markdown.model.markdownAnnotator
-import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.ast.findChildOfType
@@ -130,12 +127,9 @@ fun resolveWikilinkTargets(
 }
 
 @Composable
-fun missingWikilinkAnnotator(
-    warningColor: Color,
-    config: MarkdownAnnotatorConfig = markdownAnnotatorConfig(),
-): MarkdownAnnotator {
+fun missingWikilinkAnnotator(warningColor: Color): MarkdownAnnotator {
     val uriHandler = LocalUriHandler.current
-    return remember(uriHandler, warningColor, config) {
+    return remember(uriHandler, warningColor) {
         val linkStyles = TextLinkStyles(
             style = SpanStyle(
                 color = warningColor,
@@ -147,16 +141,16 @@ fun missingWikilinkAnnotator(
             (link as? LinkAnnotation.Url)?.url?.let(uriHandler::openUri)
         }
 
-        markdownAnnotator(config = config) { content, child ->
+        obsidianLineBreaksAnnotator { content, child ->
             if (child.type != MarkdownElementTypes.INLINE_LINK) {
-                return@markdownAnnotator false
+                return@obsidianLineBreaksAnnotator false
             }
             val destination = child.findChildOfType(MarkdownElementTypes.LINK_DESTINATION)
                 ?.getUnescapedTextInNode(content)
-                ?: return@markdownAnnotator false
+                ?: return@obsidianLineBreaksAnnotator false
             val wikilink = parseWikilinkUri(destination)
                 ?.takeIf { it.isMissing }
-                ?: return@markdownAnnotator false
+                ?: return@obsidianLineBreaksAnnotator false
             val displayText = child.findChildOfType(MarkdownElementTypes.LINK_TEXT)
                 ?.getUnescapedTextInNode(content)
                 ?.removePrefix("[")
