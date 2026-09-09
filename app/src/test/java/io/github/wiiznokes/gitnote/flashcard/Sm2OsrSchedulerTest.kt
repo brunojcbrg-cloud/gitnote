@@ -85,5 +85,62 @@ class Sm2OsrSchedulerTest {
         assertTrue(easy.interval > withoutBonus)
     }
 
+    @Test
+    fun `45 delay is one day when due yesterday`() {
+        val previous = FlashcardSchedule(today.minusDays(1), 2, 210)
+        assertEquals(1, Sm2OsrScheduler.delayDays(previous, today))
+    }
+
+    @Test
+    fun `46 delay is ten days when due ten days ago`() {
+        val previous = FlashcardSchedule(today.minusDays(10), 2, 210)
+        assertEquals(10, Sm2OsrScheduler.delayDays(previous, today))
+    }
+
+    @Test
+    fun `47 future due date has no delay`() {
+        val previous = FlashcardSchedule(today.plusDays(1), 2, 210)
+        assertEquals(0, Sm2OsrScheduler.delayDays(previous, today))
+    }
+
+    @Test
+    fun `48 a card without schedule has no delay`() {
+        assertEquals(0, Sm2OsrScheduler.delayDays(null, today))
+    }
+
+    @Test
+    fun `49 overdue zero interval state matches all four plugin formulas`() {
+        val reviewDate = LocalDate.of(2026, 9, 15)
+        val previous = FlashcardSchedule(LocalDate.of(2026, 9, 8), 0, 230)
+        val delay = Sm2OsrScheduler.delayDays(previous, reviewDate)
+        val results = FlashcardRating.entries.associateWith {
+            Sm2OsrScheduler.next(previous, it, reviewDate, delayedDays = delay)
+        }
+
+        assertEquals(0 to 210, results.getValue(FlashcardRating.AGAIN).pair())
+        assertEquals(1 to 210, results.getValue(FlashcardRating.HARD).pair())
+        assertEquals(10 to 230, results.getValue(FlashcardRating.GOOD).pair())
+        assertEquals(26 to 250, results.getValue(FlashcardRating.EASY).pair())
+        assertTrue(
+            results.getValue(FlashcardRating.EASY).interval > 7,
+            "At 26 days the plugin could load-balance by plus or minus one day; GitNote does not.",
+        )
+    }
+
+    @Test
+    fun `50 preview and persisted calculation use the same nonzero delay`() {
+        val reviewDate = LocalDate.of(2026, 9, 15)
+        val previous = FlashcardSchedule(LocalDate.of(2026, 9, 8), 0, 230)
+        val displayed = Sm2OsrScheduler.previews(previous, reviewDate)
+            .single { it.rating == FlashcardRating.GOOD }
+        val source = "#flashcards\nPergunta::Resposta\n${previous.asComment()}"
+        val card = FlashcardParser.parse(source).single()
+        val written = FlashcardNoteUpdater.update(source, card, displayed.schedule)
+        val persisted = FlashcardParser.parse(written).single().schedule
+
+        assertTrue(Sm2OsrScheduler.delayDays(previous, reviewDate) > 0)
+        assertEquals(displayed.schedule, persisted)
+    }
+
     private fun FlashcardSchedule.pair() = interval to ease
 }

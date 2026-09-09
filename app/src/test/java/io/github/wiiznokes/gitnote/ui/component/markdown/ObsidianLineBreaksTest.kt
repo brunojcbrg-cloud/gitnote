@@ -4,6 +4,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import com.mikepenz.markdown.annotator.buildMarkdownAnnotatedString
 import com.mikepenz.markdown.model.markdownAnnotator
+import io.github.wiiznokes.gitnote.flashcard.FlashcardParser
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
@@ -293,6 +294,16 @@ class ObsidianLineBreaksTest {
             "```\n[[code]]\n```\n[visible](gitnote://note?name=visible)",
             preprocessWikilinksForReading(source),
         )
+    }
+
+    @Test
+    fun case58FlashcardMultilineAnswerKeepsItsRenderedLineBreak() {
+        val card = FlashcardParser.parse(
+            "#flashcards\nPergunta\n?\nPrimeira linha\nSegunda linha",
+        ).single()
+
+        assertEquals("Primeira linha\nSegunda linha", card.answer)
+        assertEquals("Primeira linha\nSegunda linha", renderFirstTextBlock(card.answer))
     }
 
     @Suppress("DEPRECATION")

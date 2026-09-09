@@ -1,6 +1,7 @@
 package io.github.wiiznokes.gitnote.flashcard
 
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
@@ -61,9 +62,19 @@ object Sm2OsrScheduler {
         previous: FlashcardSchedule?,
         today: LocalDate,
         initialEase: Int = BASE_EASE,
-    ): List<ScheduledReview> = FlashcardRating.entries.map { rating ->
-        ScheduledReview(rating, next(previous, rating, today, initialEase = initialEase))
+    ): List<ScheduledReview> {
+        val delayedDays = delayDays(previous, today)
+        return FlashcardRating.entries.map { rating ->
+            ScheduledReview(
+                rating,
+                next(previous, rating, today, delayedDays = delayedDays, initialEase = initialEase),
+            )
+        }
     }
+
+    fun delayDays(previous: FlashcardSchedule?, today: LocalDate): Int = previous?.let {
+        ChronoUnit.DAYS.between(it.dueDate, today).coerceAtLeast(0L).toInt()
+    } ?: 0
 
     /** Mirrors the plugin's note-ease contribution for a new card in an established note. */
     fun initialEase(schedulesInNote: List<FlashcardSchedule>): Int {

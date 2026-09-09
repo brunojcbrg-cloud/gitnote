@@ -192,5 +192,8 @@
     <string name="flashcard_easy">Easy</string>
     <string name="flashcard_one_minute">1 min</string>
     <string name="flashcard_days_interval">%1$d day(s)</string>
+    <string name="note_changed_on_disk">The note changed outside the app; the review was not saved.</string>
+    <string name="flashcard_card_count_changed">The note structure changed; its remaining cards were removed from this session.</string>
+    <string name="flashcard_schedule_unavailable">The review options are unavailable. Reopen the review and try again.</string>
 
 </resources>

@@ -11,7 +11,7 @@ object FlashcardParser {
     )
 
     fun parse(content: String, noteTitle: String = "Note"): List<ParsedFlashcard> {
-        if (content.isEmpty()) return emptyList()
+        if (!content.contains(FLASHCARD_TAG)) return emptyList()
 
         val lines = splitLines(content)
         val spans = MarkdownScanner.scan(content)
@@ -221,7 +221,8 @@ object FlashcardParser {
             }
             buildList {
                 add(noteTitle)
-                addAll(stack.map { it.second })
+                val headings = stack.map { it.second }
+                addAll(if (headings.firstOrNull() == noteTitle) headings.drop(1) else headings)
             }
         }
     }

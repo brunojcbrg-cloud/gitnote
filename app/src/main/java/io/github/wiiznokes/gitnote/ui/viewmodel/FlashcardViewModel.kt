@@ -1,11 +1,14 @@
 package io.github.wiiznokes.gitnote.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.wiiznokes.gitnote.MyApp
+import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.AppPreferences
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.data.room.NoteFolder
+import io.github.wiiznokes.gitnote.flashcard.ConcurrentNoteChangeException
 import io.github.wiiznokes.gitnote.flashcard.FlashcardParser
 import io.github.wiiznokes.gitnote.flashcard.FlashcardQueue
 import io.github.wiiznokes.gitnote.flashcard.FlashcardRating
@@ -22,6 +25,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
+
+private const val TAG = "FlashcardViewModel"
 
 data class FlashcardDeckSummary(
     val path: String,
@@ -43,6 +48,7 @@ data class FlashcardReviewState(
     val revealed: Boolean = false,
     val saving: Boolean = false,
     val error: String? = null,
+    val previews: List<ScheduledReview> = emptyList(),
 ) {
     val current: ReviewCard<Note>?
         get() = queue.firstOrNull()
@@ -55,7 +61,7 @@ class FlashcardViewModel : ViewModel() {
     private val uiHelper = MyApp.appModule.uiHelper
 
     private var allReviewCards: List<ReviewCard<Note>> = emptyList()
-    private val queue = FlashcardQueue<Note>(
+    private val queueEngine = FlashcardQueue<Note>(
         noteKey = Note::relativePath,
         noteContent = Note::content,
         noteTitle = Note::nameWithoutExtension,
@@ -64,6 +70,8 @@ class FlashcardViewModel : ViewModel() {
         },
     )
     private val initialLoad: Job
+    private var hasPendingReviewChanges = false
+    private var flushWhenReviewFinishesSaving = false
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -95,19 +103,18 @@ class FlashcardViewModel : ViewModel() {
     fun startReview(deckPath: String, folderPath: String?) {
         viewModelScope.launch {
             initialLoad.join()
+            flushWhenReviewFinishesSaving = false
             _selectedFolder.value = folderPath
             val queue = filteredCards(folderPath)
                 .filter { reviewCard -> reviewCard.card.decks.any { it.inDeck(deckPath) } }
                 .filter { it.card.isAvailable(LocalDate.now()) }
-                .sortedWith(
-                    compareBy<ReviewCard<Note>> { it.note.relativePath }
-                        .thenByDescending { it.card.sourceRange.first },
-                )
+                .let(queueEngine::orderForReview)
             _reviewState.value = FlashcardReviewState(
                 deckPath = deckPath,
                 queue = queue,
                 completed = 0,
                 total = queue.size,
+                previews = previewsFor(queue.firstOrNull()),
             )
         }
     }
@@ -123,16 +130,20 @@ class FlashcardViewModel : ViewModel() {
 
         viewModelScope.launch {
             _reviewState.value = state.copy(saving = true, error = null)
-            val initialEase = initialEaseFor(current)
-            val schedule = Sm2OsrScheduler.next(
-                previous = current.card.schedule,
-                rating = rating,
-                today = LocalDate.now(),
-                initialEase = initialEase,
-            )
+            val schedule = state.previews.firstOrNull { it.rating == rating }?.schedule
+            if (schedule == null) {
+                failReview(
+                    state,
+                    IllegalStateException(uiHelper.getString(R.string.flashcard_schedule_unavailable)),
+                )
+                return@launch
+            }
             val transition = runCatching {
-                queue.review(
+                queueEngine.review(
                     queue = state.queue,
+                    expectedCardCount = allReviewCards.count {
+                        it.note.relativePath == current.note.relativePath
+                    },
                     schedule = schedule,
                     requeueCurrent = rating == FlashcardRating.AGAIN,
                 )
@@ -141,14 +152,35 @@ class FlashcardViewModel : ViewModel() {
                 return@launch
             }
             val newNote = transition.updatedNote
+            if (newNote == null) {
+                val mismatch = checkNotNull(transition.cardCountMismatch)
+                Log.e(
+                    TAG,
+                    "Dropping remaining cards for ${mismatch.noteKey}: " +
+                        "expected ${mismatch.expected}, reparsed ${mismatch.actual}",
+                )
+                val message = uiHelper.getString(R.string.flashcard_card_count_changed)
+                uiHelper.makeToast(message)
+                _reviewState.value = state.copy(
+                    queue = transition.queue,
+                    saving = false,
+                    error = message,
+                    previews = previewsFor(transition.queue.firstOrNull()),
+                )
+                if (transition.queue.isEmpty() || flushWhenReviewFinishesSaving) {
+                    flushPendingReviewChanges()
+                }
+                return@launch
+            }
             val result = withContext(Dispatchers.IO) {
-                storageManager.updateNote(newNote, current.note)
+                storageManager.updateNoteLocalOnly(newNote, current.note)
             }
             val saveError = result.exceptionOrNull()
             if (saveError != null) {
                 failReview(state, saveError)
                 return@launch
             }
+            hasPendingReviewChanges = true
 
             allReviewCards = allReviewCards.filter {
                 it.note.relativePath != newNote.relativePath
@@ -161,18 +193,28 @@ class FlashcardViewModel : ViewModel() {
                 revealed = false,
                 saving = false,
                 error = null,
+                previews = previewsFor(transition.queue.firstOrNull()),
             )
+            if (transition.queue.isEmpty() || flushWhenReviewFinishesSaving) {
+                flushPendingReviewChanges()
+            }
         }
     }
 
-    fun previews(): List<ScheduledReview> {
-        val current = _reviewState.value?.current ?: return emptyList()
-        return Sm2OsrScheduler.previews(
-            previous = current.card.schedule,
-            today = LocalDate.now(),
-            initialEase = initialEaseFor(current),
-        )
+    fun onReviewScreenExit() {
+        flushWhenReviewFinishesSaving = true
+        flushPendingReviewChanges()
     }
+
+    fun previews(): List<ScheduledReview> = _reviewState.value?.previews.orEmpty()
+
+    private fun previewsFor(current: ReviewCard<Note>?): List<ScheduledReview> = current?.let {
+        Sm2OsrScheduler.previews(
+            previous = it.card.schedule,
+            today = LocalDate.now(),
+            initialEase = initialEaseFor(it),
+        )
+    }.orEmpty()
 
     private fun initialEaseFor(current: ReviewCard<Note>): Int = Sm2OsrScheduler.initialEase(
         allReviewCards.asSequence()
@@ -183,15 +225,17 @@ class FlashcardViewModel : ViewModel() {
 
     private suspend fun loadCards() {
         val (notes, noteFolders) = withContext(Dispatchers.IO) {
-            dao.allNotes() to dao.allNoteFolders()
+            dao.notesContainingTag("#flashcards") to dao.allNoteFolders()
         }
-        allReviewCards = notes.asSequence()
-            .filter { it.fileExtension() is FileExtension.Md }
-            .flatMap { note ->
-                FlashcardParser.parse(note.content, note.nameWithoutExtension())
-                    .mapIndexed { index, card -> ReviewCard(note, card, index) }
-            }
-            .toList()
+        allReviewCards = withContext(Dispatchers.Default) {
+            notes.asSequence()
+                .filter { it.fileExtension() is FileExtension.Md }
+                .flatMap { note ->
+                    FlashcardParser.parse(note.content, note.nameWithoutExtension())
+                        .mapIndexed { index, card -> ReviewCard(note, card, index) }
+                }
+                .toList()
+        }
         _folders.value = noteFolders.filter { it.relativePath.isNotEmpty() }
         rebuildDecks()
         _isLoading.value = false
@@ -232,8 +276,26 @@ class FlashcardViewModel : ViewModel() {
         parentDeck.isEmpty() || this == parentDeck || startsWith("$parentDeck/")
 
     private fun failReview(previousState: FlashcardReviewState, error: Throwable) {
-        val message = error.message ?: error.toString()
+        val message = if (error is ConcurrentNoteChangeException) {
+            uiHelper.getString(R.string.note_changed_on_disk)
+        } else {
+            error.message ?: error.toString()
+        }
         uiHelper.makeToast(message)
         _reviewState.value = previousState.copy(saving = false, error = message)
+    }
+
+    private fun flushPendingReviewChanges() {
+        if (!hasPendingReviewChanges) return
+        hasPendingReviewChanges = false
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                storageManager.commitAndPushPending("gitnote reviewed flashcards")
+            }
+            result.onFailure { error ->
+                hasPendingReviewChanges = true
+                Log.e(TAG, "Failed to commit or push pending flashcard reviews", error)
+            }
+        }
     }
 }

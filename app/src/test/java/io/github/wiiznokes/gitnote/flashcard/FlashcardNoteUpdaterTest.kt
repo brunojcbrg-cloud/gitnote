@@ -91,14 +91,11 @@ class FlashcardNoteUpdaterTest {
     }
 
     @Test
-    fun `34 refuses to overwrite a note changed on disk`() {
+    fun `34 production disk guard rejects changed content`() {
         val expected = "#flashcards\nPergunta::Resposta"
-        val card = FlashcardParser.parse(expected).single()
-        val result = FlashcardNoteUpdater.updateIfUnchanged(
+        val result = FlashcardNoteUpdater.checkUnchanged(
             expectedContent = expected,
             diskContent = "$expected\nmudança externa",
-            card = card,
-            schedule = schedule,
         )
         assertTrue(result.isFailure)
         assertIs<ConcurrentNoteChangeException>(result.exceptionOrNull())

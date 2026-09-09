@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -58,7 +59,7 @@ import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.flashcard.FlashcardRating
-import io.github.wiiznokes.gitnote.ui.component.markdown.missingWikilinkAnnotator
+import io.github.wiiznokes.gitnote.ui.component.markdown.obsidianLineBreaksAnnotator
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.MarkdownCustomInner
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
@@ -165,6 +166,9 @@ fun FlashcardReviewScreen(
     val vm: FlashcardViewModel = viewModel()
     val state by vm.reviewState.collectAsState()
     LaunchedEffect(deckPath, folderPath) { vm.startReview(deckPath, folderPath) }
+    DisposableEffect(vm) {
+        onDispose { vm.onReviewScreenExit() }
+    }
     val current = state?.current
 
     Scaffold(
@@ -393,7 +397,7 @@ private fun FlashcardMarkdown(vm: FlashcardViewModel, content: String) {
             } else {
                 markdownTypography()
             },
-            annotator = missingWikilinkAnnotator(MaterialTheme.colorScheme.error),
+            annotator = obsidianLineBreaksAnnotator(),
             modifier = Modifier.fillMaxWidth(),
         )
     }

@@ -26,19 +26,15 @@ object FlashcardNoteUpdater {
             content.substring(card.insertionOffset)
     }
 
-    fun updateIfUnchanged(
+    fun checkUnchanged(
         expectedContent: String,
         diskContent: String,
-        card: ParsedFlashcard,
-        schedule: FlashcardSchedule,
-    ): Result<String> {
+    ): Result<Unit> {
         if (diskContent != expectedContent) {
             return Result.failure(ConcurrentNoteChangeException())
         }
-        return runCatching { update(diskContent, card, schedule) }
+        return Result.success(Unit)
     }
 }
 
-class ConcurrentNoteChangeException : IllegalStateException(
-    "The note changed on disk before the flashcard review could be saved.",
-)
+class ConcurrentNoteChangeException : IllegalStateException()

@@ -2,6 +2,7 @@ package io.github.wiiznokes.gitnote.flashcard
 
 import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownScanner
 import io.github.wiiznokes.gitnote.ui.component.markdown.MdKind
+import kotlin.system.measureNanoTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -119,8 +120,9 @@ class FlashcardParserTest {
     @Test
     fun `36 parsing leaves editor markdown and wikilinks untouched`() {
         val source = "#flashcards\n## Título\n**Pergunta**::[[Resposta|apelido]]"
-        parse(source)
-        assertEquals("#flashcards\n## Título\n**Pergunta**::[[Resposta|apelido]]", source)
+        val card = parse(source).single()
+        assertEquals("**Pergunta**", card.question)
+        assertEquals("[[Resposta|apelido]]", card.answer)
         assertTrue(MarkdownScanner.scan(source).any { it.kind == MdKind.WIKILINK })
     }
 
@@ -135,7 +137,50 @@ class FlashcardParserTest {
     fun `38 a tagged note without cards remains empty and unchanged`() {
         val source = "#flashcards\nApenas uma nota comum."
         assertTrue(parse(source).isEmpty())
-        assertEquals("#flashcards\nApenas uma nota comum.", source)
+    }
+
+    @Test
+    fun `51 a one megabyte note without the tag takes the fast path`() {
+        val filler = "linha sem marcador\n".repeat(60_000)
+        val withoutTag = filler + "Pergunta::Resposta"
+        val withTag = "#flashcards\n" + filler + "Pergunta::Resposta"
+        assertTrue(withoutTag.length >= 1_000_000)
+
+        parse(withoutTag)
+        parse(withTag)
+        val withoutTagNanos = (1..3).minOf { measureNanoTime { parse(withoutTag) } }
+        val withTagNanos = (1..3).minOf { measureNanoTime { parse(withTag) } }
+
+        assertTrue(
+            withoutTagNanos * 3 < withTagNanos,
+            "No-tag fast path took $withoutTagNanos ns; tagged parse took $withTagNanos ns",
+        )
+    }
+
+    @Test
+    fun `52 a tag that exists only in fenced code does not select the note`() {
+        assertTrue(parse("```\n#flashcards\n```\nPergunta::Resposta").isEmpty())
+    }
+
+    @Test
+    fun `53 a tag that exists only in inline code does not select the note`() {
+        assertTrue(parse("`#flashcards`\nPergunta::Resposta").isEmpty())
+    }
+
+    @Test
+    fun `54 a tag in the middle of the note still selects its cards`() {
+        val cards = parse("Introdução\n#flashcards\nPergunta::Resposta")
+        assertEquals(1, cards.size)
+        assertEquals("Pergunta", cards.single().question)
+    }
+
+    @Test
+    fun `57 a first heading equal to the note title is not repeated in context`() {
+        val card = parse(
+            "#flashcards\n# Semiologia\n## Inspeção\nPergunta::Resposta",
+            noteTitle = "Semiologia",
+        ).single()
+        assertEquals(listOf("Semiologia", "Inspeção"), card.context)
     }
 
     private fun parse(source: String, noteTitle: String = "Nota") =

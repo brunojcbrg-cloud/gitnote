@@ -144,8 +144,11 @@ interface RepoDatabaseDao {
     @Query("SELECT * FROM Notes WHERE relativePath = :relativePath")
     suspend fun noteByRelativePath(relativePath: String): Note?
 
-    @Query("SELECT * FROM Notes ORDER BY relativePath COLLATE NOCASE ASC, relativePath ASC")
-    suspend fun allNotes(): List<Note>
+    @Query(
+        "SELECT * FROM Notes WHERE content LIKE '%' || :tag || '%' " +
+            "ORDER BY relativePath COLLATE NOCASE ASC, relativePath ASC",
+    )
+    suspend fun notesContainingTag(tag: String): List<Note>
 
     @Query("SELECT * FROM NoteFolders ORDER BY relativePath COLLATE NOCASE ASC, relativePath ASC")
     suspend fun allNoteFolders(): List<NoteFolder>

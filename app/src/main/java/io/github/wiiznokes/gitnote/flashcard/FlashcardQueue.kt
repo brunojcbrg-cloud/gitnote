@@ -7,48 +7,79 @@ data class ReviewCard<N>(
 )
 
 data class FlashcardQueueUpdate<N>(
-    val updatedNote: N,
+    val updatedNote: N?,
     val queue: List<ReviewCard<N>>,
     val cardsInUpdatedNote: List<ReviewCard<N>>,
+    val cardCountMismatch: FlashcardCardCountMismatch? = null,
 )
 
-/** Pure queue transition extracted from the review ViewModel. */
+data class FlashcardCardCountMismatch(
+    val noteKey: String,
+    val expected: Int,
+    val actual: Int,
+)
+
+/**
+ * Pure review-queue transition. Every range belonging to an updated note is discarded and
+ * rebuilt from a single parse before the caller is allowed to persist the new content.
+ */
 class FlashcardQueue<N>(
     private val noteKey: (N) -> String,
     private val noteContent: (N) -> String,
     private val noteTitle: (N) -> String,
     private val withContent: (N, String) -> N,
+    private val parse: (String, String) -> List<ParsedFlashcard> = FlashcardParser::parse,
 ) {
+    fun orderForReview(cards: List<ReviewCard<N>>): List<ReviewCard<N>> = cards.sortedWith(
+        compareBy<ReviewCard<N>> { noteKey(it.note) }
+            .thenByDescending { it.card.sourceRange.first },
+    )
+
     fun review(
         queue: List<ReviewCard<N>>,
+        expectedCardCount: Int,
         schedule: FlashcardSchedule,
         requeueCurrent: Boolean,
     ): FlashcardQueueUpdate<N> {
         val current = requireNotNull(queue.firstOrNull())
+        val currentNoteKey = noteKey(current.note)
         val newContent = FlashcardNoteUpdater.update(
             noteContent(current.note),
             current.card,
             schedule,
         )
         val updatedNote = withContent(current.note, newContent)
-        val remaining = queue.drop(1).map { queued ->
-            if (noteKey(queued.note) == noteKey(updatedNote)) queued.copy(note = updatedNote)
-            else queued
-        }.toMutableList()
-
-        if (requeueCurrent) {
-            val reparsed = FlashcardParser.parse(newContent, noteTitle(updatedNote))
-                .firstOrNull {
-                    it.sourceRange == current.card.sourceRange &&
-                        it.question == current.card.question && it.answer == current.card.answer
-                }
-            if (reparsed != null) {
-                remaining += ReviewCard(updatedNote, reparsed, current.indexInNote)
-            }
+        val reparsed = parse(newContent, noteTitle(updatedNote))
+        val remaining = queue.drop(1).let { cards ->
+            if (requeueCurrent) cards + current else cards
         }
 
-        val cardsInUpdatedNote = FlashcardParser.parse(newContent, noteTitle(updatedNote))
+        if (reparsed.size != expectedCardCount) {
+            return FlashcardQueueUpdate(
+                updatedNote = null,
+                queue = remaining.filterNot { noteKey(it.note) == currentNoteKey },
+                cardsInUpdatedNote = emptyList(),
+                cardCountMismatch = FlashcardCardCountMismatch(
+                    noteKey = currentNoteKey,
+                    expected = expectedCardCount,
+                    actual = reparsed.size,
+                ),
+            )
+        }
+
+        val remappedQueue = remaining.map { queued ->
+            if (noteKey(queued.note) != currentNoteKey) {
+                queued
+            } else {
+                ReviewCard(
+                    note = updatedNote,
+                    card = reparsed[queued.indexInNote],
+                    indexInNote = queued.indexInNote,
+                )
+            }
+        }
+        val cardsInUpdatedNote = reparsed
             .mapIndexed { index, card -> ReviewCard(updatedNote, card, index) }
-        return FlashcardQueueUpdate(updatedNote, remaining, cardsInUpdatedNote)
+        return FlashcardQueueUpdate(updatedNote, remappedQueue, cardsInUpdatedNote)
     }
 }

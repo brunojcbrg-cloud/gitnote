@@ -7,7 +7,7 @@ import io.github.wiiznokes.gitnote.data.AppPreferences
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.data.room.NoteFolder
 import io.github.wiiznokes.gitnote.data.room.RepoDatabase
-import io.github.wiiznokes.gitnote.flashcard.ConcurrentNoteChangeException
+import io.github.wiiznokes.gitnote.flashcard.FlashcardNoteUpdater
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -158,51 +158,103 @@ class StorageManager {
     /**
      * Best effort
      */
-    suspend fun updateNote(new: Note, previous: Note): Result<Unit> = locker.withLock {
+    suspend fun updateNote(
+        new: Note,
+        previous: Note,
+        refuseIfChangedOnDisk: Boolean = false,
+    ): Result<Unit> = locker.withLock {
         Log.d(TAG, "updateNote: previous = $previous")
         Log.d(TAG, "updateNote: new = $new")
 
         update(
             commitMessage = "gitnote modified ${previous.relativePath}"
         ) {
-            val rootPath = prefs.repoPath()
-            val previousFile = previous.toFileFs(rootPath)
-            val diskContent = runCatching { previousFile.readText() }.getOrElse {
-                return@update failure(it)
-            }
-            if (diskContent != previous.content) {
-                val error = ConcurrentNoteChangeException()
-                Log.w(TAG, "Refusing to overwrite externally changed note: ${previous.relativePath}")
-                uiHelper.makeToast(error.message ?: "Note changed on disk")
-                return@update failure(error)
-            }
+            applyNoteUpdate(new, previous, refuseIfChangedOnDisk)
+        }
+    }
 
-            dao.removeNote(previous)
-            dao.insertNote(new)
+    suspend fun updateNoteLocalOnly(new: Note, previous: Note): Result<Unit> = locker.withLock {
+        Log.d(TAG, "updateNoteLocalOnly: previous = $previous")
+        Log.d(TAG, "updateNoteLocalOnly: new = $new")
+        applyNoteUpdate(new, previous, refuseIfChangedOnDisk = true)
+    }
 
-            previousFile.delete().onFailure {
-                val message =
-                    uiHelper.getString(R.string.error_delete_file, previousFile.path, it.message)
-                Log.e(TAG, message)
-                uiHelper.makeToast(message)
+    suspend fun commitAndPushPending(commitMessage: String): Result<Unit> = locker.withLock {
+        val cred = prefs.cred()
+        val remoteUrl = prefs.remoteUrl.get()
+        val author = prefs.gitAuthor()
+
+        gitManager.commitAll(author, commitMessage).onFailure { error ->
+            error.message?.let { Log.e(TAG, it) }
+            _syncState.emit(SyncState.Error(error.message))
+            return@withLock failure(error)
+        }
+        prefs.databaseCommit.update(gitManager.lastCommit())
+
+        if (remoteUrl.isNotEmpty()) {
+            _syncState.emit(SyncState.Push)
+            gitManager.push(cred).onFailure { error ->
+                error.message?.let { Log.e(TAG, it) }
+                _syncState.emit(SyncState.Error(error.message))
+                return@withLock failure(error)
             }
-
-            val newFile = new.toFileFs(rootPath)
-            newFile.create().onFailure {
-                val message = uiHelper.getString(R.string.error_create_file, it.message)
-                Log.e(TAG, message)
-                uiHelper.makeToast(message)
-            }
-
-            newFile.write(new.content).onFailure {
-                val message = uiHelper.getString(R.string.error_write_file, it.message)
-                Log.e(TAG, message)
-                uiHelper.makeToast(message)
-            }
-
-            success(Unit)
         }
 
+        _syncState.emit(SyncState.Ok(false))
+        success(Unit)
+    }
+
+    private suspend fun applyNoteUpdate(
+        new: Note,
+        previous: Note,
+        refuseIfChangedOnDisk: Boolean,
+    ): Result<Unit> {
+        val rootPath = prefs.repoPath()
+        val previousFile = previous.toFileFs(rootPath)
+        if (refuseIfChangedOnDisk) {
+            val diskContent = runCatching { previousFile.readText() }.getOrElse {
+                return failure(it)
+            }
+            FlashcardNoteUpdater.checkUnchanged(previous.content, diskContent).onFailure { error ->
+                Log.w(TAG, "Refusing to overwrite externally changed note: ${previous.relativePath}")
+                return failure(error)
+            }
+        }
+
+        previousFile.delete().exceptionOrNull()?.let { error ->
+            if (!previousFile.exist()) {
+                Log.w(TAG, "Previous note file is already absent; continuing: ${previousFile.path}")
+            } else {
+                val message = uiHelper.getString(
+                    R.string.error_delete_file,
+                    previousFile.path,
+                    error.message,
+                )
+                Log.e(TAG, message)
+                uiHelper.makeToast(message)
+                return failure(error)
+            }
+        }
+
+        val newFile = new.toFileFs(rootPath)
+        newFile.create().onFailure { error ->
+            val message = uiHelper.getString(R.string.error_create_file, error.message)
+            Log.e(TAG, message)
+            uiHelper.makeToast(message)
+            return failure(error)
+        }
+
+        newFile.write(new.content).onFailure { error ->
+            val message = uiHelper.getString(R.string.error_write_file, error.message)
+            Log.e(TAG, message)
+            uiHelper.makeToast(message)
+            return failure(error)
+        }
+
+        dao.removeNote(previous)
+        dao.insertNote(new)
+
+        return success(Unit)
     }
 
     /**

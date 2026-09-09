@@ -172,4 +172,7 @@
     <string name="flashcard_easy">Fácil</string>
     <string name="flashcard_one_minute">1 min</string>
     <string name="flashcard_days_interval">%1$d dia(s)</string>
+    <string name="note_changed_on_disk">A nota mudou fora do app; a revisão não foi gravada.</string>
+    <string name="flashcard_card_count_changed">A estrutura da nota mudou; os cards restantes saíram desta sessão.</string>
+    <string name="flashcard_schedule_unavailable">As opções de revisão não estão disponíveis. Reabra a revisão e tente novamente.</string>
 </resources>
