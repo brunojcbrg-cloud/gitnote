@@ -6,10 +6,10 @@ import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.data.AppPreferences
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.data.room.NoteFolder
-import io.github.wiiznokes.gitnote.flashcard.FlashcardNoteUpdater
 import io.github.wiiznokes.gitnote.flashcard.FlashcardParser
+import io.github.wiiznokes.gitnote.flashcard.FlashcardQueue
 import io.github.wiiznokes.gitnote.flashcard.FlashcardRating
-import io.github.wiiznokes.gitnote.flashcard.ParsedFlashcard
+import io.github.wiiznokes.gitnote.flashcard.ReviewCard
 import io.github.wiiznokes.gitnote.flashcard.ScheduledReview
 import io.github.wiiznokes.gitnote.flashcard.Sm2OsrScheduler
 import io.github.wiiznokes.gitnote.ui.model.FileExtension
@@ -35,21 +35,16 @@ data class FlashcardDeckSummary(
         get() = path.substringAfterLast('/').ifEmpty { "#flashcards" }
 }
 
-data class ReviewCard(
-    val note: Note,
-    val card: ParsedFlashcard,
-)
-
 data class FlashcardReviewState(
     val deckPath: String,
-    val queue: List<ReviewCard>,
+    val queue: List<ReviewCard<Note>>,
     val completed: Int,
     val total: Int,
     val revealed: Boolean = false,
     val saving: Boolean = false,
     val error: String? = null,
 ) {
-    val current: ReviewCard?
+    val current: ReviewCard<Note>?
         get() = queue.firstOrNull()
 }
 
@@ -59,7 +54,15 @@ class FlashcardViewModel : ViewModel() {
     private val storageManager = MyApp.appModule.storageManager
     private val uiHelper = MyApp.appModule.uiHelper
 
-    private var allReviewCards: List<ReviewCard> = emptyList()
+    private var allReviewCards: List<ReviewCard<Note>> = emptyList()
+    private val queue = FlashcardQueue<Note>(
+        noteKey = Note::relativePath,
+        noteContent = Note::content,
+        noteTitle = Note::nameWithoutExtension,
+        withContent = { note, content ->
+            note.copy(content = content, lastModifiedTimeMillis = Instant.now().toEpochMilli())
+        },
+    )
     private val initialLoad: Job
 
     private val _isLoading = MutableStateFlow(true)
@@ -97,7 +100,7 @@ class FlashcardViewModel : ViewModel() {
                 .filter { reviewCard -> reviewCard.card.decks.any { it.inDeck(deckPath) } }
                 .filter { it.card.isAvailable(LocalDate.now()) }
                 .sortedWith(
-                    compareBy<ReviewCard> { it.note.relativePath }
+                    compareBy<ReviewCard<Note>> { it.note.relativePath }
                         .thenByDescending { it.card.sourceRange.first },
                 )
             _reviewState.value = FlashcardReviewState(
@@ -127,16 +130,17 @@ class FlashcardViewModel : ViewModel() {
                 today = LocalDate.now(),
                 initialEase = initialEase,
             )
-            val newContent = runCatching {
-                FlashcardNoteUpdater.update(current.note.content, current.card, schedule)
+            val transition = runCatching {
+                queue.review(
+                    queue = state.queue,
+                    schedule = schedule,
+                    requeueCurrent = rating == FlashcardRating.AGAIN,
+                )
             }.getOrElse { error ->
                 failReview(state, error)
                 return@launch
             }
-            val newNote = current.note.copy(
-                content = newContent,
-                lastModifiedTimeMillis = Instant.now().toEpochMilli(),
-            )
+            val newNote = transition.updatedNote
             val result = withContext(Dispatchers.IO) {
                 storageManager.updateNote(newNote, current.note)
             }
@@ -146,29 +150,13 @@ class FlashcardViewModel : ViewModel() {
                 return@launch
             }
 
-            val remaining = state.queue.drop(1).map { queued ->
-                if (queued.note.relativePath == newNote.relativePath) queued.copy(note = newNote)
-                else queued
-            }.toMutableList()
-
-            if (rating == FlashcardRating.AGAIN) {
-                val reparsed = FlashcardParser.parse(newContent, newNote.nameWithoutExtension())
-                    .firstOrNull {
-                        it.sourceRange == current.card.sourceRange &&
-                            it.question == current.card.question && it.answer == current.card.answer
-                    }
-                if (reparsed != null) remaining += ReviewCard(newNote, reparsed)
-            }
-
             allReviewCards = allReviewCards.filter {
                 it.note.relativePath != newNote.relativePath
-            } + FlashcardParser.parse(newContent, newNote.nameWithoutExtension()).map {
-                ReviewCard(newNote, it)
-            }
+            } + transition.cardsInUpdatedNote
             rebuildDecks()
 
             _reviewState.value = state.copy(
-                queue = remaining,
+                queue = transition.queue,
                 completed = state.completed + if (rating == FlashcardRating.AGAIN) 0 else 1,
                 revealed = false,
                 saving = false,
@@ -186,7 +174,7 @@ class FlashcardViewModel : ViewModel() {
         )
     }
 
-    private fun initialEaseFor(current: ReviewCard): Int = Sm2OsrScheduler.initialEase(
+    private fun initialEaseFor(current: ReviewCard<Note>): Int = Sm2OsrScheduler.initialEase(
         allReviewCards.asSequence()
             .filter { it.note.relativePath == current.note.relativePath }
             .mapNotNull { it.card.schedule }
@@ -201,7 +189,7 @@ class FlashcardViewModel : ViewModel() {
             .filter { it.fileExtension() is FileExtension.Md }
             .flatMap { note ->
                 FlashcardParser.parse(note.content, note.nameWithoutExtension())
-                    .map { ReviewCard(note, it) }
+                    .mapIndexed { index, card -> ReviewCard(note, card, index) }
             }
             .toList()
         _folders.value = noteFolders.filter { it.relativePath.isNotEmpty() }
@@ -235,7 +223,7 @@ class FlashcardViewModel : ViewModel() {
         _availableCount.value = allReviewCards.count { it.card.isAvailable(today) }
     }
 
-    private fun filteredCards(folderPath: String?): List<ReviewCard> = allReviewCards.filter {
+    private fun filteredCards(folderPath: String?): List<ReviewCard<Note>> = allReviewCards.filter {
         folderPath == null || it.note.parentPath() == folderPath ||
             it.note.parentPath().startsWith("$folderPath/")
     }
