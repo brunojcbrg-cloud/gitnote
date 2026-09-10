@@ -198,7 +198,14 @@ object MarkdownScanner {
                 }
 
                 is DelimitedOpen -> {
-                    if (matches(text, index, end, current.markerLength, current.kind)) {
+                    val closingLength = closingDelimiterLength(
+                        text = text,
+                        index = index,
+                        end = end,
+                        markerLength = current.markerLength,
+                        kind = current.kind,
+                    )
+                    if (closingLength != null) {
                         val contentStart = current.markerStart + current.markerLength
                         if (contentStart < index) {
                             spans += MdSpan(
@@ -206,12 +213,12 @@ object MarkdownScanner {
                                 range = contentStart until index,
                                 markers = listOf(
                                     current.markerStart until contentStart,
-                                    index until index + current.markerLength,
+                                    index until index + closingLength,
                                 ),
                                 line = line,
                             )
                         }
-                        index += current.markerLength
+                        index += closingLength
                         open = null
                     } else {
                         index++
@@ -343,29 +350,41 @@ object MarkdownScanner {
             startsWith(text, index, end, "***") -> MdKind.BOLD_ITALIC to 3
             startsWith(text, index, end, "**") -> MdKind.BOLD to 2
             startsWith(text, index, end, "~~") -> MdKind.STRIKE to 2
-            startsWith(text, index, end, "==") -> MdKind.HIGHLIGHT to 2
+            startsWith(text, index, end, "==") ->
+                MdKind.HIGHLIGHT to consecutiveEquals(text, index, end)
             text[index] == '`' -> MdKind.INLINE_CODE to 1
             text[index] == '_' -> MdKind.ITALIC to 1
             else -> null
         }
 
-    private fun matches(
+    private fun closingDelimiterLength(
         text: String,
         index: Int,
         end: Int,
         markerLength: Int,
         kind: MdKind,
-    ): Boolean {
+    ): Int? {
+        if (kind == MdKind.HIGHLIGHT) {
+            val length = consecutiveEquals(text, index, end)
+            return length.takeIf { it >= markerLength }
+        }
         val marker = when (kind) {
             MdKind.BOLD_ITALIC -> "***"
             MdKind.BOLD -> "**"
             MdKind.STRIKE -> "~~"
-            MdKind.HIGHLIGHT -> "=="
             MdKind.INLINE_CODE -> "`"
             MdKind.ITALIC -> "_"
-            else -> return false
+            else -> return null
         }
-        return marker.length == markerLength && startsWith(text, index, end, marker)
+        return markerLength.takeIf {
+            marker.length == markerLength && startsWith(text, index, end, marker)
+        }
+    }
+
+    private fun consecutiveEquals(text: String, index: Int, end: Int): Int {
+        var afterEquals = index
+        while (afterEquals < end && text[afterEquals] == '=') afterEquals++
+        return afterEquals - index
     }
 
     private fun taskMarkerEnd(text: String, start: Int, end: Int): Int? {

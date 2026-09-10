@@ -15,10 +15,10 @@ class WikilinkSupportTest {
         val rendered = preprocessWikilinksForReading(source)
 
         assertEquals(
-            "[Nome](gitnote://note?name=Nome) " +
-                "[apelido](gitnote://note?name=Nome) " +
                 "[Nome](gitnote://note?name=Nome) " +
                 "[apelido](gitnote://note?name=Nome) " +
+                "[Nome](gitnote://note?name=Nome&section=Secao) " +
+                "[apelido](gitnote://note?name=Nome&section=Secao) " +
                 "[Secao](gitnote://section?name=Secao) " +
                 "[apelido](gitnote://section?name=Secao) " +
                 "`[[codigo]]` ![[embed]]",
@@ -59,15 +59,65 @@ class WikilinkSupportTest {
 
     @Test
     fun internalSectionHasItsOwnNonNavigatingUriType() {
-        val rendered = preprocessWikilinksForReading("[[#Inspeção|ver achados]]")
-        val uri = rendered.substringAfter("](").removeSuffix(")")
-        val parsed = parseWikilinkUri(uri)
+        val plain = preprocessWikilinksForReading("[[#Inspeção]]")
+        val aliased = preprocessWikilinksForReading("[[#Inspeção|Inspeção]]")
+        val plainParsed = parseWikilinkUri(plain.substringAfter("](").removeSuffix(")"))
+        val parsed = parseWikilinkUri(aliased.substringAfter("](").removeSuffix(")"))
 
-        assertEquals("[ver achados](gitnote://section?name=Inspe%C3%A7%C3%A3o)", rendered)
+        assertEquals("inspeção", normalizeSectionHeading(checkNotNull(plainParsed).name))
+        assertEquals("inspeção", normalizeSectionHeading(checkNotNull(parsed).name))
         assertEquals("Inspeção", parsed?.name)
+        assertEquals("Inspeção", parsed?.section)
         assertTrue(parsed?.isSection == true)
         assertFalse(parsed?.isMissing ?: true)
         assertEquals(emptySet(), wikilinkNames("[[#Inspeção|ver achados]]"))
+    }
+
+    @Test
+    fun externalSectionSurvivesTheUriRoundTrip() {
+        val rendered = preprocessWikilinksForReading("[[Nota#Revisão sistemática]]")
+        val parsed = parseWikilinkUri(rendered.substringAfter("](").removeSuffix(")"))
+
+        assertEquals("Nota", parsed?.name)
+        assertEquals("Revisão sistemática", parsed?.section)
+    }
+
+    @Test
+    fun sectionResolutionNormalizesWhitespaceUsesFirstDuplicateAndHasSafeFallback() {
+        val headings = listOf(
+            HeadingAnchor("Inspeção", y = 100, sourceOffset = 10),
+            HeadingAnchor("Revisão   sistemática", y = 200, sourceOffset = 20),
+            HeadingAnchor("Inspeção", y = 300, sourceOffset = 30),
+            HeadingAnchor("Facies típicas: hipertireoidismo", y = 400, sourceOffset = 40),
+        )
+
+        assertEquals(200, resolveSectionHeading(" revisão\tsistemática ", headings)?.y)
+        assertEquals(100, resolveSectionHeading("inspeção", headings)?.y)
+        assertEquals(400, resolveSectionHeading("Facies típicas:hipertireoidismo", headings)?.y)
+        assertNull(resolveSectionHeading("Inexistente", headings))
+    }
+
+    @Test
+    fun sectionFallbackRejectsAmbiguousHeadings() {
+        val headings = listOf(
+            HeadingAnchor("AB C", y = 100, sourceOffset = 10),
+            HeadingAnchor("A BC", y = 200, sourceOffset = 20),
+        )
+
+        assertNull(resolveSectionHeading("ABC", headings))
+    }
+
+    @Test
+    fun preprocessesHighlightsWithEscapedLinkTextAndAlongsideWikilinks() {
+        assertEquals("[x](gitnote://highlight)", preprocessWikilinksForReading("==x=="))
+        assertEquals(
+            "[\\[x\\]](gitnote://highlight)",
+            preprocessWikilinksForReading("==[x]=="),
+        )
+        assertEquals(
+            "[Nota](gitnote://note?name=Nota) e [trecho](gitnote://highlight)",
+            preprocessWikilinksForReading("[[Nota]] e ===trecho==="),
+        )
     }
 
     @Test

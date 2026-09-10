@@ -21,7 +21,16 @@ class MarkDownVM : TextVM {
     private val dao = MyApp.appModule.repoDatabase.repoDatabaseDao
     private val uiHelper = MyApp.appModule.uiHelper
 
-    constructor(editType: EditType, previousNote: Note) : super(editType, previousNote)
+    private var initialSectionConsumed = false
+    private var initialSection: String? = null
+
+    constructor(
+        editType: EditType,
+        previousNote: Note,
+        initialSection: String? = null,
+    ) : super(editType, previousNote) {
+        this.initialSection = initialSection
+    }
 
     constructor(
         editType: EditType,
@@ -93,14 +102,15 @@ class MarkDownVM : TextVM {
     fun openResolvedWikilink(
         relativePath: String,
         name: String,
-        onOpenNote: (Note) -> Unit,
+        section: String?,
+        onOpenNote: (Note, String?) -> Unit,
     ) {
         viewModelScope.launch {
             val note = dao.noteByRelativePath(relativePath)
             if (note == null) {
                 showMissingWikilink(name)
             } else {
-                onOpenNote(note)
+                onOpenNote(note, section)
             }
         }
     }
@@ -109,8 +119,14 @@ class MarkDownVM : TextVM {
         uiHelper.makeToast(uiHelper.getString(R.string.error_wikilink_not_found, name))
     }
 
-    fun showSectionNavigationUnavailable() {
-        uiHelper.makeToast(uiHelper.getString(R.string.wikilink_section_navigation_unavailable))
+    fun showSectionNotFound(name: String) {
+        uiHelper.makeToast(uiHelper.getString(R.string.error_wikilink_section_not_found, name))
+    }
+
+    fun pendingInitialSection(): String? = initialSection.takeUnless { initialSectionConsumed }
+
+    fun consumeInitialSection() {
+        initialSectionConsumed = true
     }
 }
 
@@ -121,7 +137,7 @@ fun newMarkDownVM(editParams: EditParams): MarkDownVM {
     return when (editParams) {
         is EditParams.Idle -> viewModel<MarkDownVM>(
             factory = viewModelFactory {
-                MarkDownVM(editParams.editType, editParams.note)
+                MarkDownVM(editParams.editType, editParams.note, editParams.section)
             }
         )
 

@@ -1,15 +1,23 @@
 package io.github.wiiznokes.gitnote.ui.screen.app.edit
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,40 +39,60 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
+import io.github.wiiznokes.gitnote.ui.component.markdown.HeadingAnchor
 import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
 import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
 import io.github.wiiznokes.gitnote.ui.component.markdown.missingWikilinkAnnotator
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
+import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
 import io.github.wiiznokes.gitnote.ui.component.markdown.wikilinkNames
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.MarkdownCustomInner
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownTypographyThemed
 import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 fun MarkDownContent(
     vm: MarkDownVM,
     textFocusRequester: FocusRequester,
     onFinished: () -> Unit,
-    onOpenNote: (Note) -> Unit = {},
+    onOpenNote: (Note, String?) -> Unit = { _, _ -> },
     isReadOnlyModeActive: Boolean,
     textContent: TextFieldValue,
 ) {
@@ -73,6 +101,12 @@ fun MarkDownContent(
     val colors = markdownColorScheme(markdownTheme)
 
     if (isReadOnlyModeActive) {
+        val scrollState = rememberScrollState()
+        val coroutineScope = rememberCoroutineScope()
+        val headingPositions = remember(textContent.text) {
+            mutableStateMapOf<Int, HeadingAnchor>()
+        }
+        var containerCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
         val names = remember(textContent.text) { wikilinkNames(textContent.text) }
         var resolvedTargets by remember(textContent.text, vm.previousNote.relativePath) {
             mutableStateOf<Map<String, String?>?>(null)
@@ -87,14 +121,29 @@ fun MarkDownContent(
             preprocessWikilinksForReading(textContent.text, existingNames)
         }
         val originalUriHandler = LocalUriHandler.current
-        val uriHandler = remember(originalUriHandler, vm, onOpenNote, resolvedTargets) {
+        val uriHandler = remember(
+            originalUriHandler,
+            vm,
+            onOpenNote,
+            resolvedTargets,
+            scrollState,
+            coroutineScope,
+            headingPositions,
+        ) {
             object : UriHandler {
                 override fun openUri(uri: String) {
                     val wikilink = parseWikilinkUri(uri)
                     if (wikilink == null) {
                         originalUriHandler.openUri(uri)
                     } else if (wikilink.isSection) {
-                        vm.showSectionNavigationUnavailable()
+                        val heading = resolveSectionHeading(wikilink.name, headingPositions.values)
+                        if (heading == null) {
+                            vm.showSectionNotFound(wikilink.name)
+                        } else {
+                            coroutineScope.launch {
+                                scrollState.animateScrollTo(heading.y.coerceIn(0, scrollState.maxValue))
+                            }
+                        }
                     } else if (wikilink.isMissing) {
                         vm.showMissingWikilink(wikilink.name)
                     } else {
@@ -103,6 +152,7 @@ fun MarkDownContent(
                             vm.openResolvedWikilink(
                                 relativePath = targetPath,
                                 name = wikilink.name,
+                                section = wikilink.section,
                                 onOpenNote = onOpenNote,
                             )
                         } else if (resolvedTargets != null) {
@@ -113,34 +163,81 @@ fun MarkDownContent(
             }
         }
 
+        val pendingInitialSection = vm.pendingInitialSection()
+        LaunchedEffect(pendingInitialSection, renderedContent) {
+            if (pendingInitialSection != null) {
+                snapshotFlow { headingPositions.values.toList() }
+                    .filter { it.isNotEmpty() }
+                    .first()
+                withFrameNanos { }
+                val heading = resolveSectionHeading(
+                    pendingInitialSection,
+                    headingPositions.values,
+                )
+                if (heading == null) {
+                    vm.showSectionNotFound(pendingInitialSection)
+                } else {
+                    scrollState.scrollTo(heading.y.coerceIn(0, scrollState.maxValue))
+                }
+                vm.consumeInitialSection()
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .onGloballyPositioned { containerCoordinates = it }
         ) {
-            CompositionLocalProvider(LocalUriHandler provides uriHandler) {
-                val readingColors = if (isMarkdownThemeActive) {
-                    markdownColorsThemed(colors)
-                } else {
-                    markdownColor()
-                }
-                val readingTypography = if (isMarkdownThemeActive) {
-                    markdownTypographyThemed(colors)
-                } else {
-                    markdownTypography()
-                }
-                val annotator = missingWikilinkAnnotator(MaterialTheme.colorScheme.error)
-
-                SelectionContainer {
-                    MarkdownCustomInner(
-                        content = renderedContent,
-                        colors = readingColors,
-                        typography = readingTypography,
-                        annotator = annotator,
-                        modifier = Modifier.padding(15.dp),
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+            ) {
+                CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+                    val readingColors = if (isMarkdownThemeActive) {
+                        markdownColorsThemed(colors)
+                    } else {
+                        markdownColor()
+                    }
+                    val readingTypography = if (isMarkdownThemeActive) {
+                        markdownTypographyThemed(colors)
+                    } else {
+                        markdownTypography()
+                    }
+                    val annotator = missingWikilinkAnnotator(
+                        warningColor = MaterialTheme.colorScheme.error,
+                        highlightColor = colors.highlight,
+                        highlightBackground = colors.highlightBackground,
                     )
+
+                    SelectionContainer {
+                        MarkdownCustomInner(
+                            content = renderedContent,
+                            colors = readingColors,
+                            typography = readingTypography,
+                            annotator = annotator,
+                            onHeadingPositioned = { text, sourceOffset, coordinates ->
+                                val container = containerCoordinates
+                                if (container != null && coordinates.isAttached) {
+                                    val y = container
+                                        .localPositionOf(coordinates, Offset.Zero)
+                                        .y + scrollState.value
+                                    headingPositions[sourceOffset] = HeadingAnchor(
+                                        text = text,
+                                        y = y.roundToInt(),
+                                        sourceOffset = sourceOffset,
+                                    )
+                                }
+                            },
+                            modifier = Modifier.padding(15.dp),
+                        )
+                    }
                 }
             }
+            FastScrollOverlay(
+                scrollState = scrollState,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
         }
     } else {
         val baseFontSize = MaterialTheme.typography.bodyLarge.fontSize
@@ -172,6 +269,91 @@ fun MarkDownContent(
             textContent = textContent,
             visualTransformation = visualTransformation,
         )
+    }
+}
+
+@Composable
+private fun FastScrollOverlay(
+    scrollState: ScrollState,
+    modifier: Modifier = Modifier,
+) {
+    val coroutineScope = rememberCoroutineScope()
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    var visible by remember { mutableStateOf(false) }
+    var dragging by remember { mutableStateOf(false) }
+    var hideGeneration by remember { mutableIntStateOf(0) }
+    val thumbHeight = 56.dp
+    val thumbHeightPx = with(LocalDensity.current) { thumbHeight.toPx() }
+    val canScroll = scrollState.maxValue != Int.MAX_VALUE &&
+        scrollState.maxValue > 0 &&
+        viewportHeight > thumbHeightPx
+    val trackRange = (viewportHeight - thumbHeightPx).coerceAtLeast(1f)
+
+    fun scrollToFinger(y: Float) {
+        if (!canScroll) return
+        val fraction = ((y - thumbHeightPx / 2f) / trackRange).coerceIn(0f, 1f)
+        coroutineScope.launch {
+            scrollState.scrollTo((fraction * scrollState.maxValue).roundToInt())
+        }
+    }
+
+    LaunchedEffect(visible, dragging, hideGeneration) {
+        if (visible && !dragging) {
+            delay(1_500)
+            visible = false
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .width(28.dp)
+            .fillMaxHeight()
+            .onSizeChanged { viewportHeight = it.height }
+            .pointerInput(canScroll, viewportHeight, scrollState.maxValue) {
+                if (canScroll) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { offset ->
+                            visible = true
+                            dragging = true
+                            scrollToFinger(offset.y)
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            hideGeneration++
+                        },
+                        onDragCancel = {
+                            dragging = false
+                            hideGeneration++
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            scrollToFinger(change.position.y)
+                        },
+                    )
+                }
+            },
+    ) {
+        val thumbOffset = if (canScroll) {
+            (scrollState.value.toFloat() / scrollState.maxValue * trackRange).roundToInt()
+        } else {
+            0
+        }
+        AnimatedVisibility(
+            visible = visible && canScroll,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset { IntOffset(0, thumbOffset) },
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(7.dp)
+                    .height(thumbHeight)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.82f),
+                        shape = RoundedCornerShape(percent = 50),
+                    ),
+            )
+        }
     }
 }
 

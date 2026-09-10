@@ -8,6 +8,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.SpanStyle
@@ -20,6 +22,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.isSpecified
 import com.mikepenz.markdown.compose.MarkdownSuccess
+import com.mikepenz.markdown.compose.components.CurrentComponentsBridge
+import com.mikepenz.markdown.compose.components.MarkdownComponent
 import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.m3.elements.MarkdownCheckBox
@@ -44,7 +48,10 @@ import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.markdownExtendedSpans
 import com.mikepenz.markdown.model.markdownInlineContent
 import com.mikepenz.markdown.model.markdownPadding
+import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
+import org.intellij.markdown.MarkdownTokenTypes
+import org.intellij.markdown.ast.findChildOfType
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
@@ -84,13 +91,8 @@ fun MarkdownCustomInner(
     annotator: MarkdownAnnotator = markdownAnnotator(),
     extendedSpans: MarkdownExtendedSpans = markdownExtendedSpans(),
     inlineContent: MarkdownInlineContent = markdownInlineContent(),
-    components: MarkdownComponents = markdownComponents(checkbox = {
-        MarkdownCheckBox(
-            it.content,
-            it.node,
-            it.typography.text
-        )
-    }),
+    onHeadingPositioned: ((text: String, sourceOffset: Int, coordinates: LayoutCoordinates) -> Unit)? = null,
+    components: MarkdownComponents = markdownComponentsWithHeadingPositions(onHeadingPositioned),
     animations: MarkdownAnimations = markdownAnimations(),
     referenceLinkHandler: ReferenceLinkHandler = ReferenceLinkHandlerImpl(),
     lookupLinks: Boolean = true,
@@ -120,6 +122,42 @@ fun MarkdownCustomInner(
     success = success,
     error = error,
 )
+
+private fun markdownComponentsWithHeadingPositions(
+    onHeadingPositioned: ((String, Int, LayoutCoordinates) -> Unit)?,
+): MarkdownComponents = markdownComponents(
+    heading1 = positionedHeading(CurrentComponentsBridge.heading1, onHeadingPositioned),
+    heading2 = positionedHeading(CurrentComponentsBridge.heading2, onHeadingPositioned),
+    heading3 = positionedHeading(CurrentComponentsBridge.heading3, onHeadingPositioned),
+    heading4 = positionedHeading(CurrentComponentsBridge.heading4, onHeadingPositioned),
+    heading5 = positionedHeading(CurrentComponentsBridge.heading5, onHeadingPositioned),
+    heading6 = positionedHeading(CurrentComponentsBridge.heading6, onHeadingPositioned),
+    checkbox = {
+        MarkdownCheckBox(
+            it.content,
+            it.node,
+            it.typography.text,
+        )
+    },
+)
+
+private fun positionedHeading(
+    delegate: MarkdownComponent,
+    onHeadingPositioned: ((String, Int, LayoutCoordinates) -> Unit)?,
+): MarkdownComponent {
+    val callback = onHeadingPositioned ?: return delegate
+    return { model ->
+        val text = model.node.findChildOfType(MarkdownTokenTypes.ATX_CONTENT)
+            ?.getUnescapedTextInNode(model.content)
+        Box(
+            modifier = Modifier.onGloballyPositioned { coordinates ->
+                if (text != null) callback(text, model.node.startOffset, coordinates)
+            }
+        ) {
+            delegate(model)
+        }
+    }
+}
 
 
 private fun TextStyle.scaled(scale: Float): TextStyle = copy(

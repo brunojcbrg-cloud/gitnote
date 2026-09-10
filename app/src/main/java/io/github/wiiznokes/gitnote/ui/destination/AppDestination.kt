@@ -39,7 +39,8 @@ sealed class EditParams : Parcelable {
 
     data class Idle(
         val note: Note,
-        val editType: EditType
+        val editType: EditType,
+        val section: String? = null,
     ) : EditParams()
 
     fun fileExtension(): FileExtension {

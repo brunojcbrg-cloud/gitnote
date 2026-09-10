@@ -100,9 +100,9 @@ fun AppScreen(
                 deckPath = it.deckPath,
                 folderPath = it.folderPath,
                 onBack = { navController.pop() },
-                onOpenNote = { note ->
+                onOpenNote = { note, section ->
                     navController.navigate(
-                        AppDestination.Edit(EditParams.Idle(note, EditType.Update))
+                        AppDestination.Edit(EditParams.Idle(note, EditType.Update, section))
                     )
                 },
             )
@@ -112,9 +112,9 @@ fun AppScreen(
                 onFinished = {
                     navController.pop()
                 },
-                onOpenNote = { note ->
+                onOpenNote = { note, section ->
                     navController.navigate(
-                        AppDestination.Edit(EditParams.Idle(note, EditType.Update))
+                        AppDestination.Edit(EditParams.Idle(note, EditType.Update, section))
                     )
                 },
             )

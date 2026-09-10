@@ -78,6 +78,54 @@ class MarkdownScannerTest {
     }
 
     @Test
+    fun highlightConsumesMatchingOrLongerEqualsRunsWithoutLeavingMarkers() {
+        val cases = listOf(
+            "==x==" to (2 to 2),
+            "===x===" to (3 to 3),
+            "====x====" to (4 to 4),
+            "==x===" to (2 to 3),
+        )
+
+        cases.forEach { (source, markerLengths) ->
+            val span = MarkdownScanner.scan(source).single()
+
+            assertEquals(MdKind.HIGHLIGHT, span.kind, source)
+            assertEquals("x", source.substring(span.range), source)
+            assertEquals(markerLengths.first, span.markers.first().count(), source)
+            assertEquals(markerLengths.second, span.markers.last().count(), source)
+            assertEquals(
+                source.indices.toSet(),
+                (span.range.asSequence() + span.markers.flatMap { it.asSequence() }).toSet(),
+                source,
+            )
+        }
+    }
+
+    @Test
+    fun highlightInsideInlineOrFencedCodeIsIgnored() {
+        val tick = 96.toChar()
+        val source = "$tick==inline==$tick\n$tick$tick$tick\n==fenced==\n$tick$tick$tick"
+
+        assertFalse(MarkdownScanner.scan(source).any { it.kind == MdKind.HIGHLIGHT })
+    }
+
+    @Test
+    fun setextHeadingUnderlineIsNotAHighlight() {
+        val source = "Título\n======"
+
+        assertFalse(MarkdownScanner.scan(source).any { it.kind == MdKind.HIGHLIGHT })
+    }
+
+    @Test
+    fun wideningEqualsDoesNotChangeBoldOrStrikeMarkers() {
+        val source = "**negrito** ~~riscado~~"
+        val spans = MarkdownScanner.scan(source)
+
+        assertEquals(listOf(MdKind.BOLD, MdKind.STRIKE), spans.map { it.kind })
+        assertTrue(spans.all { span -> span.markers.all { it.count() == 2 } })
+    }
+
+    @Test
     fun scansAllSupportedWikilinkFormsWithOriginalCoordinates() {
         val cases = listOf(
             WikilinkCase("[[Nome]]", "Nome", "Nome", null, null),

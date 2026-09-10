@@ -59,7 +59,7 @@ import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.flashcard.FlashcardRating
-import io.github.wiiznokes.gitnote.ui.component.markdown.obsidianLineBreaksAnnotator
+import io.github.wiiznokes.gitnote.ui.component.markdown.missingWikilinkAnnotator
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.MarkdownCustomInner
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
@@ -161,7 +161,7 @@ fun FlashcardReviewScreen(
     deckPath: String,
     folderPath: String?,
     onBack: () -> Unit,
-    onOpenNote: (Note) -> Unit,
+    onOpenNote: (Note, String?) -> Unit,
 ) {
     val vm: FlashcardViewModel = viewModel()
     val state by vm.reviewState.collectAsState()
@@ -198,7 +198,7 @@ fun FlashcardReviewScreen(
                 },
                 actions = {
                     current?.let { reviewCard ->
-                        IconButton(onClick = { onOpenNote(reviewCard.note) }) {
+                        IconButton(onClick = { onOpenNote(reviewCard.note, null) }) {
                             Icon(
                                 Icons.Outlined.Description,
                                 stringResource(R.string.open_source_note),
@@ -397,7 +397,11 @@ private fun FlashcardMarkdown(vm: FlashcardViewModel, content: String) {
             } else {
                 markdownTypography()
             },
-            annotator = obsidianLineBreaksAnnotator(),
+            annotator = missingWikilinkAnnotator(
+                warningColor = MaterialTheme.colorScheme.error,
+                highlightColor = palette.highlight,
+                highlightBackground = palette.highlightBackground,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
     }

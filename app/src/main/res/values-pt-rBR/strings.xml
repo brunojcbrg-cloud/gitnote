@@ -59,6 +59,9 @@
     <string name="delete_this_note">Deletar esta nota</string>
     <string name="select_multiple_notes">Selecionar múltiplas notas</string>
     <string name="error_invalid_link">Link inválido, não pôde ser aberto</string>
+    <string name="error_wikilink_not_found">Nota não encontrada: %1$s</string>
+    <string name="error_wikilink_section_not_found">Seção não encontrada: %1$s</string>
+    <string name="wikilink_section_navigation_unavailable">A navegação por seção ainda não está disponível</string>
     <string name="error_file_already_exist">Arquivo já existe</string>
     <string name="error_create_file">Não conseguiu criar o arquivo: %1$s</string>
     <string name="error_delete_file">Não conseguiu deletar o arquivo %1$s: %2$s</string>

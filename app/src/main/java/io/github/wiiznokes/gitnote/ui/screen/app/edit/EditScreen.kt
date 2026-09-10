@@ -65,7 +65,7 @@ private const val TAG = "EditScreen"
 fun EditScreen(
     editParams: EditParams,
     onFinished: () -> Unit,
-    onOpenNote: (Note) -> Unit = {},
+    onOpenNote: (Note, String?) -> Unit = { _, _ -> },
 ) {
 
 
@@ -84,6 +84,7 @@ fun EditScreen(
         mutableStateOf(false)
     }
     var pendingOpenNote by rememberSaveable { mutableStateOf<Note?>(null) }
+    var pendingOpenSection by rememberSaveable { mutableStateOf<String?>(null) }
 
     RequestConfirmationDialog(
         expanded = showShouldQuitDialog,
@@ -101,7 +102,8 @@ fun EditScreen(
             pendingOpenNote?.let { note ->
                 vm.shouldSaveWhenQuitting = false
                 pendingOpenNote = null
-                onOpenNote(note)
+                onOpenNote(note, pendingOpenSection)
+                pendingOpenSection = null
             }
         },
     )
@@ -249,11 +251,12 @@ fun EditScreen(
                             vm = vm,
                             textFocusRequester = textFocusRequester,
                             onFinished = onFinished,
-                            onOpenNote = { note ->
+                            onOpenNote = { note, section ->
                                 if (vm.isPreviousNoteTheSame()) {
-                                    onOpenNote(note)
+                                    onOpenNote(note, section)
                                 } else {
                                     pendingOpenNote = note
+                                    pendingOpenSection = section
                                     showShouldOpenNoteDialog.value = true
                                 }
                             },
