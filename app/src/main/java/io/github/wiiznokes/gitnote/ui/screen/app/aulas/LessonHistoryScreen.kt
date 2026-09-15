@@ -41,6 +41,7 @@ import io.github.wiiznokes.gitnote.aulas.DriveHttpException
 import io.github.wiiznokes.gitnote.aulas.DriveRestClient
 import io.github.wiiznokes.gitnote.aulas.LessonHistoryWorker
 import io.github.wiiznokes.gitnote.aulas.MobileLessonState
+import io.github.wiiznokes.gitnote.aulas.RecordedStamp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -169,14 +170,13 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
                 items(visible, key = { it.idAula }) { lesson ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            // Este cartao serve para ESTUDAR: nome da aula e quando ela
+                            // aconteceu, que e o que da a ordem. Data de processamento e
+                            // nomes dos audios continuam no estado (historico e auditoria
+                            // dependem deles), so nao aparecem aqui.
                             Text(lesson.nomeFinal.ifBlank { "Aula" })
-                            Text(
-                                "Materia: " + lesson.materia.ifBlank { "sem materia" } +
-                                    if (lesson.unidade.isNotBlank()) "  ›  ${lesson.unidade}" else ""
-                            )
-                            Text("Processada: ${lesson.processadoEm.ifBlank { "sem data" }}")
-                            Text("Gravada: ${lesson.aulaGravadaEm?.let { "${it.data.orEmpty()} ${it.hora.orEmpty()}" } ?: "sem data"}")
-                            Text("Originais: ${lesson.arquivosOriginais.joinToString().ifBlank { "nao registrados" }}")
+                            Text(diaDaAula(lesson.aulaGravadaEm))
+                            if (lesson.unidade.isNotBlank()) Text(lesson.unidade)
                             if (lesson.pendenteTriagem) Text("Aguardando classificacao na CENTRAL")
                         }
                     }
@@ -184,6 +184,15 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
             }
         }
     }
+}
+
+/** "A aula ocorreu no dia 17/08/2026" -- a informacao que ordena o estudo. */
+internal fun diaDaAula(carimbo: RecordedStamp?): String {
+    val bruto = carimbo?.data?.trim().orEmpty()
+    if (bruto.isBlank()) return "Data da aula nao identificada"
+    val partes = bruto.split("-")
+    val legivel = if (partes.size == 3) "${partes[2]}/${partes[1]}/${partes[0]}" else bruto
+    return "A aula ocorreu no dia $legivel"
 }
 
 internal fun freshnessMessage(pcPublishedAt: String, now: ZonedDateTime = ZonedDateTime.now()): String {
