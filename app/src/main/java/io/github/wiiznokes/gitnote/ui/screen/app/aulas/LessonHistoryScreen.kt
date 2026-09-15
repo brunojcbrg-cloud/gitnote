@@ -55,6 +55,8 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
     var token by remember { mutableStateOf<String?>(null) }
     var state by remember { mutableStateOf(MobileLessonState()) }
     var selectedMatter by remember { mutableStateOf<String?>(null) }
+    // null = "Todas": a materia mostra as aulas da raiz E das subpastas juntas.
+    var selectedUnit by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf("Conectando ao Google Drive...") }
 
     val resolution = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -111,7 +113,10 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
     }
 
     val matters = state.aulas.map { it.materia.ifBlank { "Sem materia" } }.distinct().sorted()
-    val visible = state.aulas.filter { (it.materia.ifBlank { "Sem materia" }) == selectedMatter }
+    val ofMatter = state.aulas.filter { (it.materia.ifBlank { "Sem materia" }) == selectedMatter }
+    // Subpastas existentes dentro da materia escolhida (P1, P2...), se houver.
+    val units = ofMatter.map { it.unidade }.filter { it.isNotBlank() }.distinct().sorted()
+    val visible = if (selectedUnit == null) ofMatter else ofMatter.filter { it.unidade == selectedUnit }
     Scaffold(
         contentWindowInsets = WindowInsets.safeContent,
         topBar = {
@@ -133,9 +138,28 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
                 items(matters, key = { it }) { matter ->
                     FilterChip(
                         selected = selectedMatter == matter,
-                        onClick = { selectedMatter = matter },
+                        onClick = { selectedMatter = matter; selectedUnit = null },
                         label = { Text(matter) },
                     )
+                }
+            }
+            if (units.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChip(
+                            selected = selectedUnit == null,
+                            onClick = { selectedUnit = null },
+                            label = { Text("Todas (${ofMatter.size})") },
+                        )
+                    }
+                    items(units, key = { it }) { unit ->
+                        val quantas = ofMatter.count { it.unidade == unit }
+                        FilterChip(
+                            selected = selectedUnit == unit,
+                            onClick = { selectedUnit = unit },
+                            label = { Text("$unit ($quantas)") },
+                        )
+                    }
                 }
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -146,7 +170,10 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(lesson.nomeFinal.ifBlank { "Aula" })
-                            Text("Materia: ${lesson.materia.ifBlank { "sem materia" }}")
+                            Text(
+                                "Materia: " + lesson.materia.ifBlank { "sem materia" } +
+                                    if (lesson.unidade.isNotBlank()) "  ›  ${lesson.unidade}" else ""
+                            )
                             Text("Processada: ${lesson.processadoEm.ifBlank { "sem data" }}")
                             Text("Gravada: ${lesson.aulaGravadaEm?.let { "${it.data.orEmpty()} ${it.hora.orEmpty()}" } ?: "sem data"}")
                             Text("Originais: ${lesson.arquivosOriginais.joinToString().ifBlank { "nao registrados" }}")

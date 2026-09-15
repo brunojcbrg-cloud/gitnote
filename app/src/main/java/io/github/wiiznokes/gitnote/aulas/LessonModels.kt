@@ -45,6 +45,8 @@ data class MobileLesson(
     @SerialName("processado_em") val processadoEm: String = "",
     @SerialName("aula_gravada_em") val aulaGravadaEm: RecordedStamp? = null,
     val materia: String = "",
+    /** Subpasta entre a materia e a aula (P1, P2...). Vazio quando a aula fica na raiz. */
+    val unidade: String = "",
     @SerialName("arquivos_originais") val arquivosOriginais: List<String> = emptyList(),
     @SerialName("nome_final") val nomeFinal: String = "",
     @SerialName("pendente_triagem") val pendenteTriagem: Boolean = false,
