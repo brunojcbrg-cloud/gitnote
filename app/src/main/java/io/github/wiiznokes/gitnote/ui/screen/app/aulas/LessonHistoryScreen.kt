@@ -55,7 +55,7 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
     var token by remember { mutableStateOf<String?>(null) }
     var state by remember { mutableStateOf(MobileLessonState()) }
     var selectedMatter by remember { mutableStateOf<String?>(null) }
-    var message by remember { mutableStateOf("Conecte o Google Drive para ler o historico.") }
+    var message by remember { mutableStateOf("Conectando ao Google Drive...") }
 
     val resolution = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -74,6 +74,14 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
                 }
             }.onFailure { message = it.message ?: "Nao foi possivel conectar." }
         }
+    }
+
+    // Conecta sozinho ao abrir a tela. O token vive em `remember`, entao some a cada saida —
+    // sem isto o Bruno tinha de tocar em "Conectar Google Drive" toda vez. Nao ha tela extra
+    // no caminho feliz: com o acesso ja concedido, authorize() devolve o token sem UI nenhuma,
+    // e a resolucao so aparece na primeira vez ou se o acesso for revogado.
+    LaunchedEffect(Unit) {
+        if (token == null) connect()
     }
 
     LaunchedEffect(token) {
