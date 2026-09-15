@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">GitNote</string>
+    <string name="app_name" translatable="false">Life SO</string>
     <string name="system_theme">System</string>
     <string name="light_theme">Light</string>
     <string name="dark_theme">Dark</string>
@@ -197,4 +197,14 @@
     <string name="flashcard_card_count_changed">The note structure changed; its remaining cards were removed from this session.</string>
     <string name="flashcard_schedule_unavailable">The review options are unavailable. Reopen the review and try again.</string>
 
+    <string name="home_title">Life SO</string>
+    <string name="home_subtitle">Escolha o que voce quer abrir.</string>
+    <string name="home_notes">Notas</string>
+    <string name="home_notes_detail">Ler, escrever e organizar as notas do vault.</string>
+    <string name="home_flashcards_detail">Revisar os cartoes das notas pelo algoritmo de repeticao espacada.</string>
+    <string name="home_settings_detail">Repositorio, sincronizacao, aparencia e editor.</string>
+    <string name="home_send_lesson">Enviar aula</string>
+    <string name="home_send_lesson_detail">Selecionar todas as partes e enviar uma aula pelo Google Drive.</string>
+    <string name="home_lesson_history">Historico de aulas</string>
+    <string name="home_lesson_history_detail">Ver processamento por materia e o ultimo estado publicado pelo PC.</string>
 </resources>

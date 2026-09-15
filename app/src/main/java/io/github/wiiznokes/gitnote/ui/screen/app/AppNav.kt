@@ -21,6 +21,9 @@ import io.github.wiiznokes.gitnote.ui.screen.app.edit.EditScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.flashcard.FlashcardDeckScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.flashcard.FlashcardReviewScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.GridScreen
+import io.github.wiiznokes.gitnote.ui.screen.app.home.HomeScreen
+import io.github.wiiznokes.gitnote.ui.screen.app.aulas.SendLessonScreen
+import io.github.wiiznokes.gitnote.ui.screen.app.aulas.LessonHistoryScreen
 import io.github.wiiznokes.gitnote.ui.screen.settings.SettingsNav
 import io.github.wiiznokes.gitnote.ui.utils.crossFade
 import io.github.wiiznokes.gitnote.ui.utils.slide
@@ -44,6 +47,11 @@ fun AppScreen(
                     Log.d(TAG, "can't retrieve the last saved note state")
                 } else {
                     Log.d(TAG, "launch as EDIT_IS_UNSAVED")
+                    // Com a Home como entrada, sem isto o "voltar" da nota nao salva
+                    // cairia na Home em vez da lista de notas, como era antes.
+                    if (appDestination is AppDestination.Home) {
+                        add(AppDestination.Grid)
+                    }
                     add(
                         AppDestination.Edit(
                             EditParams.Saved(
@@ -70,6 +78,34 @@ fun AppScreen(
         transitionSpec = AppNavTransitionSpec
     ) {
         when (it) {
+
+            is AppDestination.Home -> {
+                HomeScreen(
+                    onNotesClick = {
+                        navController.navigate(AppDestination.Grid)
+                    },
+                    onFlashcardsClick = {
+                        navController.navigate(AppDestination.FlashcardDecks)
+                    },
+                    onSendLessonClick = {
+                        navController.navigate(AppDestination.SendLesson)
+                    },
+                    onLessonHistoryClick = {
+                        navController.navigate(AppDestination.LessonHistory)
+                    },
+                    onSettingsClick = {
+                        navController.navigate(
+                            AppDestination.Settings(
+                                SettingsDestination.Main
+                            )
+                        )
+                    },
+                )
+            }
+
+            is AppDestination.SendLesson -> SendLessonScreen(onBack = { navController.pop() })
+
+            is AppDestination.LessonHistory -> LessonHistoryScreen(onBack = { navController.pop() })
 
             is AppDestination.Grid -> {
                 GridScreen(
@@ -137,6 +173,9 @@ private object AppNavTransitionSpec : NavTransitionSpec<AppDestination> {
     ): ContentTransform {
 
         return when (from) {
+            AppDestination.Home -> crossFade()
+            AppDestination.SendLesson,
+            AppDestination.LessonHistory -> crossFade()
             is AppDestination.Edit -> crossFade()
             AppDestination.Grid -> {
                 if (to is AppDestination.Settings) {

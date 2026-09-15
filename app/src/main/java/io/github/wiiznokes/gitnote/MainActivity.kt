@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
 
                 val startDestination: Destination = remember {
                     if (runBlocking { vm.tryInit() }) {
-                        Destination.App(AppDestination.Grid)
+                        Destination.App(AppDestination.Home)
                     } else Destination.Setup(SetupDestination.Main)
                 }
 
@@ -80,7 +80,7 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         it is Destination.Setup
                                     }
-                                    navController.navigate(Destination.App(AppDestination.Grid))
+                                    navController.navigate(Destination.App(AppDestination.Home))
                                 }
                             )
                         }

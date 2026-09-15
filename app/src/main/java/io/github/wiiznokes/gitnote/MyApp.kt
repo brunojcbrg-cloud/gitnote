@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import io.github.wiiznokes.gitnote.aulas.LessonHistoryWorker
 
 const val TAG = "MyApp (Application)"
 
@@ -19,6 +20,7 @@ class MyApp : Application() {
         Log.d(TAG, "onCreate")
 
         appModule = AppModuleImpl(this)
+        LessonHistoryWorker.schedule(this)
 
 
         scope.launch {

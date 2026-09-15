@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     // for room
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
     // for compose navigation
     id("kotlin-parcelize")
 }
@@ -184,6 +185,9 @@ dependencies {
 
     // Compose Navigation
     implementation(libs.reimagined.navigation)
+    implementation(libs.work.runtime)
+    implementation(libs.play.services.auth)
+    implementation(libs.kotlinx.serialization.json)
 
     // Markdown
     implementation(libs.compose.markdown.core)

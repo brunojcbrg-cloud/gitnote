@@ -8,6 +8,16 @@ import kotlinx.parcelize.Parcelize
 
 
 sealed interface AppDestination : Parcelable {
+    /** Tela inicial do Life SO: as notas sao uma funcao do app, nao o app inteiro. */
+    @Parcelize
+    data object Home : AppDestination
+
+    @Parcelize
+    data object SendLesson : AppDestination
+
+    @Parcelize
+    data object LessonHistory : AppDestination
+
     @Parcelize
     data object Grid : AppDestination
 
