@@ -8,6 +8,43 @@ import kotlin.test.assertTrue
 
 class WikilinkSupportTest {
     @Test
+    fun preprocessingPreservesSourceLineCountAndOrder() {
+        val sourceLines = listOf(
+            "linha antes",
+            "[[Nota]]",
+            "[[Nota|alias]]",
+            "[[#Seção]]",
+            "==destaque==",
+            "```",
+            "[[Dentro do codigo]]",
+            "```",
+            "[[Primeira]] e [[Segunda|segunda]]",
+            "linha depois",
+        )
+        val expectedLines = listOf(
+            "linha antes",
+            "[Nota](gitnote://note?name=Nota)",
+            "[alias](gitnote://note?name=Nota)",
+            "[Seção](gitnote://section?name=Se%C3%A7%C3%A3o)",
+            "[destaque](gitnote://highlight)",
+            "```",
+            "[[Dentro do codigo]]",
+            "```",
+            "[Primeira](gitnote://note?name=Primeira) e " +
+                "[segunda](gitnote://note?name=Segunda)",
+            "linha depois",
+        )
+
+        listOf("\n", "\r\n").forEach { lineEnding ->
+            val source = sourceLines.joinToString(lineEnding)
+            val rendered = preprocessWikilinksForReading(source)
+
+            assertEquals(source.count { it == '\n' }, rendered.count { it == '\n' })
+            assertEquals(expectedLines.joinToString(lineEnding), rendered)
+        }
+    }
+
+    @Test
     fun preprocessesAllSixWikilinkFormsOutsideCode() {
         val source = "[[Nome]] [[Nome|apelido]] [[Nome#Secao]] " +
             "[[Nome#Secao|apelido]] [[#Secao]] [[#Secao|apelido]] " +
