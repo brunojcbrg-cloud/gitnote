@@ -135,6 +135,10 @@ android {
         checkReleaseBuilds = false
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
 }
 
 ksp {
@@ -197,6 +201,10 @@ dependencies {
     // unit test
     testImplementation(kotlin("test"))
     testImplementation(kotlin("test-junit"))
+    testImplementation(composeBom)
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    debugImplementation(libs.compose.ui.test.manifest)
 
     // integration test
     androidTestImplementation(libs.test.junit.ktx)
