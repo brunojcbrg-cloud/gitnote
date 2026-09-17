@@ -238,6 +238,19 @@ open class TextVM() : ViewModel() {
         }
     }
 
+    protected fun updateSelection(selection: TextRange) {
+        val nextValue = content.value.copy(
+            selection = selection,
+            composition = null,
+        )
+        _content.value = nextValue
+
+        val currentHistoryIndex = historyManager.value.index
+        if (currentHistoryIndex in history.indices) {
+            history[currentHistoryIndex] = history[currentHistoryIndex].copy(v = nextValue)
+        }
+    }
+
 
     fun undo() {
         val historyManager = historyManager.value

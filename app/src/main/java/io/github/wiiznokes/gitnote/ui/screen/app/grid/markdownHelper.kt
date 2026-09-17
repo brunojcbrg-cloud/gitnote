@@ -92,7 +92,11 @@ fun MarkdownCustomInner(
     extendedSpans: MarkdownExtendedSpans = markdownExtendedSpans(),
     inlineContent: MarkdownInlineContent = markdownInlineContent(),
     onHeadingPositioned: ((text: String, sourceOffset: Int, coordinates: LayoutCoordinates) -> Unit)? = null,
-    components: MarkdownComponents = markdownComponentsWithHeadingPositions(onHeadingPositioned),
+    onBlockPositioned: ((sourceOffset: Int, coordinates: LayoutCoordinates) -> Unit)? = null,
+    components: MarkdownComponents = markdownComponentsWithHeadingPositions(
+        onHeadingPositioned,
+        onBlockPositioned,
+    ),
     animations: MarkdownAnimations = markdownAnimations(),
     referenceLinkHandler: ReferenceLinkHandler = ReferenceLinkHandlerImpl(),
     lookupLinks: Boolean = true,
@@ -125,21 +129,32 @@ fun MarkdownCustomInner(
 
 private fun markdownComponentsWithHeadingPositions(
     onHeadingPositioned: ((String, Int, LayoutCoordinates) -> Unit)?,
-): MarkdownComponents = markdownComponents(
-    heading1 = positionedHeading(CurrentComponentsBridge.heading1, onHeadingPositioned),
-    heading2 = positionedHeading(CurrentComponentsBridge.heading2, onHeadingPositioned),
-    heading3 = positionedHeading(CurrentComponentsBridge.heading3, onHeadingPositioned),
-    heading4 = positionedHeading(CurrentComponentsBridge.heading4, onHeadingPositioned),
-    heading5 = positionedHeading(CurrentComponentsBridge.heading5, onHeadingPositioned),
-    heading6 = positionedHeading(CurrentComponentsBridge.heading6, onHeadingPositioned),
-    checkbox = {
+    onBlockPositioned: ((Int, LayoutCoordinates) -> Unit)?,
+): MarkdownComponents {
+    val checkbox: MarkdownComponent = {
         MarkdownCheckBox(
             it.content,
             it.node,
             it.typography.text,
         )
-    },
-)
+    }
+    return markdownComponents(
+        codeFence = positionedBlock(CurrentComponentsBridge.codeFence, onBlockPositioned),
+        codeBlock = positionedBlock(CurrentComponentsBridge.codeBlock, onBlockPositioned),
+        heading1 = positionedHeading(CurrentComponentsBridge.heading1, onHeadingPositioned),
+        heading2 = positionedHeading(CurrentComponentsBridge.heading2, onHeadingPositioned),
+        heading3 = positionedHeading(CurrentComponentsBridge.heading3, onHeadingPositioned),
+        heading4 = positionedHeading(CurrentComponentsBridge.heading4, onHeadingPositioned),
+        heading5 = positionedHeading(CurrentComponentsBridge.heading5, onHeadingPositioned),
+        heading6 = positionedHeading(CurrentComponentsBridge.heading6, onHeadingPositioned),
+        blockQuote = positionedBlock(CurrentComponentsBridge.blockQuote, onBlockPositioned),
+        paragraph = positionedBlock(CurrentComponentsBridge.paragraph, onBlockPositioned),
+        orderedList = positionedBlock(CurrentComponentsBridge.orderedList, onBlockPositioned),
+        unorderedList = positionedBlock(CurrentComponentsBridge.unorderedList, onBlockPositioned),
+        table = positionedBlock(CurrentComponentsBridge.table, onBlockPositioned),
+        checkbox = positionedBlock(checkbox, onBlockPositioned),
+    )
+}
 
 private fun positionedHeading(
     delegate: MarkdownComponent,
@@ -152,6 +167,22 @@ private fun positionedHeading(
         Box(
             modifier = Modifier.onGloballyPositioned { coordinates ->
                 if (text != null) callback(text, model.node.startOffset, coordinates)
+            }
+        ) {
+            delegate(model)
+        }
+    }
+}
+
+private fun positionedBlock(
+    delegate: MarkdownComponent,
+    onBlockPositioned: ((Int, LayoutCoordinates) -> Unit)?,
+): MarkdownComponent {
+    val callback = onBlockPositioned ?: return delegate
+    return { model ->
+        Box(
+            modifier = Modifier.onGloballyPositioned { coordinates ->
+                callback(model.node.startOffset, coordinates)
             }
         ) {
             delegate(model)

@@ -8,6 +8,7 @@ import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveWikilinkTargets
+import io.github.wiiznokes.gitnote.ui.component.markdown.offsetOfLineStart
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.viewmodel.viewModelFactory
@@ -23,6 +24,7 @@ class MarkDownVM : TextVM {
 
     private var initialSectionConsumed = false
     private var initialSection: String? = null
+    private var anchorLine: Int? = null
 
     constructor(
         editType: EditType,
@@ -127,6 +129,16 @@ class MarkDownVM : TextVM {
 
     fun consumeInitialSection() {
         initialSectionConsumed = true
+    }
+
+    fun rememberAnchor(line: Int) {
+        anchorLine = line.coerceAtLeast(0)
+    }
+
+    fun consumeAnchor(): Int? = anchorLine.also { anchorLine = null }
+
+    fun moveCursorToLine(line: Int) {
+        updateSelection(TextRange(offsetOfLineStart(content.value.text, line)))
     }
 }
 

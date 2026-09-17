@@ -51,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -70,7 +71,12 @@ import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.component.markdown.HeadingAnchor
 import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
 import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
+import io.github.wiiznokes.gitnote.ui.component.markdown.firstLineAtOrAfter
+import io.github.wiiznokes.gitnote.ui.component.markdown.lineOfOffset
+import io.github.wiiznokes.gitnote.ui.component.markdown.lineStartOffsets
 import io.github.wiiznokes.gitnote.ui.component.markdown.missingWikilinkAnnotator
+import io.github.wiiznokes.gitnote.ui.component.markdown.nearestAnchorAtOrBefore
+import io.github.wiiznokes.gitnote.ui.component.markdown.nearestLineAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
@@ -81,6 +87,7 @@ import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownTypographyThemed
 import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -118,6 +125,54 @@ fun MarkDownContent(
             ?.keys
         val renderedContent = remember(textContent.text, existingNames) {
             preprocessWikilinksForReading(textContent.text, existingNames)
+        }
+        val renderedLineStarts = remember(renderedContent) { lineStartOffsets(renderedContent) }
+        val blockCoordinates = remember(renderedContent) {
+            mutableMapOf<Int, LayoutCoordinates>()
+        }
+        var lastTouchedLine by remember(renderedContent) { mutableStateOf<Int?>(null) }
+        val pendingReadAnchor = remember(textContent.text) { vm.consumeAnchor() }
+
+        fun measuredBlockPositions(): Map<Int, Int> {
+            val container = containerCoordinates ?: return emptyMap()
+            if (!container.isAttached) return emptyMap()
+            return blockCoordinates.mapNotNull { (line, coordinates) ->
+                if (!coordinates.isAttached) return@mapNotNull null
+                val y = container.localPositionOf(coordinates, Offset.Zero).y + scrollState.value
+                line to y.roundToInt()
+            }.toMap()
+        }
+
+        fun registerBlock(sourceOffset: Int, coordinates: LayoutCoordinates) {
+            val line = lineOfOffset(renderedLineStarts, sourceOffset)
+            blockCoordinates[line] = coordinates
+            if (lastTouchedLine == null) {
+                firstLineAtOrAfter(scrollState.value, measuredBlockPositions())?.let(vm::rememberAnchor)
+            }
+        }
+
+        LaunchedEffect(pendingReadAnchor, renderedContent) {
+            if (pendingReadAnchor != null) {
+                snapshotFlow { containerCoordinates }
+                    .filter { it != null }
+                    .first()
+                withFrameNanos { }
+                val y = nearestAnchorAtOrBefore(
+                    line = pendingReadAnchor,
+                    anchors = measuredBlockPositions(),
+                ) ?: 0
+                scrollState.scrollTo(y.coerceIn(0, scrollState.maxValue))
+            }
+        }
+
+        LaunchedEffect(renderedContent, scrollState) {
+            snapshotFlow { scrollState.value }.collect { scrollY ->
+                withFrameNanos { }
+                if (lastTouchedLine == null) {
+                    val line = firstLineAtOrAfter(scrollY, measuredBlockPositions()) ?: 0
+                    vm.rememberAnchor(line)
+                }
+            }
         }
         val originalUriHandler = LocalUriHandler.current
         val uriHandler = remember(
@@ -186,6 +241,23 @@ fun MarkDownContent(
             modifier = Modifier
                 .fillMaxSize()
                 .onGloballyPositioned { containerCoordinates = it }
+                .pointerInput(renderedContent) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val down = event.changes.firstOrNull {
+                                it.pressed && !it.previousPressed
+                            } ?: continue
+                            val absoluteY = (down.position.y + scrollState.value).roundToInt()
+                            val line = nearestLineAtOrBefore(
+                                position = absoluteY,
+                                anchors = measuredBlockPositions(),
+                            ) ?: continue
+                            lastTouchedLine = line
+                            vm.rememberAnchor(line)
+                        }
+                    }
+                }
         ) {
             Box(
                 modifier = Modifier
@@ -216,6 +288,7 @@ fun MarkDownContent(
                             typography = readingTypography,
                             annotator = annotator,
                             onHeadingPositioned = { text, sourceOffset, coordinates ->
+                                registerBlock(sourceOffset, coordinates)
                                 val container = containerCoordinates
                                 if (container != null && coordinates.isAttached) {
                                     val y = container
@@ -228,6 +301,7 @@ fun MarkDownContent(
                                     )
                                 }
                             },
+                            onBlockPositioned = ::registerBlock,
                             modifier = Modifier.padding(15.dp),
                         )
                     }
@@ -239,6 +313,17 @@ fun MarkDownContent(
             )
         }
     } else {
+        val pendingEditAnchor = remember { vm.consumeAnchor() }
+        LaunchedEffect(pendingEditAnchor) {
+            if (pendingEditAnchor != null) {
+                vm.moveCursorToLine(pendingEditAnchor)
+                withFrameNanos { }
+                textFocusRequester.requestFocus()
+            }
+        }
+        LaunchedEffect(textContent.text, textContent.selection) {
+            vm.rememberAnchor(lineOfOffset(textContent.text, textContent.selection.start))
+        }
         val baseFontSize = MaterialTheme.typography.bodyLarge.fontSize
         val visualTransformation = remember(
             textContent.text,
