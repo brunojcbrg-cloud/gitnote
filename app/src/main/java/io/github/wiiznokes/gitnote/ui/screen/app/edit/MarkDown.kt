@@ -350,6 +350,7 @@ fun MarkDownContent(
         }
         val editScrollState = rememberScrollState()
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val viewportMinHeight = maxHeight
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -361,7 +362,7 @@ fun MarkDownContent(
                     onFinished = onFinished,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = maxHeight),
+                        .heightIn(min = viewportMinHeight),
                     textContent = textContent,
                     visualTransformation = visualTransformation,
                 )
