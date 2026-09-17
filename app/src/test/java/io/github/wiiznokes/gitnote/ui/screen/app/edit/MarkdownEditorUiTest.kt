@@ -24,7 +24,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.fetchSemanticsNode
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -122,7 +121,7 @@ class MarkdownEditorUiTest {
 
         val editor = composeRule.onNodeWithTag("edge-editor")
         editor.performTouchInput {
-            click(Offset(size.width.toFloat() - 2f, 30f))
+            click(Offset(right - 1f, 30f))
         }
         composeRule.waitForIdle()
 
