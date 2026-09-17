@@ -142,7 +142,7 @@ class MarkdownSmartEditorTest(
 
     @Test
     fun `19 does not continue list syntax inside a fenced code block`() {
-        val input = "```${ending.text}- codigo"
+        val input = "```${ending.text}- "
         assertEnterAtEnd(input, "$input${ending.text}")
     }
 
@@ -174,6 +174,26 @@ class MarkdownSmartEditorTest(
             expected = "- one ${ending.text}- three",
             expectedCursor = "- one ${ending.text}- ".length,
         )
+    }
+
+    @Test
+    fun `23 programmatic continuation clears stale IME composition`() {
+        val input = "- item"
+        val rawText = "$input${ending.text}"
+        val actual = markdownSmartEditor(
+            prev = TextFieldValue(
+                text = input,
+                selection = TextRange(input.length),
+                composition = TextRange(2, input.length),
+            ),
+            v = TextFieldValue(
+                text = rawText,
+                selection = TextRange(rawText.length),
+                composition = TextRange(2, input.length),
+            ),
+        )
+
+        assertEquals(null, actual.composition)
     }
 
     private fun assertEnterAtEnd(input: String, expected: String) {

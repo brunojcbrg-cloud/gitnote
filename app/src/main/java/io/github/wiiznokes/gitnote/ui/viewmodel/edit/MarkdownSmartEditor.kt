@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import kotlin.math.max
+import kotlin.math.min
 
 
 private const val TAG = "markdownSmartEditor"
@@ -26,15 +27,15 @@ fun markdownSmartEditor(
                 // handle delete key when the line is:
                 // - x
                 //
-                if (prev.text.length >= v.text.length) {
+                val lineBreakStart = insertedLineBreakStart(prev, v, cursorPos)
+                if (lineBreakStart == null) {
                     return v
                 }
 
-                val lineBefore = v.text.lastIndexOf('\n', startIndex = cursorPos - 2).let {
+                val lineStart = v.text.lastIndexOf('\n', startIndex = lineBreakStart - 1).let {
                     if (it == -1) 0 else it + 1
-                }.let {
-                    v.text.substring(it, cursorPos - 1)
                 }
+                val lineBefore = v.text.substring(lineStart, lineBreakStart)
 
                 val currentLine = v.text.indexOf('\n', startIndex = cursorPos).let {
                     if (it == -1) v.text.length else it
@@ -44,23 +45,27 @@ fun markdownSmartEditor(
 
                 val res = ListItemInfo.parseSafely(lineBefore)
 
+                if (isInsideFencedCodeBlock(v.text, lineStart)) {
+                    return v
+                }
+
                 // remove empty list line
                 if (currentLine.isBlank() && res?.shouldRemove() == true) {
 
-                    val newPos = cursorPos - (lineBefore.length + 1)
                     return v.copy(
-                        text = v.text.substring(0, newPos) + v.text.substring(
+                        text = v.text.substring(0, lineStart) + v.text.substring(
                             cursorPos,
                             v.text.length
                         ),
-                        selection = TextRange(newPos)
+                        selection = TextRange(lineStart),
+                        composition = null,
                     )
                 }
 
                 // we are in a list
                 // add a new empty similar list line
                 if (res != null) {
-                    val newText = res.prefix(numberOp = { it + 1 })
+                    val newText = res.copy(isChecked = false).prefix(numberOp = { it + 1 })
                     return v.copy(
                         text = v.text.substring(
                             0,
@@ -69,7 +74,8 @@ fun markdownSmartEditor(
                             cursorPos,
                             v.text.length
                         ),
-                        selection = TextRange(cursorPos + res.padding.length + newText.length)
+                        selection = TextRange(cursorPos + res.padding.length + newText.length),
+                        composition = null,
                     )
                 }
                 // no list found, but we can still add the padding
@@ -81,7 +87,8 @@ fun markdownSmartEditor(
                                 cursorPos,
                                 v.text.length
                             ),
-                            selection = TextRange(cursorPos + padding.length)
+                            selection = TextRange(cursorPos + padding.length),
+                            composition = null,
                         )
                     }
                 }
@@ -113,15 +120,82 @@ fun markdownSmartEditor(
     return v
 }
 
+private fun insertedLineBreakStart(
+    prev: TextFieldValue,
+    value: TextFieldValue,
+    cursorPos: Int,
+): Int? {
+    val lineBreakStart = if (cursorPos >= 2 && value.text[cursorPos - 2] == '\r') {
+        cursorPos - 2
+    } else {
+        cursorPos - 1
+    }
+    val selectionStart = prev.selection.min
+    val selectionEnd = prev.selection.max
+
+    if (lineBreakStart != selectionStart) return null
+    if (!value.text.regionMatches(0, prev.text, 0, selectionStart)) return null
+
+    val suffixLength = prev.text.length - selectionEnd
+    val valueSuffixStart = value.text.length - suffixLength
+    if (valueSuffixStart != cursorPos) return null
+    if (!value.text.regionMatches(valueSuffixStart, prev.text, selectionEnd, suffixLength)) return null
+
+    return lineBreakStart
+}
+
+private fun isInsideFencedCodeBlock(text: String, offset: Int): Boolean {
+    var fenceMarker: Char? = null
+    var fenceLength = 0
+    var lineStart = 0
+
+    while (lineStart < offset) {
+        val nextLineBreak = text.indexOf('\n', startIndex = lineStart)
+        val lineEnd = min(
+            if (nextLineBreak == -1) text.length else nextLineBreak,
+            offset,
+        )
+        val line = text.substring(lineStart, lineEnd).removeSuffix("\r")
+        val indentation = line.takeWhile { it == ' ' }.length
+        if (indentation <= 3) {
+            val candidate = line.substring(indentation)
+            val marker = candidate.firstOrNull()
+            if (marker == '`' || marker == '~') {
+                val runLength = candidate.takeWhile { it == marker }.length
+                if (runLength >= 3) {
+                    if (fenceMarker == null) {
+                        fenceMarker = marker
+                        fenceLength = runLength
+                    } else if (
+                        marker == fenceMarker &&
+                        runLength >= fenceLength &&
+                        candidate.substring(runLength).isBlank()
+                    ) {
+                        fenceMarker = null
+                        fenceLength = 0
+                    }
+                }
+            }
+        }
+
+        if (nextLineBreak == -1 || nextLineBreak >= offset) break
+        lineStart = nextLineBreak + 1
+    }
+
+    return fenceMarker != null
+}
+
 sealed class ListType {
     object Dash : ListType()
     object Asterisk : ListType()
+    object Quote : ListType()
     data class Number(val number: Int) : ListType()
 
     fun prefix(numberOp: (Int) -> Int = { it }): String {
         return when (this) {
             Asterisk -> "* "
             Dash -> "- "
+            Quote -> "> "
             is Number -> "${numberOp(number)}. "
         }
     }
@@ -147,6 +221,15 @@ data class ListItemInfo(
         }
 
         fun parse(line: String): ListItemInfo? {
+            val quoteMatch = Regex("""^(\s*)>\s(.*)?""").matchEntire(line)
+            if (quoteMatch != null) {
+                return ListItemInfo(
+                    listType = ListType.Quote,
+                    padding = quoteMatch.groups[1]?.value.orEmpty(),
+                    title = quoteMatch.groups[2]?.value,
+                )
+            }
+
             val regex = Regex("""^(\s*)(?:(-)|(\*)|(\d+)\.)\s(?:\[([ xX])]\s)?(.+)?""")
             val match = regex.matchEntire(line) ?: return null
 
