@@ -376,7 +376,7 @@ fun MarkDownContent(
 }
 
 @Composable
-private fun FastScrollOverlay(
+internal fun FastScrollOverlay(
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
 ) {

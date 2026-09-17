@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.measureTime
 
 class MarkdownLivePreviewTransformationTest {
     private val colors = MarkdownColorScheme(
@@ -204,12 +205,52 @@ class MarkdownLivePreviewTransformationTest {
         assertMappingsAreSafeAndMonotonic(source, result.text.text, result.offsetMapping)
     }
 
+    @Test
+    fun transformsAFixtureWithTheDimensionsOfARealLargeVaultNote() {
+        val source = largeNoteFixture(lineCount = 1_946, characterCount = 180_046)
+        repeat(2) { transform(source) }
+
+        val samples = List(7) {
+            measureTime { transform(source) }.inWholeMicroseconds / 1_000.0
+        }
+        val medianMs = samples.sorted()[samples.size / 2]
+
+        println(
+            "PERF_MARKDOWN_LIVE_PREVIEW " +
+                "lines=1946 chars=180046 samples_ms=$samples median_ms=$medianMs",
+        )
+        assertEquals(1_946, source.count { it == '\n' } + 1)
+        assertEquals(180_046, source.length)
+    }
+
     private fun transform(source: String, activeLines: Set<Int> = emptySet()) =
         MarkdownLivePreviewTransformation(
             colors = colors,
             activeLines = activeLines,
             baseFontSize = 16.sp,
         ).filter(AnnotatedString(source))
+
+    private fun largeNoteFixture(lineCount: Int, characterCount: Int): String {
+        val lines = MutableList(lineCount) { index ->
+            when (index % 5) {
+                0 -> "# Secao $index com **enfase** e [[Nota|alias]]"
+                1 -> "- [ ] item $index com ==destaque== e texto"
+                2 -> "> citacao $index com _italico_ e `codigo`"
+                3 -> "Paragrafo $index com [link](https://example.com)"
+                else -> "1. item numerado $index com ~~riscado~~"
+            }
+        }
+        var missing = characterCount - lines.sumOf { it.length } - (lineCount - 1)
+        require(missing >= 0)
+        lines.indices.forEach { index ->
+            val remainingLines = lineCount - index
+            val padding = missing / remainingLines
+            lines[index] += "x".repeat(padding)
+            missing -= padding
+        }
+        check(missing == 0)
+        return lines.joinToString("\n")
+    }
 
     private fun assertMappingsAreSafeAndMonotonic(
         original: String,

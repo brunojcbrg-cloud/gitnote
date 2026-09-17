@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.tasks.testing.Test
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.time.LocalDate
@@ -210,4 +211,8 @@ dependencies {
     androidTestImplementation(libs.test.junit.ktx)
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.test.runner)
+}
+
+tasks.withType<Test>().configureEach {
+    testLogging.showStandardStreams = true
 }
