@@ -1,6 +1,7 @@
 package io.github.wiiznokes.gitnote.ui.viewmodel.edit
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
