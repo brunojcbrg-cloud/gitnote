@@ -7,11 +7,13 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -346,13 +348,29 @@ fun MarkDownContent(
                 )
             }
         }
-        GenericTextField(
-            vm = vm,
-            textFocusRequester = textFocusRequester,
-            onFinished = onFinished,
-            textContent = textContent,
-            visualTransformation = visualTransformation,
-        )
+        val editScrollState = rememberScrollState()
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(editScrollState),
+            ) {
+                GenericTextField(
+                    vm = vm,
+                    textFocusRequester = textFocusRequester,
+                    onFinished = onFinished,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = maxHeight),
+                    textContent = textContent,
+                    visualTransformation = visualTransformation,
+                )
+            }
+            FastScrollOverlay(
+                scrollState = editScrollState,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
     }
 }
 
@@ -368,16 +386,22 @@ private fun FastScrollOverlay(
     var hideGeneration by remember { mutableIntStateOf(0) }
     val thumbHeight = 56.dp
     val thumbHeightPx = with(LocalDensity.current) { thumbHeight.toPx() }
-    val canScroll = scrollState.maxValue != Int.MAX_VALUE &&
-        scrollState.maxValue > 0 &&
-        viewportHeight > thumbHeightPx
-    val trackRange = (viewportHeight - thumbHeightPx).coerceAtLeast(1f)
+    val canScroll = fastScrollThumbOffset(
+        scrollValue = scrollState.value,
+        viewportHeight = viewportHeight.toFloat(),
+        thumbHeight = thumbHeightPx,
+        maxValue = scrollState.maxValue,
+    ) != null
 
     fun scrollToFinger(y: Float) {
-        if (!canScroll) return
-        val fraction = ((y - thumbHeightPx / 2f) / trackRange).coerceIn(0f, 1f)
+        val target = fastScrollTargetOffset(
+            fingerY = y,
+            viewportHeight = viewportHeight.toFloat(),
+            thumbHeight = thumbHeightPx,
+            maxValue = scrollState.maxValue,
+        ) ?: return
         coroutineScope.launch {
-            scrollState.scrollTo((fraction * scrollState.maxValue).roundToInt())
+            scrollState.scrollTo(target)
         }
     }
 
@@ -417,11 +441,12 @@ private fun FastScrollOverlay(
                 }
             },
     ) {
-        val thumbOffset = if (canScroll) {
-            (scrollState.value.toFloat() / scrollState.maxValue * trackRange).roundToInt()
-        } else {
-            0
-        }
+        val thumbOffset = fastScrollThumbOffset(
+            scrollValue = scrollState.value,
+            viewportHeight = viewportHeight.toFloat(),
+            thumbHeight = thumbHeightPx,
+            maxValue = scrollState.maxValue,
+        ) ?: 0
         AnimatedVisibility(
             visible = visible && canScroll,
             modifier = Modifier

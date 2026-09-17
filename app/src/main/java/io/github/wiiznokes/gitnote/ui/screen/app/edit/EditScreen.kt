@@ -321,14 +321,13 @@ fun GenericTextField(
     vm: TextVM,
     textFocusRequester: FocusRequester,
     onFinished: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxSize(),
     isReadOnlyModeActive: Boolean = false,
     textContent: TextFieldValue,
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     TextField(
-        modifier = Modifier
-            .fillMaxSize()
-            .focusRequester(textFocusRequester),
+        modifier = modifier.focusRequester(textFocusRequester),
         value = textContent,
         onValueChange = { vm.onValueChange(it) },
         colors = TextFieldDefaults.colors(
