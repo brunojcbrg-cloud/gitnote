@@ -133,3 +133,65 @@ expectativa, os mesmos testes aparecem como `PASSED` no run verde. Não houve co
     de tabela abre por esse gesto. Feche a seleção e confirme que copiar/colar ainda funciona.
 17. Troque para leitura. A tabela deve continuar renderizando como antes; este trabalho não alterou o
     modo leitura.
+
+---
+
+## 8. Conferência posterior (18/09, depois da entrega)
+
+Duas coisas foram medidas em cima do que já estava entregue. As duas viraram conserto.
+
+### 8.1 O parser recusava 1 das 241 tabelas reais do vault
+
+Rodando as regras de aceitação deste código contra as **241 tabelas reais** de
+`E:\Obsidian\CONHECIMENTO`: **240 aceitas, 1 recusada.**
+
+```
+04_IA_Workspace\Outputs\revisao-celular-2026-06-26.md, linha 117
+  cabeçalho: | | NEM2A | NEM2B |
+  separador: |-|-------|-------|
+  motivo:    célula separadora recusada: '-'
+```
+
+`alignmentOf` exigia três traços; o Markdown pede **um**. Naquela tabela o botão oferecia
+"nova tabela" em cima de uma tabela que existe — e inseriria uma segunda em vez de reconfigurar
+a que está ali. Regra relaxada para `^:?-+:?$` sem mínimo de comprimento. Como o conjunto aceito
+passou a ser exatamente o que a varredura do vault já encontrava, **não há falso positivo novo**;
+o teste `prosePipeLineAboveDashesIsStillNotATable` fixa o limite.
+
+### 8.2 Procurar a tabela custava 158 ms por tecla
+
+`tableRegionAt` é recalculado a cada tecla enquanto a barra de formatação está aberta. Medido no CI
+(run 35359857300), na mesma nota de 1.946 linhas / 180.046 caracteres usada para medir o live preview:
+
+```text
+PERF_TABLE_REGION_AT            mediana_ms=158.4
+PERF_TABLE_REGION_AT_SEM_TABELA mediana_ms=77.4
+```
+
+**77 ms numa nota sem pipe nenhum** — o custo não dependia de haver tabela. Seis vezes os 27,4 ms
+que a pré-visualização já gasta por tecla na mesma nota, e isso no runner x86; no aparelho é pior.
+
+Três causas, todas consertadas:
+
+1. `parseTable` repartia o documento inteiro (`tableLines`) **antes de qualquer verificação**, e o
+   laço do detector a chamava uma vez por linha candidata — 1.946 repartições por tecla. Quem chama
+   em laço passa agora as linhas já repartidas.
+2. `tableRegionAt` varria o documento do começo. Agora **sai na hora** se a linha do cursor não tem
+   pipe (o caso de quase toda tecla) e, quando tem, examina só o bloco contínuo de linhas com pipe.
+3. `TableActionButton` lia o texto **na composição** (`remember(value.text, …)`). Passou a ler no
+   **clique** — o botão não precisa do contexto antes de ser apertado. De quebra, a `TextFormatRow`
+   deixou de recompor a cada tecla.
+
+Medido depois do conserto (run 35360809453):
+
+```text
+PERF_TABLE_REGION_AT            mediana_ms=2.03
+PERF_TABLE_REGION_AT_SEM_TABELA mediana_ms=2.06
+```
+
+**158 ms → 2,03 ms.** Estado final: **244 testes, 0 falhas, 0 pulados**, release **b43**.
+
+### 8.3 O que continua valendo do relatório acima
+
+A reversão do toque longo (§2) foi conferida e está certa: não sobrou `pointerInput` novo sobre o
+editor, e o caminho garantido — botão sensível ao cursor — é o que está em produção.
