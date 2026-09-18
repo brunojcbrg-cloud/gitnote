@@ -158,6 +158,7 @@ class MarkdownEditorUiTest {
     }
 
     @Test
+    @Config(sdk = [27], application = Application::class)
     fun initialPassObserverMeasuresLongPressWithoutBreakingTextSelection() {
         val source = "| head | value |\n| --- | --- |\n| body | data |"
         var observed = TextFieldValue(source, selection = TextRange(0))
