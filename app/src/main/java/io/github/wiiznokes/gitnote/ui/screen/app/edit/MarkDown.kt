@@ -2,21 +2,16 @@ package io.github.wiiznokes.gitnote.ui.screen.app.edit
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
-import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -242,8 +237,7 @@ fun MarkDownContent(
             }
         }
 
-        FastScrollOverlay(
-            scrollState = scrollState,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .onGloballyPositioned { containerCoordinates = it }
@@ -263,7 +257,7 @@ fun MarkDownContent(
                             vm.rememberAnchor(line)
                         }
                     }
-                },
+                }
         ) {
             Box(
                 modifier = Modifier
@@ -313,6 +307,10 @@ fun MarkDownContent(
                     }
                 }
             }
+            FastScrollOverlay(
+                scrollState = scrollState,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
         }
     } else {
         val pendingEditAnchor = remember { vm.consumeAnchor() }
@@ -348,39 +346,20 @@ fun MarkDownContent(
                 )
             }
         }
-        val editScrollState = rememberScrollState()
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val viewportMinHeight = maxHeight
-            FastScrollOverlay(
-                scrollState = editScrollState,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(editScrollState),
-                ) {
-                    GenericTextField(
-                        vm = vm,
-                        textFocusRequester = textFocusRequester,
-                        onFinished = onFinished,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = viewportMinHeight),
-                        textContent = textContent,
-                        visualTransformation = visualTransformation,
-                    )
-                }
-            }
-        }
+        GenericTextField(
+            vm = vm,
+            textFocusRequester = textFocusRequester,
+            onFinished = onFinished,
+            textContent = textContent,
+            visualTransformation = visualTransformation,
+        )
     }
 }
 
 @Composable
-internal fun FastScrollOverlay(
+private fun FastScrollOverlay(
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
-    content: @Composable BoxScope.() -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
     var viewportHeight by remember { mutableIntStateOf(0) }
@@ -388,9 +367,7 @@ internal fun FastScrollOverlay(
     var dragging by remember { mutableStateOf(false) }
     var hideGeneration by remember { mutableIntStateOf(0) }
     val thumbHeight = 56.dp
-    val edgeWidth = 28.dp
     val thumbHeightPx = with(LocalDensity.current) { thumbHeight.toPx() }
-    val edgeWidthPx = with(LocalDensity.current) { edgeWidth.toPx() }
     val canScroll = fastScrollThumbOffset(
         scrollValue = scrollState.value,
         viewportHeight = viewportHeight.toFloat(),
@@ -419,31 +396,33 @@ internal fun FastScrollOverlay(
 
     Box(
         modifier = modifier
+            .width(28.dp)
+            .fillMaxHeight()
             .onSizeChanged { viewportHeight = it.height }
-            .pointerInput(canScroll, viewportHeight, scrollState.maxValue, edgeWidthPx) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    if (!canScroll || down.position.x < size.width - edgeWidthPx) {
-                        return@awaitEachGesture
-                    }
-
-                    val dragStart = awaitLongPressOrCancellation(down.id)
-                        ?: return@awaitEachGesture
-                    dragStart.consume()
-                    visible = true
-                    dragging = true
-                    scrollToFinger(dragStart.position.y)
-
-                    drag(dragStart.id) { change ->
-                        change.consume()
-                        scrollToFinger(change.position.y)
-                    }
-                    dragging = false
-                    hideGeneration++
+            .pointerInput(canScroll, viewportHeight, scrollState.maxValue) {
+                if (canScroll) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { offset ->
+                            visible = true
+                            dragging = true
+                            scrollToFinger(offset.y)
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            hideGeneration++
+                        },
+                        onDragCancel = {
+                            dragging = false
+                            hideGeneration++
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            scrollToFinger(change.position.y)
+                        },
+                    )
                 }
             },
     ) {
-        content()
         val thumbOffset = fastScrollThumbOffset(
             scrollValue = scrollState.value,
             viewportHeight = viewportHeight.toFloat(),
