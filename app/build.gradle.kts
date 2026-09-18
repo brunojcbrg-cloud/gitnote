@@ -138,6 +138,14 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+
+        // O log do CI e a unica prova de que um teste rodou: o relatorio HTML so
+        // sobe como artefato quando a rodada falha.
+        unitTests.all { test ->
+            test.testLogging {
+                events("passed", "skipped", "failed")
+            }
+        }
     }
 
 }
