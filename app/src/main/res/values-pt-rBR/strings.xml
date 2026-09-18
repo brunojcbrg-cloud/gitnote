@@ -184,4 +184,7 @@
     <string name="table_columns">Colunas (1 a 10)</string>
     <string name="table_rows_without_header">Linhas, sem contar o cabeçalho (1 a 50)</string>
     <string name="table_preview">Prévia</string>
+    <string name="configure_table">Configurar tabela</string>
+    <string name="continue_action">Continuar</string>
+    <string name="table_content_loss_confirmation">%1$d célula(s) com conteúdo serão perdidas. Continuar?</string>
 </resources>

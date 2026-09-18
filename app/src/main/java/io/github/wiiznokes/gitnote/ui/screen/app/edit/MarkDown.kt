@@ -681,7 +681,11 @@ fun TextFormatRow(
             contentDescription = "checklist"
         )
 
-        TableActionButton(onInsert = vm::onTableInsert)
+        TableActionButton(
+            value = vm.content.value,
+            onInsert = vm::onTableInsert,
+            onResize = vm::onTableResize,
+        )
 
 
         SmallSeparator()

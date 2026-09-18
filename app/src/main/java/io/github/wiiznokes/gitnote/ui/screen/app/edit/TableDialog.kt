@@ -26,16 +26,28 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.ui.component.BaseDialog
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.buildTable
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.parseTable
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.resizeTableAt
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.tableRegionAt
 
 @Composable
 internal fun TableActionButton(
+    value: TextFieldValue,
     onInsert: (columns: Int, bodyRows: Int) -> Unit,
+    onResize: (columns: Int, bodyRows: Int) -> Unit,
 ) {
     val expanded = rememberSaveable { mutableStateOf(false) }
+    val region = remember(value.text, value.selection.start) {
+        tableRegionAt(value.text, value.selection.min)
+    }
+    val table = remember(value.text, region) {
+        region?.let { parseTable(value.text, it.headerLine) }
+    }
     SmallButton(
         onClick = { expanded.value = true },
         imageVector = Icons.Default.TableChart,
@@ -43,11 +55,14 @@ internal fun TableActionButton(
     )
     TableSizeDialog(
         expanded = expanded,
-        title = stringResource(R.string.new_table),
-        actionText = stringResource(R.string.insert_table),
-        initialColumns = 3,
-        initialRows = 2,
-        onValidation = onInsert,
+        title = stringResource(if (table == null) R.string.new_table else R.string.configure_table),
+        actionText = stringResource(if (table == null) R.string.insert_table else R.string.configure_table),
+        initialColumns = table?.header?.size ?: 3,
+        initialRows = table?.rows?.size ?: 2,
+        lossFor = { columns, rows ->
+            if (table == null) 0 else resizeTableAt(value, columns, rows)?.lostNonEmptyCells ?: 0
+        },
+        onValidation = if (table == null) onInsert else onResize,
     )
 }
 
@@ -58,16 +73,19 @@ internal fun TableSizeDialog(
     actionText: String,
     initialColumns: Int,
     initialRows: Int,
+    lossFor: (columns: Int, bodyRows: Int) -> Int = { _, _ -> 0 },
     onValidation: (columns: Int, bodyRows: Int) -> Unit,
 ) {
     var columnsText by rememberSaveable { mutableStateOf(initialColumns.toString()) }
     var rowsText by rememberSaveable { mutableStateOf(initialRows.toString()) }
+    var pendingLoss by rememberSaveable { mutableStateOf<Int?>(null) }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(expanded.value, initialColumns, initialRows) {
         if (expanded.value) {
             columnsText = initialColumns.toString()
             rowsText = initialRows.toString()
+            pendingLoss = null
             focusRequester.requestFocus()
         }
     }
@@ -85,7 +103,10 @@ internal fun TableSizeDialog(
                 .focusRequester(focusRequester)
                 .testTag("table-columns"),
             value = columnsText,
-            onValueChange = { columnsText = it },
+            onValueChange = {
+                columnsText = it
+                pendingLoss = null
+            },
             label = { Text(stringResource(R.string.table_columns)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -96,7 +117,10 @@ internal fun TableSizeDialog(
                 .fillMaxWidth()
                 .testTag("table-rows"),
             value = rowsText,
-            onValueChange = { rowsText = it },
+            onValueChange = {
+                rowsText = it
+                pendingLoss = null
+            },
             label = { Text(stringResource(R.string.table_rows_without_header)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -113,15 +137,27 @@ internal fun TableSizeDialog(
                 fontFamily = FontFamily.Monospace,
             )
         }
+        pendingLoss?.let { loss ->
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.table_content_loss_confirmation, loss),
+                modifier = Modifier.testTag("table-loss-warning"),
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
         Button(
             enabled = valid,
             onClick = {
-                onValidation(columns!!, rows!!)
-                expanded.value = false
+                val loss = lossFor(columns!!, rows!!)
+                if (loss > 0 && pendingLoss != loss) {
+                    pendingLoss = loss
+                } else {
+                    onValidation(columns!!, rows!!)
+                    expanded.value = false
+                }
             },
         ) {
-            Text(actionText)
+            Text(if (pendingLoss == null) actionText else stringResource(R.string.continue_action))
         }
     }
 }

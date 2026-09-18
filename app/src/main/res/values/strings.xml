@@ -213,4 +213,7 @@
     <string name="table_columns">Columns (1 to 10)</string>
     <string name="table_rows_without_header">Rows, not counting the header (1 to 50)</string>
     <string name="table_preview">Preview</string>
+    <string name="configure_table">Configure table</string>
+    <string name="continue_action">Continue</string>
+    <string name="table_content_loss_confirmation">%1$d non-empty cell(s) will be lost. Continue?</string>
 </resources>

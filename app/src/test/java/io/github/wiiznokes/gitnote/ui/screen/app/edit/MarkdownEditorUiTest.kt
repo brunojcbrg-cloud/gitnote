@@ -3,8 +3,13 @@ package io.github.wiiznokes.gitnote.ui.screen.app.edit
 import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,11 +18,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -79,9 +85,11 @@ class MarkdownEditorUiTest {
                     onValueChange = { value = it },
                     modifier = Modifier.testTag("table-editor"),
                 )
-                TableActionButton { columns, rows ->
-                    value = insertTable(value, columns, rows)
-                }
+                TableActionButton(
+                    value = value,
+                    onInsert = { columns, rows -> value = insertTable(value, columns, rows) },
+                    onResize = { _, _ -> error("empty document cannot resize") },
+                )
             }
         }
 
@@ -94,6 +102,53 @@ class MarkdownEditorUiTest {
                 observed.text,
             )
             assertEquals(TextRange(2), observed.selection)
+        }
+    }
+
+    @Test
+    fun sameTableButtonOpensConfigurationWhenCursorIsInsideTable() {
+        val source = "| head | value |\n| --- | --- |\n| row | data |"
+
+        composeRule.setContent {
+            val value = TextFieldValue(source, selection = TextRange(source.indexOf("row")))
+            TableActionButton(
+                value = value,
+                onInsert = { _, _ -> error("table context must not insert") },
+                onResize = { _, _ -> },
+            )
+        }
+
+        composeRule.onNodeWithContentDescription("Table").performClick()
+        composeRule.onNodeWithText("Configure table").assertExists()
+        composeRule.onNodeWithTag("table-columns").assertExists()
+        composeRule.onNodeWithTag("table-rows").assertExists()
+    }
+
+    @Test
+    fun textFormatRowWithTwelveButtonsIsWiderThanScreen() {
+        var widthPx = 0
+        var density = 1f
+
+        composeRule.setContent {
+            density = LocalDensity.current.density
+            Box(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                Row(modifier = Modifier.onSizeChanged { widthPx = it.width }) {
+                    repeat(12) { index ->
+                        SmallButton(
+                            onClick = {},
+                            imageVector = Icons.Default.TableChart,
+                            contentDescription = "probe-$index",
+                        )
+                        if (index == 2 || index == 6 || index == 10) SmallSeparator()
+                    }
+                }
+            }
+        }
+
+        composeRule.runOnIdle {
+            val widthDp = widthPx / density
+            println("MEASURED_TEXT_FORMAT_ROW_WIDTH_DP=$widthDp")
+            assertTrue(widthDp > 360f, "a barra mediu $widthDp dp e deveria exceder 360 dp")
         }
     }
 

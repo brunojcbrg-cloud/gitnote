@@ -32,6 +32,17 @@ data class MdTableResizeResult(
     val lostNonEmptyCells: Int,
 )
 
+data class MdTableRegion(
+    val headerLine: Int,
+    val separatorLine: Int,
+    val lastLine: Int,
+)
+
+data class MdTableDocumentResizeResult(
+    val value: TextFieldValue,
+    val lostNonEmptyCells: Int,
+)
+
 fun cellsOf(line: String): List<String> {
     val pipes = structuralPipeOffsets(line)
     if (pipes.isEmpty()) return listOf(line)
@@ -90,6 +101,62 @@ fun parseTable(text: String, headerLine: Int): MdTable? {
             lineEnding = dominantLineEnding(text),
             separatorCells = separatorCells,
         ),
+    )
+}
+
+fun tableRegionAt(text: String, offset: Int): MdTableRegion? {
+    val lines = tableLines(text)
+    if (lines.size < 2) return null
+    val cursorLine = text.substring(0, offset.coerceIn(0, text.length)).count { it == '\n' }
+    val fenced = fencedLines(lines)
+
+    for (headerLine in 0 until lines.lastIndex) {
+        if (fenced[headerLine] || fenced[headerLine + 1]) continue
+        val table = parseTable(text, headerLine) ?: continue
+        var lastLine = headerLine + 1
+        while (
+            lastLine + 1 < lines.size &&
+            !fenced[lastLine + 1] &&
+            lines[lastLine + 1].content.isNotBlank() &&
+            hasStructuralPipe(lines[lastLine + 1].content)
+        ) {
+            lastLine++
+        }
+        if (cursorLine in headerLine..lastLine) {
+            return MdTableRegion(
+                headerLine = headerLine,
+                separatorLine = headerLine + 1,
+                lastLine = lastLine,
+            )
+        }
+        if (table.rows.isNotEmpty()) {
+            // Skip body lines: none can start another table without a separator beneath it.
+            continue
+        }
+    }
+    return null
+}
+
+fun resizeTableAt(
+    value: TextFieldValue,
+    columns: Int,
+    bodyRows: Int,
+): MdTableDocumentResizeResult? {
+    val region = tableRegionAt(value.text, value.selection.min) ?: return null
+    val table = parseTable(value.text, region.headerLine) ?: return null
+    val resized = resizeTable(table, columns, bodyRows)
+    val rendered = renderTable(resized.table)
+    val lines = tableLines(value.text)
+    val start = lines[region.headerLine].start
+    val end = lines[region.lastLine].end
+    val newValue = value.copy(
+        text = value.text.substring(0, start) + rendered + value.text.substring(end),
+        selection = TextRange(start + firstCellCursor(rendered, resized.table.style.outerPipes)),
+        composition = null,
+    )
+    return MdTableDocumentResizeResult(
+        value = newValue,
+        lostNonEmptyCells = resized.lostNonEmptyCells,
     )
 }
 
@@ -227,7 +294,11 @@ internal fun dominantLineEnding(text: String): String {
     return if (crlf > lf) "\r\n" else "\n"
 }
 
-private data class TableLine(val content: String)
+private data class TableLine(
+    val content: String,
+    val start: Int,
+    val end: Int,
+)
 
 private fun tableLines(text: String): List<TableLine> {
     val result = mutableListOf<TableLine>()
@@ -235,14 +306,15 @@ private fun tableLines(text: String): List<TableLine> {
     while (start <= text.length) {
         val newline = text.indexOf('\n', start)
         if (newline == -1) {
-            result += TableLine(text.substring(start).removeSuffix("\r"))
+            val content = text.substring(start).removeSuffix("\r")
+            result += TableLine(content = content, start = start, end = start + content.length)
             break
         }
         val end = if (newline > start && text[newline - 1] == '\r') newline - 1 else newline
-        result += TableLine(text.substring(start, end))
+        result += TableLine(content = text.substring(start, end), start = start, end = end)
         start = newline + 1
         if (start == text.length) {
-            result += TableLine("")
+            result += TableLine(content = "", start = start, end = start)
             break
         }
     }
@@ -317,6 +389,45 @@ private fun normalizeRow(row: List<String>, columns: Int, emptyCell: String): Li
     if (row.size <= columns) return row + List(columns - row.size) { emptyCell }
     if (columns == 1) return listOf(row.joinToString(" | "))
     return row.take(columns - 1) + row.drop(columns - 1).joinToString(" | ")
+}
+
+private fun fencedLines(lines: List<TableLine>): BooleanArray {
+    val result = BooleanArray(lines.size)
+    var marker: Char? = null
+    var markerLength = 0
+    lines.forEachIndexed { index, line ->
+        val indentation = line.content.takeWhile { it == ' ' }.length
+        val candidate = if (indentation <= 3) line.content.substring(indentation) else ""
+        val candidateMarker = candidate.firstOrNull()
+        val runLength = if (candidateMarker == '`' || candidateMarker == '~') {
+            candidate.takeWhile { it == candidateMarker }.length
+        } else {
+            0
+        }
+        val fenceLine = runLength >= 3
+        result[index] = marker != null || fenceLine
+        if (fenceLine) {
+            if (marker == null) {
+                marker = candidateMarker
+                markerLength = runLength
+            } else if (
+                marker == candidateMarker &&
+                runLength >= markerLength &&
+                candidate.substring(runLength).isBlank()
+            ) {
+                marker = null
+                markerLength = 0
+            }
+        }
+    }
+    return result
+}
+
+private fun firstCellCursor(rendered: String, outerPipes: Boolean): Int {
+    val header = rendered.substringBefore('\n').removeSuffix("\r")
+    var cursor = if (outerPipes) structuralPipeOffsets(header).firstOrNull()?.plus(1) ?: 0 else 0
+    while (cursor < header.length && header[cursor] == ' ') cursor++
+    return cursor
 }
 
 private fun trailingLineEndings(text: String, lineEnding: String): Int {

@@ -98,6 +98,11 @@ class MarkDownVM : TextVM {
         super.onValueChange(newValue)
     }
 
+    fun onTableResize(columns: Int, bodyRows: Int) {
+        val result = resizeTableAt(content.value, columns, bodyRows) ?: return
+        super.onValueChange(result.value)
+    }
+
     suspend fun resolveWikilinks(names: Set<String>): Map<String, String?> {
         val candidates = dao.wikilinkCandidates(names)
         return resolveWikilinkTargets(
