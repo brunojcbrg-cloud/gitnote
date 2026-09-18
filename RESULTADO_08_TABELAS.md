@@ -1,6 +1,6 @@
 # RESULTADO 08 — inserir e reconfigurar tabelas no editor
 
-**Fecha o:** `HANDOFF_08_TABELAS.md` (base `01f0c06`).  
+**Fecha o:** `HANDOFF_08_TABELAS.md` (base `01f0c06`).
 **Escrito em:** 2026-09-18.
 
 ## 1. Placar
