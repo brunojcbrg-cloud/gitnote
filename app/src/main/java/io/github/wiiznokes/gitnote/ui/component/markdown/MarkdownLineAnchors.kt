@@ -9,8 +9,20 @@ fun lineStartOffsets(text: String): IntArray {
     return offsets
 }
 
-fun lineOfOffset(text: String, offset: Int): Int =
-    lineOfOffset(lineStartOffsets(text), offset.coerceIn(0, text.length))
+/**
+ * Conta as quebras antes de [offset] sem alocar o vetor de linhas.
+ * Esta no caminho de cada tecla do editor, entao nao pode alocar.
+ */
+fun lineOfOffset(text: String, offset: Int): Int {
+    val end = offset.coerceIn(0, text.length)
+    var line = 0
+    var index = 0
+    while (index < end) {
+        if (text[index] == '\n') line++
+        index++
+    }
+    return line
+}
 
 fun lineOfOffset(lineStarts: IntArray, offset: Int): Int {
     if (lineStarts.isEmpty()) return 0
