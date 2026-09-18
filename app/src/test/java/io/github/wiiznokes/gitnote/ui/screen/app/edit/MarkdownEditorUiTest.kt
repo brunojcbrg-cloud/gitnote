@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
@@ -119,8 +120,7 @@ class MarkdownEditorUiTest {
         }
 
         composeRule.onNodeWithContentDescription("Table").performClick()
-        composeRule.onNodeWithTag("table-dialog-title").assertExists()
-        composeRule.onNodeWithText("Configure table").assertExists()
+        composeRule.onNodeWithTag("table-dialog-title").assertTextEquals("Configure table")
         composeRule.onNodeWithTag("table-columns").assertExists()
         composeRule.onNodeWithTag("table-rows").assertExists()
     }
