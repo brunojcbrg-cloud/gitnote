@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -92,6 +94,20 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+private val fastScrollThumbHeight = 56.dp
+
+/** Quadros que a ancora espera os blocos assentarem na abertura da nota. */
+private const val ANCHOR_SETTLE_FRAMES = 30
+
+/** Espera da digitacao parar antes de remedir a linha do cursor. */
+private const val ANCHOR_DEBOUNCE_MS = 120L
+
+/** Altura de linha estimada, em multiplos do tamanho da fonte. */
+private const val EDIT_LINE_HEIGHT_FACTOR = 1.5f
+
+/** Intervalo minimo entre dois movimentos de cursor durante o arrasto. */
+private const val FAST_SCROLL_EMIT_INTERVAL_MS = 90L
 
 @Composable
 fun MarkDownContent(
@@ -146,8 +162,19 @@ fun MarkDownContent(
         fun registerBlock(sourceOffset: Int, coordinates: LayoutCoordinates) {
             val line = lineOfOffset(renderedLineStarts, sourceOffset)
             blockCoordinates[line] = coordinates
-            if (lastTouchedLine == null) {
-                firstLineAtOrAfter(scrollState.value, measuredBlockPositions())?.let(vm::rememberAnchor)
+        }
+
+        // Uma varredura so, depois que os blocos assentam. Fazer isso dentro do
+        // registerBlock custava uma passagem no mapa inteiro por bloco: O(n^2) na abertura.
+        LaunchedEffect(renderedContent) {
+            repeat(ANCHOR_SETTLE_FRAMES) {
+                withFrameNanos { }
+                if (lastTouchedLine != null) return@LaunchedEffect
+                val positions = measuredBlockPositions()
+                if (positions.isNotEmpty()) {
+                    firstLineAtOrAfter(scrollState.value, positions)?.let(vm::rememberAnchor)
+                    return@LaunchedEffect
+                }
             }
         }
 
@@ -321,10 +348,16 @@ fun MarkDownContent(
                 textFocusRequester.requestFocus()
             }
         }
-        LaunchedEffect(textContent.text, textContent.selection) {
-            vm.rememberAnchor(lineOfOffset(textContent.text, textContent.selection.start))
-        }
         val baseFontSize = MaterialTheme.typography.bodyLarge.fontSize
+        var cursorLine by remember { mutableIntStateOf(-1) }
+        LaunchedEffect(textContent.text, textContent.selection.start) {
+            // A primeira medicao e imediata: trocar de modo depressa nao pode perder o lugar.
+            // As seguintes esperam a digitacao parar, para nao varrer a nota a cada tecla.
+            if (cursorLine >= 0) delay(ANCHOR_DEBOUNCE_MS)
+            val line = lineOfOffset(textContent.text, textContent.selection.start)
+            cursorLine = line
+            vm.rememberAnchor(line)
+        }
         val visualTransformation = remember(
             textContent.text,
             textContent.selection,
@@ -346,13 +379,28 @@ fun MarkDownContent(
                 )
             }
         }
-        GenericTextField(
-            vm = vm,
-            textFocusRequester = textFocusRequester,
-            onFinished = onFinished,
-            textContent = textContent,
-            visualTransformation = visualTransformation,
-        )
+        val editLineCount = remember(textContent.text) {
+            textContent.text.count { it == '\n' } + 1
+        }
+        val editLineHeight = with(LocalDensity.current) {
+            baseFontSize.toPx() * EDIT_LINE_HEIGHT_FACTOR
+        }
+        Box(modifier = Modifier.fillMaxSize()) {
+            GenericTextField(
+                vm = vm,
+                textFocusRequester = textFocusRequester,
+                onFinished = onFinished,
+                textContent = textContent,
+                visualTransformation = visualTransformation,
+            )
+            FastScrollLineOverlay(
+                lineCount = editLineCount,
+                currentLine = cursorLine.coerceAtLeast(0),
+                lineHeight = editLineHeight,
+                onLineRequested = vm::moveCursorToLine,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
     }
 }
 
@@ -363,17 +411,13 @@ private fun FastScrollOverlay(
 ) {
     val coroutineScope = rememberCoroutineScope()
     var viewportHeight by remember { mutableIntStateOf(0) }
-    var visible by remember { mutableStateOf(false) }
-    var dragging by remember { mutableStateOf(false) }
-    var hideGeneration by remember { mutableIntStateOf(0) }
-    val thumbHeight = 56.dp
-    val thumbHeightPx = with(LocalDensity.current) { thumbHeight.toPx() }
-    val canScroll = fastScrollThumbOffset(
+    val thumbHeightPx = with(LocalDensity.current) { fastScrollThumbHeight.toPx() }
+    val thumbOffset = fastScrollThumbOffset(
         scrollValue = scrollState.value,
         viewportHeight = viewportHeight.toFloat(),
         thumbHeight = thumbHeightPx,
         maxValue = scrollState.maxValue,
-    ) != null
+    )
 
     fun scrollToFinger(y: Float) {
         val target = fastScrollTargetOffset(
@@ -387,6 +431,111 @@ private fun FastScrollOverlay(
         }
     }
 
+    FastScrollGutter(
+        canScroll = thumbOffset != null,
+        thumbOffset = thumbOffset ?: 0,
+        onViewportHeight = { viewportHeight = it },
+        onDragStart = { y -> scrollToFinger(y) },
+        onDrag = { change -> scrollToFinger(change.position.y) },
+        onDragFinished = { },
+        gestureKey = listOf(viewportHeight, scrollState.maxValue),
+        modifier = modifier,
+    )
+}
+
+/**
+ * A mesma faixa de rolagem do modo leitura, para o modo edicao.
+ *
+ * O TextField do M3 nao expoe o proprio ScrollState, e icar a rolagem para um pai
+ * quebrou o cursor (medido no handoff 07). Entao aqui o arrasto move o cursor, e o
+ * TextField rola sozinho atras dele: o mesmo caminho de que a volta ao lugar depende.
+ */
+@Composable
+internal fun FastScrollLineOverlay(
+    lineCount: Int,
+    currentLine: Int,
+    lineHeight: Float,
+    onLineRequested: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    var previewLine by remember { mutableStateOf<Int?>(null) }
+    var pendingLine by remember { mutableStateOf<Int?>(null) }
+    var lastEmitMs by remember { mutableLongStateOf(0L) }
+    val thumbHeightPx = with(LocalDensity.current) { fastScrollThumbHeight.toPx() }
+    val visibleLines = estimatedVisibleLines(viewportHeight.toFloat(), lineHeight)
+
+    fun lineAt(y: Float): Int? = fastScrollLineTarget(
+        fingerY = y,
+        viewportHeight = viewportHeight.toFloat(),
+        thumbHeight = thumbHeightPx,
+        lineCount = lineCount,
+        visibleLines = visibleLines,
+    )
+
+    val thumbOffset = fastScrollLineThumbOffset(
+        line = previewLine ?: currentLine,
+        lineCount = lineCount,
+        viewportHeight = viewportHeight.toFloat(),
+        thumbHeight = thumbHeightPx,
+        visibleLines = visibleLines,
+    )
+
+    FastScrollGutter(
+        canScroll = thumbOffset != null,
+        thumbOffset = thumbOffset ?: 0,
+        onViewportHeight = { viewportHeight = it },
+        onDragStart = { y ->
+            val line = lineAt(y)
+            if (line != null) {
+                previewLine = line
+                pendingLine = line
+                lastEmitMs = 0L
+                onLineRequested(line)
+            }
+        },
+        onDrag = { change ->
+            val line = lineAt(change.position.y)
+            if (line != null) {
+                previewLine = line
+                pendingLine = line
+                // Cada movimento do cursor refaz o live preview da nota inteira
+                // (27 ms numa nota de 1.946 linhas). Sem esta redea o arrasto engasga.
+                if (change.uptimeMillis - lastEmitMs >= FAST_SCROLL_EMIT_INTERVAL_MS) {
+                    lastEmitMs = change.uptimeMillis
+                    onLineRequested(line)
+                }
+            }
+        },
+        onDragFinished = {
+            pendingLine?.let(onLineRequested)
+            pendingLine = null
+            previewLine = null
+        },
+        gestureKey = listOf(viewportHeight, lineCount, visibleLines),
+        modifier = modifier,
+    )
+}
+
+/**
+ * A faixa de 28dp na borda direita: so captura depois do toque longo, para nao roubar
+ * o toque do que esta embaixo (posicionar o cursor, no editor; wikilink, na leitura).
+ */
+@Composable
+private fun FastScrollGutter(
+    canScroll: Boolean,
+    thumbOffset: Int,
+    onViewportHeight: (Int) -> Unit,
+    onDragStart: (Float) -> Unit,
+    onDrag: (PointerInputChange) -> Unit,
+    onDragFinished: () -> Unit,
+    gestureKey: Any?,
+    modifier: Modifier = Modifier,
+) {
+    var visible by remember { mutableStateOf(false) }
+    var dragging by remember { mutableStateOf(false) }
+    var hideGeneration by remember { mutableIntStateOf(0) }
+
     LaunchedEffect(visible, dragging, hideGeneration) {
         if (visible && !dragging) {
             delay(1_500)
@@ -398,37 +547,33 @@ private fun FastScrollOverlay(
         modifier = modifier
             .width(28.dp)
             .fillMaxHeight()
-            .onSizeChanged { viewportHeight = it.height }
-            .pointerInput(canScroll, viewportHeight, scrollState.maxValue) {
+            .onSizeChanged { onViewportHeight(it.height) }
+            .pointerInput(canScroll, gestureKey) {
                 if (canScroll) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { offset ->
                             visible = true
                             dragging = true
-                            scrollToFinger(offset.y)
+                            onDragStart(offset.y)
                         },
                         onDragEnd = {
                             dragging = false
                             hideGeneration++
+                            onDragFinished()
                         },
                         onDragCancel = {
                             dragging = false
                             hideGeneration++
+                            onDragFinished()
                         },
                         onDrag = { change, _ ->
                             change.consume()
-                            scrollToFinger(change.position.y)
+                            onDrag(change)
                         },
                     )
                 }
             },
     ) {
-        val thumbOffset = fastScrollThumbOffset(
-            scrollValue = scrollState.value,
-            viewportHeight = viewportHeight.toFloat(),
-            thumbHeight = thumbHeightPx,
-            maxValue = scrollState.maxValue,
-        ) ?: 0
         AnimatedVisibility(
             visible = visible && canScroll,
             modifier = Modifier
@@ -438,7 +583,7 @@ private fun FastScrollOverlay(
             Box(
                 modifier = Modifier
                     .width(7.dp)
-                    .height(thumbHeight)
+                    .height(fastScrollThumbHeight)
                     .background(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.82f),
                         shape = RoundedCornerShape(percent = 50),
