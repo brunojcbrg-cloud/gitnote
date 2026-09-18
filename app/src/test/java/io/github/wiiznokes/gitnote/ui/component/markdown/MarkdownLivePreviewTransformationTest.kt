@@ -223,6 +223,52 @@ class MarkdownLivePreviewTransformationTest {
         assertEquals(180_046, source.length)
     }
 
+    @Test
+    fun aFenceLineKeepsItsOwnTextOnScreen() {
+        val source = "``` - lembrar da tabela\nconteudo\n```\ndepois"
+        val result = transform(source)
+
+        assertEquals(source, result.text.text)
+        assertMappingsAreSafeAndMonotonic(source, result.text.text, result.offsetMapping)
+        for (offset in 0..source.length) {
+            assertEquals(offset, result.offsetMapping.transformedToOriginal(offset))
+            assertEquals(offset, result.offsetMapping.originalToTransformed(offset))
+        }
+    }
+
+    @Test
+    fun backspaceOnAFenceRemovesTheCharacterUnderTheCursor() {
+        val source = "``` - lembrar da tabela\nconteudo\n```"
+        val result = transform(source)
+
+        for (cursor in 1..result.text.length) {
+            val original = result.offsetMapping.transformedToOriginal(cursor)
+            assertEquals(
+                result.text.text[cursor - 1],
+                source[original - 1],
+                "cursor $cursor apagaria o caractere errado",
+            )
+        }
+    }
+
+    @Test
+    fun aFenceWithALanguageKeepsTheLanguageVisible() {
+        val source = "```kotlin\nval x = 1\n```"
+
+        assertEquals(source, transform(source).text.text)
+    }
+
+    @Test
+    fun aNoteThatOpensWithTwoBackticksIsLeftAloneForEditing() {
+        val source = "`` - lembrar da tabela\n``\ndepois"
+        val result = transform(source)
+
+        assertEquals(source, result.text.text)
+        for (offset in 0..source.length) {
+            assertEquals(offset, result.offsetMapping.transformedToOriginal(offset))
+        }
+    }
+
     private fun transform(source: String, activeLines: Set<Int> = emptySet()) =
         MarkdownLivePreviewTransformation(
             colors = colors,

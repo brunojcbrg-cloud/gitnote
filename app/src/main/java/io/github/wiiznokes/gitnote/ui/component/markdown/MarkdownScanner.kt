@@ -29,7 +29,10 @@ object MarkdownScanner {
                     spans += MdSpan(
                         kind = MdKind.CODE_FENCE,
                         range = fenceRange,
-                        markers = if (fenceRange.isEmpty()) emptyList() else listOf(fenceRange),
+                        // A linha da cerca NAO e marcador. Escondia-se a linha inteira,
+                        // junto com o texto escrito depois das crases, e o cursor caia em
+                        // outro ponto do documento: apagar ali comia letras de outra linha.
+                        markers = emptyList(),
                         line = line,
                     )
                     inCodeFence = !inCodeFence
