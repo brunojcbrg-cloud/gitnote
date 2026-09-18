@@ -1,5 +1,8 @@
 package io.github.wiiznokes.gitnote.ui.viewmodel.edit
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+
 data class MdTableCell(val text: String)
 
 enum class MdAlign {
@@ -119,6 +122,43 @@ fun buildTable(columns: Int, bodyRows: Int, lineEnding: String): String {
         add(renderCells(separators, outerPipes = true))
         repeat(bodyRows) { add(renderCells(emptyCells, outerPipes = true)) }
     }.joinToString(lineEnding)
+}
+
+fun insertTable(value: TextFieldValue, columns: Int, bodyRows: Int): TextFieldValue {
+    val text = value.text
+    val offset = value.selection.min.coerceIn(0, text.length)
+    val lineEnding = dominantLineEnding(text)
+    val lineStart = text.lastIndexOf('\n', startIndex = (offset - 1).coerceAtLeast(0)).let {
+        if (offset == 0 || it == -1) 0 else it + 1
+    }
+    val newline = text.indexOf('\n', startIndex = offset)
+    val rawLineEnd = if (newline == -1) text.length else newline
+    val lineEnd = if (rawLineEnd > lineStart && text[rawLineEnd - 1] == '\r') {
+        rawLineEnd - 1
+    } else {
+        rawLineEnd
+    }
+    val lineIsBlank = text.substring(lineStart, lineEnd).isBlank()
+    val insertionOffset = if (lineIsBlank) lineStart else lineEnd
+    val prefix = text.substring(0, insertionOffset)
+    val suffix = text.substring(insertionOffset)
+    val insideFence = isInsideFencedBlock(text, insertionOffset)
+    val requiredBreaks = if (insideFence) 1 else 2
+    val before = lineEnding.repeat(
+        (requiredBreaks - trailingLineEndings(prefix, lineEnding)).coerceAtLeast(0),
+    )
+    val after = lineEnding.repeat(
+        (requiredBreaks - leadingLineEndings(suffix, lineEnding)).coerceAtLeast(0),
+    )
+    val table = buildTable(columns, bodyRows, lineEnding)
+    val insertion = before + table + after
+    val firstCellOffset = insertionOffset + before.length + 2
+
+    return value.copy(
+        text = prefix + insertion + suffix,
+        selection = TextRange(firstCellOffset),
+        composition = null,
+    )
 }
 
 fun resizeTable(table: MdTable, columns: Int, bodyRows: Int): MdTableResizeResult {
@@ -277,4 +317,59 @@ private fun normalizeRow(row: List<String>, columns: Int, emptyCell: String): Li
     if (row.size <= columns) return row + List(columns - row.size) { emptyCell }
     if (columns == 1) return listOf(row.joinToString(" | "))
     return row.take(columns - 1) + row.drop(columns - 1).joinToString(" | ")
+}
+
+private fun trailingLineEndings(text: String, lineEnding: String): Int {
+    var count = 0
+    var end = text.length
+    while (end >= lineEnding.length && text.regionMatches(end - lineEnding.length, lineEnding, 0, lineEnding.length)) {
+        count++
+        end -= lineEnding.length
+    }
+    return count
+}
+
+private fun leadingLineEndings(text: String, lineEnding: String): Int {
+    var count = 0
+    var start = 0
+    while (start + lineEnding.length <= text.length && text.regionMatches(start, lineEnding, 0, lineEnding.length)) {
+        count++
+        start += lineEnding.length
+    }
+    return count
+}
+
+private fun isInsideFencedBlock(text: String, offset: Int): Boolean {
+    var marker: Char? = null
+    var markerLength = 0
+    var lineStart = 0
+    while (lineStart < offset) {
+        val newline = text.indexOf('\n', lineStart)
+        val lineEnd = minOf(if (newline == -1) text.length else newline, offset)
+        val line = text.substring(lineStart, lineEnd).removeSuffix("\r")
+        val indentation = line.takeWhile { it == ' ' }.length
+        if (indentation <= 3) {
+            val candidate = line.substring(indentation)
+            val candidateMarker = candidate.firstOrNull()
+            if (candidateMarker == '`' || candidateMarker == '~') {
+                val runLength = candidate.takeWhile { it == candidateMarker }.length
+                if (runLength >= 3) {
+                    if (marker == null) {
+                        marker = candidateMarker
+                        markerLength = runLength
+                    } else if (
+                        marker == candidateMarker &&
+                        runLength >= markerLength &&
+                        candidate.substring(runLength).isBlank()
+                    ) {
+                        marker = null
+                        markerLength = 0
+                    }
+                }
+            }
+        }
+        if (newline == -1 || newline >= offset) break
+        lineStart = newline + 1
+    }
+    return marker != null
 }

@@ -178,4 +178,10 @@
     <string name="note_changed_on_disk">A nota mudou fora do app; a revisão não foi gravada.</string>
     <string name="flashcard_card_count_changed">A estrutura da nota mudou; os cards restantes saíram desta sessão.</string>
     <string name="flashcard_schedule_unavailable">As opções de revisão não estão disponíveis. Reabra a revisão e tente novamente.</string>
+    <string name="table">Tabela</string>
+    <string name="new_table">Nova tabela</string>
+    <string name="insert_table">Inserir tabela</string>
+    <string name="table_columns">Colunas (1 a 10)</string>
+    <string name="table_rows_without_header">Linhas, sem contar o cabeçalho (1 a 50)</string>
+    <string name="table_preview">Prévia</string>
 </resources>

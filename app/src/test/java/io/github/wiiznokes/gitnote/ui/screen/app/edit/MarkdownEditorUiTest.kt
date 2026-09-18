@@ -2,6 +2,7 @@ package io.github.wiiznokes.gitnote.ui.screen.app.edit
 
 import android.app.Application
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.TextField
@@ -16,12 +17,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.markdownSmartEditor
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.insertTable
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,6 +63,37 @@ class MarkdownEditorUiTest {
         composeRule.runOnIdle {
             assertEquals("- item\n- ", observed.text)
             assertEquals(TextRange(9), observed.selection)
+        }
+    }
+
+    @Test
+    fun tableButtonDialogConfirmsDefaultThreeByTwoInRealTextField() {
+        var observed = TextFieldValue("", selection = TextRange(0))
+
+        composeRule.setContent {
+            var value by remember { mutableStateOf(observed) }
+            observed = value
+            Column {
+                TextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    modifier = Modifier.testTag("table-editor"),
+                )
+                TableActionButton { columns, rows ->
+                    value = insertTable(value, columns, rows)
+                }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Table").performClick()
+        composeRule.onNodeWithText("New table").assertExists()
+        composeRule.onNodeWithText("Insert table").performClick()
+        composeRule.runOnIdle {
+            assertEquals(
+                "|  |  |  |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n\n",
+                observed.text,
+            )
+            assertEquals(TextRange(2), observed.selection)
         }
     }
 

@@ -93,6 +93,11 @@ class MarkDownVM : TextVM {
         super.onValueChange(newValue)
     }
 
+    fun onTableInsert(columns: Int, bodyRows: Int) {
+        val newValue = insertTable(content.value, columns, bodyRows)
+        super.onValueChange(newValue)
+    }
+
     suspend fun resolveWikilinks(names: Set<String>): Map<String, String?> {
         val candidates = dao.wikilinkCandidates(names)
         return resolveWikilinkTargets(

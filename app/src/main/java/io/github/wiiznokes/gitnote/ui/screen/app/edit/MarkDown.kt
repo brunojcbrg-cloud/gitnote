@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -606,7 +607,7 @@ fun TextFormatRow(
         modifier = modifier
             .fillMaxWidth()
             .height(bottomBarHeight)
-            .scrollable(rememberScrollState(initial = 0), orientation = Orientation.Horizontal),
+            .horizontalScroll(rememberScrollState(initial = 0)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
@@ -679,6 +680,8 @@ fun TextFormatRow(
             imageVector = Icons.Default.Checklist,
             contentDescription = "checklist"
         )
+
+        TableActionButton(onInsert = vm::onTableInsert)
 
 
         SmallSeparator()

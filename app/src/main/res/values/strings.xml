@@ -207,4 +207,10 @@
     <string name="home_send_lesson_detail">Selecionar todas as partes e enviar uma aula pelo Google Drive.</string>
     <string name="home_lesson_history">Historico de aulas</string>
     <string name="home_lesson_history_detail">Ver processamento por materia e o ultimo estado publicado pelo PC.</string>
+    <string name="table">Table</string>
+    <string name="new_table">New table</string>
+    <string name="insert_table">Insert table</string>
+    <string name="table_columns">Columns (1 to 10)</string>
+    <string name="table_rows_without_header">Rows, not counting the header (1 to 50)</string>
+    <string name="table_preview">Preview</string>
 </resources>
