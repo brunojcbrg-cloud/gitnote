@@ -86,7 +86,7 @@ class MarkdownEditorUiTest {
                     modifier = Modifier.testTag("table-editor"),
                 )
                 TableActionButton(
-                    value = value,
+                    currentValue = { value },
                     onInsert = { columns, rows -> value = insertTable(value, columns, rows) },
                     onResize = { _, _ -> error("empty document cannot resize") },
                 )
@@ -112,7 +112,7 @@ class MarkdownEditorUiTest {
         composeRule.setContent {
             val value = TextFieldValue(source, selection = TextRange(source.indexOf("row")))
             TableActionButton(
-                value = value,
+                currentValue = { value },
                 onInsert = { _, _ -> error("table context must not insert") },
                 onResize = { _, _ -> },
             )
@@ -120,6 +120,7 @@ class MarkdownEditorUiTest {
 
         composeRule.onNodeWithContentDescription("Table").performClick()
         composeRule.onNodeWithTag("table-dialog-title").assertExists()
+        composeRule.onNodeWithText("Configure table").assertExists()
         composeRule.onNodeWithTag("table-columns").assertExists()
         composeRule.onNodeWithTag("table-rows").assertExists()
     }

@@ -3,6 +3,7 @@ package io.github.wiiznokes.gitnote.ui.viewmodel.edit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class MarkdownTableTest {
@@ -116,5 +117,23 @@ class MarkdownTableTest {
         val rendered = renderTable(result.table)
         assertTrue(!rendered.lineSequence().first().startsWith('|'))
         assertTrue(!rendered.lineSequence().first().endsWith('|'))
+    }
+
+    @Test
+    fun parsesTheSingleDashSeparatorThatExistsInTheVault() {
+        val source = "| | NEM2A | NEM2B |\n|-|-------|-------|\n| gene | RET | RET |"
+        val parsed = assertNotNull(parseTable(source, 0))
+
+        assertEquals(3, parsed.header.size)
+        assertEquals(1, parsed.rows.size)
+        assertEquals(source, renderTable(parsed))
+        assertNotNull(tableRegionAt(source, source.indexOf("NEM2A")))
+    }
+
+    @Test
+    fun prosePipeLineAboveDashesIsStillNotATable() {
+        val source = "custo | beneficio\nmuito | pouco\noutra linha"
+
+        assertNull(tableRegionAt(source, source.indexOf("pouco")))
     }
 }

@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.ui.component.BaseDialog
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MdTable
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.buildTable
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.parseTable
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.resizeTableAt
@@ -38,32 +39,44 @@ import io.github.wiiznokes.gitnote.ui.viewmodel.edit.tableRegionAt
 
 @Composable
 internal fun TableActionButton(
-    value: TextFieldValue,
+    currentValue: () -> TextFieldValue,
     onInsert: (columns: Int, bodyRows: Int) -> Unit,
     onResize: (columns: Int, bodyRows: Int) -> Unit,
 ) {
-    val expanded = rememberSaveable { mutableStateOf(false) }
-    val region = remember(value.text, value.selection.start) {
-        tableRegionAt(value.text, value.selection.min)
-    }
-    val table = remember(value.text, region) {
-        region?.let { parseTable(value.text, it.headerLine) }
-    }
+    // O texto e lido no clique, nao na composicao: procurar a tabela a cada tecla
+    // custava 158 ms por tecla numa nota de 1.946 linhas.
+    // `expanded` nao e rememberSaveable de proposito — restaurar a caixa aberta sem o
+    // contexto trocaria "configurar tabela" por "inserir tabela".
+    val expanded = remember { mutableStateOf(false) }
+    var snapshot by remember { mutableStateOf(TextFieldValue()) }
+    var table by remember { mutableStateOf<MdTable?>(null) }
+
     SmallButton(
-        onClick = { expanded.value = true },
+        onClick = {
+            val value = currentValue()
+            snapshot = value
+            table = tableRegionAt(value.text, value.selection.min)
+                ?.let { region -> parseTable(value.text, region.headerLine) }
+            expanded.value = true
+        },
         imageVector = Icons.Default.TableChart,
         contentDescription = stringResource(R.string.table),
     )
+    val context = table
     TableSizeDialog(
         expanded = expanded,
-        title = stringResource(if (table == null) R.string.new_table else R.string.configure_table),
-        actionText = stringResource(if (table == null) R.string.insert_table else R.string.configure_table),
-        initialColumns = table?.header?.size ?: 3,
-        initialRows = table?.rows?.size ?: 2,
+        title = stringResource(if (context == null) R.string.new_table else R.string.configure_table),
+        actionText = stringResource(if (context == null) R.string.insert_table else R.string.configure_table),
+        initialColumns = context?.header?.size ?: 3,
+        initialRows = context?.rows?.size ?: 2,
         lossFor = { columns, rows ->
-            if (table == null) 0 else resizeTableAt(value, columns, rows)?.lostNonEmptyCells ?: 0
+            if (context == null) {
+                0
+            } else {
+                resizeTableAt(snapshot, columns, rows)?.lostNonEmptyCells ?: 0
+            }
         },
-        onValidation = if (table == null) onInsert else onResize,
+        onValidation = if (context == null) onInsert else onResize,
     )
 }
 

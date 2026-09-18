@@ -64,8 +64,19 @@ fun cellsOf(line: String): List<String> {
     return result
 }
 
-fun parseTable(text: String, headerLine: Int): MdTable? {
-    val lines = tableLines(text)
+fun parseTable(text: String, headerLine: Int): MdTable? =
+    parseTableLines(tableLines(text), headerLine, dominantLineEnding(text))
+
+/**
+ * Repartir o documento e varrer o fim de linha custa uma passagem inteira. Quem chama em
+ * laco passa as linhas ja prontas: fazer isso por candidato custava 158 ms por tecla numa
+ * nota de 1.946 linhas, contra os 27 ms que a pre-visualizacao ja gasta na mesma nota.
+ */
+private fun parseTableLines(
+    lines: List<TableLine>,
+    headerLine: Int,
+    lineEnding: String,
+): MdTable? {
     if (headerLine !in lines.indices || headerLine + 1 !in lines.indices) return null
 
     val headerText = lines[headerLine].content
@@ -98,7 +109,7 @@ fun parseTable(text: String, headerLine: Int): MdTable? {
         style = MdTableStyle(
             outerPipes = outerPipes,
             padded = padded,
-            lineEnding = dominantLineEnding(text),
+            lineEnding = lineEnding,
             separatorCells = separatorCells,
         ),
     )
@@ -107,12 +118,40 @@ fun parseTable(text: String, headerLine: Int): MdTable? {
 fun tableRegionAt(text: String, offset: Int): MdTableRegion? {
     val lines = tableLines(text)
     if (lines.size < 2) return null
-    val cursorLine = text.substring(0, offset.coerceIn(0, text.length)).count { it == '\n' }
-    val fenced = fencedLines(lines)
 
-    for (headerLine in 0 until lines.lastIndex) {
+    var cursorLine = 0
+    val limite = offset.coerceIn(0, text.length)
+    var indice = 0
+    while (indice < limite) {
+        if (text[indice] == '\n') cursorLine++
+        indice++
+    }
+    if (cursorLine !in lines.indices) return null
+
+    // Linha sem pipe nunca pertence a tabela: e a saida que atende quase toda tecla
+    // digitada, antes de repartir cerca ou tentar interpretar qualquer coisa.
+    if (!hasStructuralPipe(lines[cursorLine].content)) return null
+
+    val fenced = fencedLines(lines)
+    if (fenced[cursorLine]) return null
+
+    // Sobe ate o comeco do bloco continuo de linhas com pipe. A tabela comeca nele ou
+    // logo abaixo, entao o custo passa a ser do tamanho do bloco, nao do documento.
+    var primeira = cursorLine
+    while (
+        primeira - 1 >= 0 &&
+        !fenced[primeira - 1] &&
+        lines[primeira - 1].content.isNotBlank() &&
+        hasStructuralPipe(lines[primeira - 1].content)
+    ) {
+        primeira--
+    }
+
+    val lineEnding = dominantLineEnding(text)
+    for (headerLine in primeira..cursorLine) {
+        if (headerLine + 1 > lines.lastIndex) break
         if (fenced[headerLine] || fenced[headerLine + 1]) continue
-        val table = parseTable(text, headerLine) ?: continue
+        parseTableLines(lines, headerLine, lineEnding) ?: continue
         var lastLine = headerLine + 1
         while (
             lastLine + 1 < lines.size &&
@@ -128,10 +167,6 @@ fun tableRegionAt(text: String, offset: Int): MdTableRegion? {
                 separatorLine = headerLine + 1,
                 lastLine = lastLine,
             )
-        }
-        if (table.rows.isNotEmpty()) {
-            // Skip body lines: none can start another table without a separator beneath it.
-            continue
         }
     }
     return null
@@ -365,7 +400,10 @@ private fun hasOuterPipes(line: String): Boolean {
 
 private fun alignmentOf(cell: String): MdAlign? {
     val marker = cell.trim()
-    if (marker.length < 3 || !Regex("^:?-+:?$").matches(marker)) return null
+    // Um traco basta, que e o que o Markdown pede. Exigir tres recusava a tabela
+    // `|-|-------|` do vault (1 das 241 medidas), e o botao oferecia "nova tabela"
+    // em cima de uma tabela que existe.
+    if (!Regex("^:?-+:?$").matches(marker)) return null
     return when {
         marker.startsWith(':') && marker.endsWith(':') -> MdAlign.CENTER
         marker.startsWith(':') -> MdAlign.LEFT

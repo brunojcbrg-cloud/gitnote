@@ -682,7 +682,7 @@ fun TextFormatRow(
         )
 
         TableActionButton(
-            value = vm.content.value,
+            currentValue = { vm.content.value },
             onInsert = vm::onTableInsert,
             onResize = vm::onTableResize,
         )
