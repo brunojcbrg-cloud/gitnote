@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,12 +19,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -32,6 +36,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import io.github.wiiznokes.gitnote.ui.component.BaseDialog
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.markdownSmartEditor
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.insertTable
 import org.junit.Rule
@@ -152,6 +157,58 @@ class MarkdownEditorUiTest {
         }
     }
 
+    @Test
+    fun initialPassObserverMeasuresLongPressWithoutBreakingTextSelection() {
+        val source = "| head | value |\n| --- | --- |\n| body | data |"
+        var observed = TextFieldValue(source, selection = TextRange(0))
+        var durationMs = -1L
+        var selectionWhenOpened = TextRange.Zero
+        var dialogState: androidx.compose.runtime.MutableState<Boolean>? = null
+
+        composeRule.setContent {
+            var value by remember { mutableStateOf(observed) }
+            val expanded = remember { mutableStateOf(false) }
+            observed = value
+            dialogState = expanded
+            TextField(
+                value = value,
+                onValueChange = { value = it },
+                modifier = Modifier
+                    .size(width = 320.dp, height = 180.dp)
+                    .testTag("measured-long-press-editor")
+                    .observeInitialPassLongPress { measuredDuration ->
+                        durationMs = measuredDuration
+                        selectionWhenOpened = observed.selection
+                        expanded.value = true
+                    },
+            )
+            BaseDialog(expanded = expanded) {
+                Text("Measured table configuration")
+            }
+        }
+
+        composeRule.onNodeWithTag("measured-long-press-editor").performTouchInput {
+            longClick(center)
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Measured table configuration").assertExists()
+        println(
+            "MEASURED_TABLE_LONG_PRESS duration_ms=$durationMs " +
+                "selection=${selectionWhenOpened.start}..${selectionWhenOpened.end}",
+        )
+        assertTrue(durationMs >= 500L, "o observador não mediu a pressão longa")
+        assertTrue(!selectionWhenOpened.collapsed, "a seleção do TextField foi perdida")
+
+        composeRule.runOnIdle { dialogState!!.value = false }
+        composeRule.onNodeWithTag("measured-long-press-editor").performTouchInput {
+            click(Offset(width - 20f, centerY))
+        }
+        composeRule.runOnIdle {
+            assertTrue(observed.selection.collapsed, "a seleção ficou presa depois de fechar o diálogo")
+        }
+    }
+
     /**
      * A parte A do handoff 07: o arrasto na faixa direita do editor pede uma linha.
      * Aqui se mede a ligacao do gesto. Que o TextField role ate o cursor e o mesmo
@@ -220,3 +277,31 @@ class MarkdownEditorUiTest {
         assertEquals(null, requested, "a nota cabe na tela e mesmo assim moveu o cursor")
     }
 }
+
+private fun Modifier.observeInitialPassLongPress(onLongPress: (durationMs: Long) -> Unit): Modifier =
+    pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val down = event.changes.firstOrNull { it.pressed && !it.previousPressed } ?: continue
+                val startedAt = down.uptimeMillis
+                val startedAtPosition = down.position
+                var lastEventAt = startedAt
+                var moved = false
+                var pressed = true
+                while (pressed) {
+                    val next = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = next.changes.firstOrNull { it.id == down.id } ?: continue
+                    lastEventAt = change.uptimeMillis
+                    if ((change.position - startedAtPosition).getDistance() > viewConfiguration.touchSlop) {
+                        moved = true
+                    }
+                    pressed = change.pressed
+                }
+                val duration = lastEventAt - startedAt
+                if (!moved && duration >= viewConfiguration.longPressTimeoutMillis) {
+                    onLongPress(duration)
+                }
+            }
+        }
+    }
