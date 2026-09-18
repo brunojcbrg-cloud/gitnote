@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -86,6 +87,7 @@ internal fun TableSizeDialog(
             columnsText = initialColumns.toString()
             rowsText = initialRows.toString()
             pendingLoss = null
+            withFrameNanos { }
             focusRequester.requestFocus()
         }
     }
@@ -95,7 +97,7 @@ internal fun TableSizeDialog(
         val rows = rowsText.toIntOrNull()
         val valid = columns != null && columns in 1..10 && rows != null && rows in 1..50
 
-        Text(text = title)
+        Text(text = title, modifier = Modifier.testTag("table-dialog-title"))
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
             modifier = Modifier

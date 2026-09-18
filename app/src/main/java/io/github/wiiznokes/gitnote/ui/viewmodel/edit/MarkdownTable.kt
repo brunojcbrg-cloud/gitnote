@@ -211,9 +211,13 @@ fun insertTable(value: TextFieldValue, columns: Int, bodyRows: Int): TextFieldVa
     val suffix = text.substring(insertionOffset)
     val insideFence = isInsideFencedBlock(text, insertionOffset)
     val requiredBreaks = if (insideFence) 1 else 2
-    val before = lineEnding.repeat(
-        (requiredBreaks - trailingLineEndings(prefix, lineEnding)).coerceAtLeast(0),
-    )
+    val before = if (prefix.isEmpty()) {
+        ""
+    } else {
+        lineEnding.repeat(
+            (requiredBreaks - trailingLineEndings(prefix, lineEnding)).coerceAtLeast(0),
+        )
+    }
     val after = lineEnding.repeat(
         (requiredBreaks - leadingLineEndings(suffix, lineEnding)).coerceAtLeast(0),
     )

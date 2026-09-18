@@ -119,7 +119,7 @@ class MarkdownEditorUiTest {
         }
 
         composeRule.onNodeWithContentDescription("Table").performClick()
-        composeRule.onNodeWithText("Configure table").assertExists()
+        composeRule.onNodeWithTag("table-dialog-title").assertExists()
         composeRule.onNodeWithTag("table-columns").assertExists()
         composeRule.onNodeWithTag("table-rows").assertExists()
     }
