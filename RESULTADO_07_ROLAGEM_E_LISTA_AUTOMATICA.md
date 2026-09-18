@@ -19,8 +19,8 @@ Nada foi para os Ajustes, o `applicationId` não mudou, o `MarkdownScanner` e o
 pré-processamento de wikilink não foram reescritos, e o editor **não** migrou para
 `TextFieldState` (§7 do handoff).
 
-**Estado verificado:** run 35346914948 — **211 testes, 0 falhas, 0 pulados**, APK montado e
-publicado como **b32 (26.08.1.32)**. Desde essa rodada o CI **lista no log cada teste que
+**Estado verificado:** run 35349087214 — **215 testes, 0 falhas, 0 pulados**, APK montado e
+publicado como **b34 (26.08.1.34)**. Desde essa rodada o CI **lista no log cada teste que
 executou**: antes, uma rodada verde não provava que um teste novo tinha rodado, porque o
 relatório HTML só vira artefato quando a rodada falha.
 
@@ -152,6 +152,34 @@ aloca dois `IntArray(n+1)` a cada tecla. **É o próximo gargalo do editor.**
 
 ---
 
+## 5-B. Defeito achado pelo Bruno em 18/09: a caixa de código não dava para tirar
+
+**Sintoma dele:** abriu uma nota que começa com uma caixa de código, viu uma crase, foi apagar,
+e "a crase caía para as próximas letras e a crase mesmo não sumia". Não conseguia tirar a caixa.
+
+**Medido** (teste de diagnóstico, run 35348542221), com `` ``` `` no início da nota:
+
+```
+SPAN   kind=CODE_FENCE range=0..41 markers=[0..41] line=0   ← a LINHA INTEIRA é marcador
+TELA   = "\n\nDiferencas entre paredes"                     ← a linha 0 sumiu da tela
+T2O    0->42                                                ← a posição visual 0 é o caractere 42
+BACKSPACE cursor1:apaga[45]='`'  cursor3:apaga[49]='D'      ← apaga na linha de baixo
+```
+
+Ou seja: a linha da cerca era marcada como marcador **inteira**, e escondida junto com o texto
+escrito depois das crases. A tela ficava com uma linha vazia e o cursor, ao ser posicionado ali,
+apontava para outro ponto do documento — apagar comia letras de outra linha e a crase, que estava
+escondida, nunca sumia.
+
+**Conserto:** a linha da cerca deixa de ser marcador. Continua estilizada como código, mas fica
+visível e apagável, como todo o resto do que está no arquivo. Quatro testes fixam isso, incluindo
+*"o Backspace apaga o caractere que está sob o cursor"* em todas as posições de um bloco cercado.
+
+**Detalhe do arquivo dele, que não é defeito do app:** a nota tem **duas** crases, não três — e o
+texto está na **mesma linha** da cerca. Em Markdown, o que vem depois das crases na linha da cerca
+é o nome da linguagem, não conteúdo. A forma que vira caixa é a cerca sozinha na linha, o conteúdo
+na linha seguinte, e a cerca de novo sozinha no fim.
+
 ## 6. O que ficou de fora
 
 - **Rolagem "de verdade" no editor** (mover a viewport sem mexer no cursor) continua
@@ -197,7 +225,12 @@ Instale o APK da última release do fork e faça, em ordem:
     abrir a barra. Este é o teste que protege o uso normal do editor.
 20. Em leitura, o mesmo toque simples na borda direita sobre um wikilink → abre o link.
 
+**Caixa de código (§5-B)**
+21. Abrir em edição uma nota que tenha um bloco ``` ``` ```: as crases **aparecem** na tela.
+22. Pôr o cursor depois de uma crase e apagar → some **aquela** crase, e nada mais.
+23. Apagar as três crases de cima e as três de baixo → a caixa sai da nota.
+
 **Desempenho**
-21. Abrir uma nota de 500+ linhas em leitura e ver se abre sem travar (era o defeito O(n²)).
-22. Digitar numa nota muito grande: vai estar lento — é o live preview, medido em §5, e é o
+24. Abrir uma nota de 500+ linhas em leitura e ver se abre sem travar (era o defeito O(n²)).
+25. Digitar numa nota muito grande: vai estar lento — é o live preview, medido em §5, e é o
     próximo trabalho, não uma regressão desta rodada.
