@@ -22,6 +22,7 @@ enum class MdKind {
     WIKILINK,
     LINK_TEXT,
     LINK_URL,
+    MATH,
 }
 
 data class MdSpan(
@@ -30,6 +31,8 @@ data class MdSpan(
     val markers: List<IntRange>,
     val line: Int,
     val wikilink: WikilinkParts? = null,
+    /** So em [MdKind.MATH]: o texto que substitui a formula na tela. */
+    val math: MathText? = null,
 )
 
 data class WikilinkParts(

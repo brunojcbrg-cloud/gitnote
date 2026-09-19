@@ -7,6 +7,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
@@ -19,21 +20,81 @@ class MarkdownLivePreviewTransformation(
     override fun filter(text: AnnotatedString): TransformedText {
         val source = text.text
         val spans = MarkdownScanner.scan(source)
+
+        // Formula fora da linha ativa e SUBSTITUIDA pelo texto convertido. Na linha
+        // ativa ela aparece crua, pela mesma razao que os marcadores aparecem: sem
+        // isso ele nao consegue editar o que esta embaixo do cursor.
+        val formulas = HashMap<Int, MdSpan>()
+        spans.forEach { span ->
+            if (span.kind == MdKind.MATH && span.line !in activeLines && span.math != null) {
+                val de = span.markers.firstOrNull()?.first ?: span.range.first
+                formulas[de] = span
+            }
+        }
+
         val hiddenRanges = normalizeRanges(
             ranges = spans.asSequence()
                 .filterNot { it.line in activeLines }
+                .filterNot { it.kind == MdKind.MATH }
                 .flatMap { it.markers.asSequence() }
                 .toList(),
             textLength = source.length,
         )
 
+        var folga = 0
+        formulas.values.forEach { span ->
+            val convertido = span.math?.text?.length ?: 0
+            val original = faixaTotal(span).count()
+            if (convertido > original) folga += convertido - original
+        }
+
         val originalToTransformed = IntArray(source.length + 1)
-        val transformedToOriginalBuffer = IntArray(source.length + 1)
+        val transformedToOriginalBuffer = IntArray(source.length + 1 + folga)
         val transformed = AnnotatedString.Builder()
+        val estilosDeIndice = mutableListOf<Triple<Int, Int, SpanStyle>>()
 
         var hiddenRangeIndex = 0
         var transformedOffset = 0
-        for (originalOffset in source.indices) {
+        var originalOffset = 0
+        while (originalOffset < source.length) {
+            val formula = formulas[originalOffset]
+            if (formula != null) {
+                val faixa = faixaTotal(formula)
+                val math = formula.math ?: MathText("")
+                val inicioTransformado = transformedOffset
+                // Todo o trecho original colapsa no inicio do texto convertido.
+                for (offset in faixa) originalToTransformed[offset] = inicioTransformado
+                math.text.forEach { caractere ->
+                    transformedToOriginalBuffer[transformedOffset] = faixa.first
+                    transformed.append(caractere)
+                    transformedOffset++
+                }
+                math.subscripts.forEach { faixaIndice ->
+                    estilosDeIndice += Triple(
+                        inicioTransformado + faixaIndice.first,
+                        inicioTransformado + faixaIndice.last + 1,
+                        SpanStyle(baselineShift = BaselineShift.Subscript, fontSize = baseFontSize * 0.75f),
+                    )
+                }
+                math.superscripts.forEach { faixaIndice ->
+                    estilosDeIndice += Triple(
+                        inicioTransformado + faixaIndice.first,
+                        inicioTransformado + faixaIndice.last + 1,
+                        SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = baseFontSize * 0.75f),
+                    )
+                }
+                if (transformedOffset > inicioTransformado) {
+                    estilosDeIndice += Triple(inicioTransformado, transformedOffset, styleFor(MdKind.MATH))
+                }
+                originalOffset = faixa.last + 1
+                while (hiddenRangeIndex < hiddenRanges.size &&
+                    originalOffset > hiddenRanges[hiddenRangeIndex].last
+                ) {
+                    hiddenRangeIndex++
+                }
+                continue
+            }
+
             while (hiddenRangeIndex < hiddenRanges.size &&
                 originalOffset > hiddenRanges[hiddenRangeIndex].last
             ) {
@@ -49,6 +110,7 @@ class MarkdownLivePreviewTransformation(
                 transformed.append(source[originalOffset])
                 transformedOffset++
             }
+            originalOffset++
         }
 
         originalToTransformed[source.length] = transformedOffset
@@ -56,10 +118,17 @@ class MarkdownLivePreviewTransformation(
         val transformedToOriginal = transformedToOriginalBuffer.copyOf(transformedOffset + 1)
 
         spans.forEach { span ->
+            if (span.kind == MdKind.MATH && formulas.containsKey(span.markers.firstOrNull()?.first ?: span.range.first)) {
+                return@forEach
+            }
             addStyle(transformed, span.range, styleFor(span.kind), originalToTransformed)
             span.markers.forEach { marker ->
                 addStyle(transformed, marker, styleFor(span.kind), originalToTransformed)
             }
+        }
+        // Os indices entram depois para vencerem a cor da formula.
+        estilosDeIndice.sortedBy { it.third.baselineShift != null }.forEach { (de, ate, estilo) ->
+            if (de < ate) transformed.addStyle(estilo, de, ate)
         }
 
         return TransformedText(
@@ -69,6 +138,13 @@ class MarkdownLivePreviewTransformation(
                 transformedToOriginal = transformedToOriginal,
             ),
         )
+    }
+
+    /** Da abertura do delimitador ao fim do fechamento, marcadores inclusos. */
+    private fun faixaTotal(span: MdSpan): IntRange {
+        val de = span.markers.firstOrNull()?.first ?: span.range.first
+        val ate = span.markers.lastOrNull()?.last ?: span.range.last
+        return de..ate
     }
 
     private fun styleFor(kind: MdKind): SpanStyle = when (kind) {
@@ -100,6 +176,7 @@ class MarkdownLivePreviewTransformation(
             textDecoration = TextDecoration.Underline,
         )
         MdKind.LINK_URL -> SpanStyle(color = colors.link)
+        MdKind.MATH -> SpanStyle(color = colors.code)
     }
 
     private fun addStyle(

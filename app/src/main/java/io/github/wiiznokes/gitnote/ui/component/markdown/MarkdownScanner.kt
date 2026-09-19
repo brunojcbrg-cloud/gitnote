@@ -183,8 +183,14 @@ object MarkdownScanner {
         while (index < end) {
             when (val current = open) {
                 null -> {
-                    val delimiter = openingDelimiter(text, index, end)
-                    if (delimiter != null) {
+                    // A formula vem antes de tudo: o `_` de um indice nao pode
+                    // abrir italico, e o conteudo inteiro e pulado de uma vez.
+                    val formula = matematicaEm(text, index, end, line)
+                    val delimiter = if (formula == null) openingDelimiter(text, index, end) else null
+                    if (formula != null) {
+                        spans += formula.span
+                        index = formula.proximo
+                    } else if (delimiter != null) {
                         open = DelimitedOpen(delimiter.first, index, delimiter.second)
                         index += delimiter.second
                     } else if (startsWith(text, index, end, "[[") &&
@@ -334,6 +340,57 @@ object MarkdownScanner {
                 alias = alias,
             ),
         )
+    }
+
+    private class FormulaEncontrada(val span: MdSpan, val proximo: Int)
+
+    /**
+     * Reconhece `\( ... \)` e `\[ ... \]` a partir de [index].
+     *
+     * Delimitador sem fechamento na mesma linha devolve null de proposito: metade de
+     * formula escondida e pior que a formula crua, e enquanto ele digita a formula
+     * fica incompleta o tempo todo.
+     */
+    private fun matematicaEm(text: String, index: Int, end: Int, line: Int): FormulaEncontrada? {
+        if (text[index] != '\\' || index + 1 >= end) return null
+
+        // As notas trazem as DUAS formas: \( ... \) e a escapada \\( ... \\).
+        // Medido na aula de Microbiologia: 57 simples e 76 duplas no mesmo arquivo.
+        val aberturaDupla = text[index + 1] == '\\' && index + 2 < end &&
+            (text[index + 2] == '(' || text[index + 2] == '[')
+        val posicaoAbre = if (aberturaDupla) index + 2 else index + 1
+        val fechamento = when (text[posicaoAbre]) {
+            '(' -> ')'
+            '[' -> ']'
+            else -> return null
+        }
+
+        val conteudoInicio = posicaoAbre + 1
+        var i = conteudoInicio
+        while (i < end) {
+            if (text[i] == '\\') {
+                val tamanho = when {
+                    i + 1 < end && text[i + 1] == fechamento -> 2
+                    i + 2 < end && text[i + 1] == '\\' && text[i + 2] == fechamento -> 3
+                    else -> 0
+                }
+                if (tamanho > 0) {
+                    if (conteudoInicio >= i) return null
+                    return FormulaEncontrada(
+                        span = MdSpan(
+                            kind = MdKind.MATH,
+                            range = conteudoInicio until i,
+                            markers = listOf(index until conteudoInicio, i until i + tamanho),
+                            line = line,
+                            math = LatexToUnicode.converter(text.substring(conteudoInicio, i)),
+                        ),
+                        proximo = i + tamanho,
+                    )
+                }
+            }
+            i++
+        }
+        return null
     }
 
     private fun indexOf(
