@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.sp
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -242,5 +243,68 @@ class MathRenderingTest {
     fun indiceSemEquivalenteUnicodeFicaNaLinha() {
         // Meio indice convertido leria pior que nenhum.
         assertEquals("Hβ", preprocessWikilinksForReading("\\(\\text{H}_{\\beta}\\)"))
+    }
+
+    // --- formula dentro de outra marcacao ------------------------------------
+
+    @Test
+    fun formulaDentroDeNegritoEhReconhecida() {
+        // 51 das formulas da aula de Microbiologia estao dentro de **negrito**.
+        // O scanner so olhava quando nenhum marcador estava aberto, e nao via.
+        val fonte = "* **C) Biofilme persistente \\(\\rightarrow\\) EAEC**"
+        val spans = MarkdownScanner.scan(fonte)
+        val formula = spans.single { it.kind == MdKind.MATH }
+
+        assertEquals("→", formula.math?.text)
+    }
+
+    @Test
+    fun formulaDentroDeNegritoAparaceConvertidaNoEditor() {
+        val resultado = transformar("**persistente \\(\\rightarrow\\) EAEC**")
+
+        assertEquals("persistente → EAEC", resultado.text.text)
+    }
+
+    @Test
+    fun formulaDentroDeNegritoAparaceConvertidaNaLeitura() {
+        val saida = preprocessWikilinksForReading("**persistente \\(\\rightarrow\\) EAEC**")
+
+        assertEquals("**persistente → EAEC**", saida)
+    }
+
+    @Test
+    fun formulaDentroDeItalicoTambem() {
+        val spans = MarkdownScanner.scan("_a \\(\\beta\\) b_")
+
+        assertEquals("β", spans.single { it.kind == MdKind.MATH }.math?.text)
+    }
+
+    @Test
+    fun oNegritoContinuaFechandoDepoisDaFormula() {
+        val fonte = "**a \\(\\beta\\) b** fora"
+        val spans = MarkdownScanner.scan(fonte)
+
+        assertTrue(spans.any { it.kind == MdKind.BOLD }, "o negrito precisa continuar existindo")
+        assertEquals("a β b", transformar(fonte).text.text.substringBefore(" fora"))
+    }
+
+    @Test
+    fun formulaDentroDeCodigoEmLinhaSegueIntocada() {
+        // A excecao que o conserto nao pode atropelar.
+        val fonte = "use `\\(\\beta\\)` assim"
+        val spans = MarkdownScanner.scan(fonte)
+
+        assertTrue(spans.none { it.kind == MdKind.MATH })
+        assertEquals(fonte, preprocessWikilinksForReading(fonte))
+    }
+
+    @Test
+    fun linhaRealDaAulaConverteInteira() {
+        val fonte =
+            "* **C) Biofilme importante na diarreia persistente \\(\\rightarrow\\) *E. coli* Enteroagregativa (EAEC)**"
+        val convertida = transformar(fonte).text.text
+
+        assertFalse(convertida.contains("rightarrow"), "sobrou LaTeX: $convertida")
+        assertTrue(convertida.contains("→"), "faltou a seta: $convertida")
     }
 }

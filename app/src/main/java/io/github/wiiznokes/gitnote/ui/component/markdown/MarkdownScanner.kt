@@ -207,6 +207,20 @@ object MarkdownScanner {
                 }
 
                 is DelimitedOpen -> {
+                    // Formula tambem ocorre DENTRO de negrito e italico: 51 das
+                    // ocorrencias da aula de Microbiologia. Codigo em linha e a
+                    // unica excecao, porque ali o conteudo e literal por definicao.
+                    val aninhada = if (current.kind == MdKind.INLINE_CODE) {
+                        null
+                    } else {
+                        matematicaEm(text, index, end, line)
+                    }
+                    if (aninhada != null) {
+                        spans += aninhada.span
+                        index = aninhada.proximo
+                        continue
+                    }
+
                     val closingLength = closingDelimiterLength(
                         text = text,
                         index = index,
