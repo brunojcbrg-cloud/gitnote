@@ -169,4 +169,69 @@ class MathRenderingTest {
         assertEquals(MdKind.MATH, formula.kind)
         assertNull(formula.wikilink)
     }
+
+    // --- modo leitura --------------------------------------------------------
+
+    @Test
+    fun leituraConverteAFormulaEmTextoPuro() {
+        assertEquals("β", preprocessWikilinksForReading("\(\beta\)"))
+        assertEquals("agua H₂O₂ aqui", preprocessWikilinksForReading("agua \(\text{H}_2\text{O}_2\) aqui"))
+    }
+
+    @Test
+    fun leituraUsaIndicesUnicodeJaQueNaoHaLinhaDeBase() {
+        // O renderizador da leitura recebe String: o indice tem de virar caractere.
+        assertEquals("1:10⁸", preprocessWikilinksForReading("\(1:10^8\)"))
+        assertEquals("Ca²⁺", preprocessWikilinksForReading("\(\text{Ca}^{2+}\)"))
+        assertEquals("AUC₂₄/CIM", preprocessWikilinksForReading("\(\text{AUC}_{24}/\text{CIM}\)"))
+        assertEquals("Vₘₐₓ", preprocessWikilinksForReading("\(V_{max}\)"))
+    }
+
+    @Test
+    fun leituraAceitaAFormaComBarraDupla() {
+        assertEquals("≥ 14 mm", preprocessWikilinksForReading("\\(\ge 14\text{ mm}\\)"))
+    }
+
+    @Test
+    fun leituraEEditorConcordamSobreOConteudo() {
+        val fonte = "halo \(\ge 14\text{ mm}\) e \\(121^\circ\text{C}\\)"
+        val naLeitura = preprocessWikilinksForReading(fonte)
+        val noEditor = transformar(fonte).text.text
+
+        // O texto e o mesmo; so a tecnica do indice muda entre os dois modos.
+        assertEquals(naLeitura, noEditor)
+    }
+
+    @Test
+    fun leituraNaoTocaFormulaDentroDeCodigo() {
+        val fonte = "use `\(\beta\)` assim"
+
+        assertEquals(fonte, preprocessWikilinksForReading(fonte))
+    }
+
+    @Test
+    fun leituraNaoAlteraAFonte() {
+        val fonte = "\(\beta\) e [[Nota]]"
+        preprocessWikilinksForReading(fonte)
+
+        assertEquals("\(\beta\) e [[Nota]]", fonte)
+    }
+
+    @Test
+    fun formulaEWikilinkConvivemNaMesmaLinha() {
+        val saida = preprocessWikilinksForReading("\(\alpha\) ver [[Nota]]")
+
+        assertTrue(saida.startsWith("α ver ["), "saiu: $saida")
+    }
+
+    @Test
+    fun grauNaLeituraNaoViraIndice() {
+        assertEquals("121°C", preprocessWikilinksForReading("\(121^\circ\text{C}\)"))
+    }
+
+    @Test
+    fun indiceSemEquivalenteUnicodeFicaNaLinha() {
+        // Meio indice convertido leria pior que nenhum.
+        assertEquals("Hβ", preprocessWikilinksForReading("\(\text{H}_{\beta}\)"))
+    }
 }

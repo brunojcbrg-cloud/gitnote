@@ -87,6 +87,58 @@ object LatexToUnicode {
         )
     }
 
+    private val SUBSCRITO: Map<Char, Char> = mapOf(
+        '0' to '\u2080', '1' to '\u2081', '2' to '\u2082', '3' to '\u2083', '4' to '\u2084',
+        '5' to '\u2085', '6' to '\u2086', '7' to '\u2087', '8' to '\u2088', '9' to '\u2089',
+        '+' to '\u208A', '-' to '\u208B', '=' to '\u208C', '(' to '\u208D', ')' to '\u208E',
+        'a' to '\u2090', 'e' to '\u2091', 'o' to '\u2092', 'x' to '\u2093', 'h' to '\u2095',
+        'k' to '\u2096', 'l' to '\u2097', 'm' to '\u2098', 'n' to '\u2099', 'p' to '\u209A',
+        's' to '\u209B', 't' to '\u209C', 'i' to '\u1D62', 'r' to '\u1D63', 'u' to '\u1D64',
+        'v' to '\u1D65', 'j' to '\u2C7C',
+    )
+
+    private val SOBRESCRITO: Map<Char, Char> = mapOf(
+        '0' to '\u2070', '1' to '\u00B9', '2' to '\u00B2', '3' to '\u00B3', '4' to '\u2074',
+        '5' to '\u2075', '6' to '\u2076', '7' to '\u2077', '8' to '\u2078', '9' to '\u2079',
+        '+' to '\u207A', '-' to '\u207B', '=' to '\u207C', '(' to '\u207D', ')' to '\u207E',
+        'a' to '\u1D43', 'b' to '\u1D47', 'c' to '\u1D9C', 'd' to '\u1D48', 'e' to '\u1D49',
+        'f' to '\u1DA0', 'g' to '\u1D4D', 'h' to '\u02B0', 'i' to '\u2071', 'j' to '\u02B2',
+        'k' to '\u1D4F', 'l' to '\u02E1', 'm' to '\u1D50', 'n' to '\u207F', 'o' to '\u1D52',
+        'p' to '\u1D56', 'r' to '\u02B3', 's' to '\u02E2', 't' to '\u1D57', 'u' to '\u1D58',
+        'v' to '\u1D5B', 'w' to '\u02B7', 'x' to '\u02E3', 'y' to '\u02B8', 'z' to '\u1DBB',
+    )
+
+    /**
+     * A mesma formula, em texto puro.
+     *
+     * O modo de leitura entrega uma String ao renderizador, entao nao ha como pedir
+     * deslocamento de linha de base como no editor: o indice tem de virar caractere.
+     * Faixa cujo conteudo nao tem equivalente Unicode inteiro fica na linha, porque
+     * meio indice convertido le pior que nenhum.
+     */
+    fun textoSimples(math: MathText): String {
+        if (math.subscripts.isEmpty() && math.superscripts.isEmpty()) return math.text
+
+        val saida = StringBuilder(math.text)
+        val faixas = math.subscripts.map { it to SUBSCRITO } + math.superscripts.map { it to SOBRESCRITO }
+        faixas.forEach { (faixa, tabela) ->
+            if (faixa.first < 0 || faixa.last >= saida.length) return@forEach
+            val convertida = CharArray(faixa.count())
+            var i = 0
+            for (posicao in faixa) {
+                val equivalente = tabela[saida[posicao]] ?: return@forEach
+                convertida[i] = equivalente
+                i++
+            }
+            i = 0
+            for (posicao in faixa) {
+                saida[posicao] = convertida[i]
+                i++
+            }
+        }
+        return saida.toString()
+    }
+
     private fun converterEm(
         origem: String,
         inicio: Int,

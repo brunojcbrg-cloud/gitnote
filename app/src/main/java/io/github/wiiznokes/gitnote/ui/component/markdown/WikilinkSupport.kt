@@ -69,7 +69,7 @@ fun preprocessWikilinksForReading(
     existingNames: Set<String>? = null,
 ): String {
     val replacements = MarkdownScanner.scan(source)
-        .filter { it.kind == MdKind.WIKILINK || it.kind == MdKind.HIGHLIGHT }
+        .filter { it.kind == MdKind.WIKILINK || it.kind == MdKind.HIGHLIGHT || it.kind == MdKind.MATH }
         .sortedBy { it.range.first }
     if (replacements.isEmpty()) return source
 
@@ -78,9 +78,18 @@ fun preprocessWikilinksForReading(
         replacements.forEach { span ->
             val fullStart = span.markers.first().first
             val fullEnd = span.markers.last().last + 1
-            val displayText = source.substring(span.range)
-
             append(source, sourceOffset, fullStart)
+
+            // A formula nao vira link: entra como texto ja convertido. O mesmo
+            // scanner decide o que e formula nos dois modos, entao leitura e
+            // edicao nao podem discordar sobre onde ela comeca e termina.
+            if (span.kind == MdKind.MATH) {
+                append(escaparMarcacao(LatexToUnicode.textoSimples(checkNotNull(span.math))))
+                sourceOffset = fullEnd
+                return@forEach
+            }
+
+            val displayText = source.substring(span.range)
             append('[')
             append(escapeMarkdownLinkText(displayText))
             append("](")
@@ -97,6 +106,20 @@ fun preprocessWikilinksForReading(
             sourceOffset = fullEnd
         }
         append(source, sourceOffset, source.length)
+    }
+}
+
+/**
+ * Protege o resultado da conversao de ser lido como marcacao.
+ * "\ast" vira "*", e um asterisco solto abriria enfase no renderizador.
+ */
+private fun escaparMarcacao(texto: String): String {
+    if (texto.none { it in "*_`[]\\" }) return texto
+    return buildString(texto.length + 8) {
+        texto.forEach { caractere ->
+            if (caractere in "*_`[]\\") append('\\')
+            append(caractere)
+        }
     }
 }
 
