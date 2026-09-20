@@ -17,9 +17,31 @@ class MarkdownLivePreviewTransformation(
     private val activeLines: Set<Int>,
     private val baseFontSize: TextUnit,
 ) : VisualTransformation {
+
+    companion object {
+        // Cache de uma entrada so, no objeto companion (nao na instancia): MarkDown.kt
+        // cria uma MarkdownLivePreviewTransformation nova a cada mudanca de selecao
+        // (remember(textContent.text, textContent.selection, ...)), entao um cache por
+        // instancia nunca seria reaproveitado. Mover o cursor sem alterar o texto reusa
+        // a varredura guardada aqui.
+        private var cachedSource: String? = null
+        private var cachedSpans: List<MdSpan> = emptyList()
+
+        private fun scanCached(source: String): List<MdSpan> {
+            cachedSource?.let { if (it == source) return cachedSpans }
+            val spans = MarkdownScanner.scan(source)
+            cachedSource = source
+            cachedSpans = spans
+            return spans
+        }
+
+        /** Exposto so para o teste provar reaproveitamento por identidade de lista. */
+        internal fun scanCachedForTest(source: String): List<MdSpan> = scanCached(source)
+    }
+
     override fun filter(text: AnnotatedString): TransformedText {
         val source = text.text
-        val spans = MarkdownScanner.scan(source)
+        val spans = scanCached(source)
 
         // Formula fora da linha ativa e SUBSTITUIDA pelo texto convertido. Na linha
         // ativa ela aparece crua, pela mesma razao que os marcadores aparecem: sem
