@@ -225,4 +225,6 @@
     <string name="block_screen_capture">Block screenshots and screen recording</string>
     <string name="block_screen_capture_subtitle">Hide notes in the recent apps preview. Turn off temporarily when you need a screenshot.</string>
     <string name="storage_config_title">Repository storage</string>
+    <string name="note_outline">Outline</string>
+    <string name="close_outline">Close outline</string>
 </resources>

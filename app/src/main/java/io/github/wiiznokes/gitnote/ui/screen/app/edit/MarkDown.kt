@@ -83,6 +83,7 @@ import io.github.wiiznokes.gitnote.ui.component.markdown.nearestLineAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
+import io.github.wiiznokes.gitnote.ui.component.markdown.sumarioDe
 import io.github.wiiznokes.gitnote.ui.component.markdown.wikilinkNames
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.MarkdownCustomInner
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
@@ -118,6 +119,8 @@ fun MarkDownContent(
     onOpenNote: (Note, String?) -> Unit = { _, _ -> },
     isReadOnlyModeActive: Boolean,
     textContent: TextFieldValue,
+    sumarioAberto: Boolean = false,
+    onSumarioAbertoChange: (Boolean) -> Unit = {},
 ) {
     val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
     val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
@@ -143,6 +146,11 @@ fun MarkDownContent(
         val renderedContent = remember(textContent.text, existingNames) {
             preprocessWikilinksForReading(textContent.text, existingNames)
         }
+        val itensDeSumario = remember(renderedContent) { sumarioDe(renderedContent) }
+        var arrastandoSumario by remember { mutableStateOf(false) }
+        val linhaAtual = itensDeSumario.lastOrNull { item ->
+            (headingPositions[item.offset]?.y ?: Int.MAX_VALUE) <= scrollState.value
+        }?.linha ?: 0
         val renderedLineStarts = remember(renderedContent) { lineStartOffsets(renderedContent) }
         val blockCoordinates = remember(renderedContent) {
             mutableMapOf<Int, LayoutCoordinates>()
@@ -337,10 +345,40 @@ fun MarkDownContent(
             }
             FastScrollOverlay(
                 scrollState = scrollState,
+                onDraggingChange = { arrastandoSumario = it },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+            if ((sumarioAberto || arrastandoSumario) && itensDeSumario.isNotEmpty()) {
+                SumarioLateral(
+                    itens = itensDeSumario,
+                    linhaAtual = linhaAtual,
+                    onDismiss = { onSumarioAbertoChange(false) },
+                    onItemClick = { item ->
+                        onSumarioAbertoChange(false)
+                        coroutineScope.launch {
+                            val proximo = headingPositions[item.offset]?.y
+                                ?: nearestAnchorAtOrBefore(item.linha, measuredBlockPositions())
+                                ?: 0
+                            scrollState.scrollTo(proximo.coerceIn(0, scrollState.maxValue))
+                            // O bloco ainda não medido entra na composição depois da primeira rolagem.
+                            var y = headingPositions[item.offset]?.y
+                            repeat(3) {
+                                if (y == null) {
+                                    withFrameNanos { }
+                                    y = headingPositions[item.offset]?.y
+                                }
+                            }
+                            y?.let { scrollState.animateScrollTo(it.coerceIn(0, scrollState.maxValue)) }
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.CenterStart),
+                )
+            }
         }
     } else {
+        val itensDeSumario = remember(textContent.text) { sumarioDe(textContent.text) }
+        var arrastandoSumario by remember { mutableStateOf(false) }
+        var linhaPreview by remember { mutableStateOf<Int?>(null) }
         val pendingEditAnchor = remember { vm.consumeAnchor() }
         LaunchedEffect(pendingEditAnchor) {
             if (pendingEditAnchor != null) {
@@ -399,8 +437,22 @@ fun MarkDownContent(
                 currentLine = cursorLine.coerceAtLeast(0),
                 lineHeight = editLineHeight,
                 onLineRequested = vm::moveCursorToLine,
+                onDraggingChange = { arrastandoSumario = it },
+                onPreviewLineChange = { linhaPreview = it },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+            if ((sumarioAberto || arrastandoSumario) && itensDeSumario.isNotEmpty()) {
+                SumarioLateral(
+                    itens = itensDeSumario,
+                    linhaAtual = linhaPreview ?: cursorLine.coerceAtLeast(0),
+                    onDismiss = { onSumarioAbertoChange(false) },
+                    onItemClick = { item ->
+                        onSumarioAbertoChange(false)
+                        vm.moveCursorToLine(item.linha)
+                    },
+                    modifier = Modifier.align(Alignment.CenterStart),
+                )
+            }
         }
     }
 }
@@ -408,6 +460,7 @@ fun MarkDownContent(
 @Composable
 private fun FastScrollOverlay(
     scrollState: ScrollState,
+    onDraggingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -439,6 +492,7 @@ private fun FastScrollOverlay(
         onDragStart = { y -> scrollToFinger(y) },
         onDrag = { change -> scrollToFinger(change.position.y) },
         onDragFinished = { },
+        onDraggingChange = onDraggingChange,
         gestureKey = listOf(viewportHeight, scrollState.maxValue),
         modifier = modifier,
     )
@@ -457,6 +511,8 @@ internal fun FastScrollLineOverlay(
     currentLine: Int,
     lineHeight: Float,
     onLineRequested: (Int) -> Unit,
+    onDraggingChange: (Boolean) -> Unit = {},
+    onPreviewLineChange: (Int?) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var viewportHeight by remember { mutableIntStateOf(0) }
@@ -490,6 +546,7 @@ internal fun FastScrollLineOverlay(
             val line = lineAt(y)
             if (line != null) {
                 previewLine = line
+                onPreviewLineChange(line)
                 pendingLine = line
                 lastEmitMs = 0L
                 onLineRequested(line)
@@ -499,6 +556,7 @@ internal fun FastScrollLineOverlay(
             val line = lineAt(change.position.y)
             if (line != null) {
                 previewLine = line
+                onPreviewLineChange(line)
                 pendingLine = line
                 // Cada movimento do cursor refaz o live preview da nota inteira
                 // (27 ms numa nota de 1.946 linhas). Sem esta redea o arrasto engasga.
@@ -512,7 +570,9 @@ internal fun FastScrollLineOverlay(
             pendingLine?.let(onLineRequested)
             pendingLine = null
             previewLine = null
+            onPreviewLineChange(null)
         },
+        onDraggingChange = onDraggingChange,
         gestureKey = listOf(viewportHeight, lineCount, visibleLines),
         modifier = modifier,
     )
@@ -530,6 +590,7 @@ private fun FastScrollGutter(
     onDragStart: (Float) -> Unit,
     onDrag: (PointerInputChange) -> Unit,
     onDragFinished: () -> Unit,
+    onDraggingChange: (Boolean) -> Unit = {},
     gestureKey: Any?,
     modifier: Modifier = Modifier,
 ) {
@@ -555,15 +616,18 @@ private fun FastScrollGutter(
                         onDragStart = { offset ->
                             visible = true
                             dragging = true
+                            onDraggingChange(true)
                             onDragStart(offset.y)
                         },
                         onDragEnd = {
                             dragging = false
+                            onDraggingChange(false)
                             hideGeneration++
                             onDragFinished()
                         },
                         onDragCancel = {
                             dragging = false
+                            onDraggingChange(false)
                             hideGeneration++
                             onDragFinished()
                         },

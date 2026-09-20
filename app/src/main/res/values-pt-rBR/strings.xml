@@ -196,4 +196,6 @@
     <string name="block_screen_capture">Bloquear capturas e gravação de tela</string>
     <string name="block_screen_capture_subtitle">Oculta as notas na tela de apps recentes. Desative temporariamente para fazer uma captura.</string>
     <string name="storage_config_title">Armazenamento do repositório</string>
+    <string name="note_outline">Sumário</string>
+    <string name="close_outline">Fechar sumário</string>
 </resources>
