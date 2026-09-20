@@ -16,6 +16,11 @@ import kotlin.time.measureTime
  * tira do caminho de abrir Notas (handoff, causa 3). O numero fica registrado no
  * relatorio; nao ha assercao de limite porque o ponto da fase e o custo sumir, nao
  * ficar rapido.
+ *
+ * Usa o SQLite padrao do Room (Robolectric o sombreia com uma libsqlite nativa do
+ * host), nao `RepoDatabase.buildFactory` — o `.so` do requery e especifico de Android
+ * e nao carrega na JVM do teste (UnsatisfiedLinkError, medido no CI). `notesContainingTag`
+ * e um `LIKE` puro, sem as funcoes customizadas que so o factory do requery registra.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
@@ -24,12 +29,8 @@ class NotesContainingTagPerfTest {
     @Test
     fun medeCustoDaVarreduraDeFlashcardsNoVaultSintetico() {
         val context = RuntimeEnvironment.getApplication()
-        val nomeBanco = "PerfNotesContainingTag-${System.nanoTime()}"
-        val caminhoBanco = context.filesDir.toPath().resolve(nomeBanco).toString()
 
-        val db = Room.databaseBuilder(context, RepoDatabase::class.java, nomeBanco)
-            .fallbackToDestructiveMigration(true)
-            .openHelperFactory(RepoDatabase.buildFactory(caminhoBanco))
+        val db = Room.inMemoryDatabaseBuilder(context, RepoDatabase::class.java)
             .build()
 
         try {
