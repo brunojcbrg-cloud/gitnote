@@ -2,6 +2,7 @@ package io.github.wiiznokes.gitnote
 
 import android.content.Context
 import io.github.wiiznokes.gitnote.data.AppPreferences
+import io.github.wiiznokes.gitnote.data.PosicoesDeLeitura
 import io.github.wiiznokes.gitnote.data.room.RepoDatabase
 import io.github.wiiznokes.gitnote.helper.UiHelper
 import io.github.wiiznokes.gitnote.manager.GitManager
@@ -14,6 +15,7 @@ interface AppModule {
     val storageManager: StorageManager
     val gitManager: GitManager
     val appPreferences: AppPreferences
+    val posicoesDeLeitura: PosicoesDeLeitura
     val context: Context
 
 }
@@ -37,5 +39,8 @@ class AppModuleImpl(
     }
     override val appPreferences: AppPreferences by lazy {
         AppPreferences(context)
+    }
+    override val posicoesDeLeitura: PosicoesDeLeitura by lazy {
+        PosicoesDeLeitura(context)
     }
 }

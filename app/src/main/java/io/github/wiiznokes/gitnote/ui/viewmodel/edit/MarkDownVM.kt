@@ -7,15 +7,21 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
+import io.github.wiiznokes.gitnote.data.PortaoDaAbertura
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveWikilinkTargets
 import io.github.wiiznokes.gitnote.ui.component.markdown.offsetOfLineStart
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.viewmodel.viewModelFactory
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 private const val TAG = "MarkDownVM"
+private const val ESPERA_GRAVACAO_MS = 400L
 
 
 class MarkDownVM : TextVM {
@@ -23,9 +29,30 @@ class MarkDownVM : TextVM {
     private val dao = MyApp.appModule.repoDatabase.repoDatabaseDao
     private val uiHelper = MyApp.appModule.uiHelper
 
+    private val posicoes = MyApp.appModule.posicoesDeLeitura
+
     private var initialSectionConsumed = false
     private var initialSection: String? = null
     private var anchorLine: Int? = null
+
+    /** A posicao guardada so e lida uma vez: depois disso manda o que esta na tela. */
+    private var posicaoDoDiscoLida = false
+
+    /** Segura os zeros que a montagem da tela anuncia antes da retomada. */
+    private val portaoDaAbertura = PortaoDaAbertura()
+    private val linhaParaGravar = MutableStateFlow<Int?>(null)
+
+    @OptIn(FlowPreview::class)
+    private val gravador = viewModelScope.launch {
+        // Sem a espera, cada quadro de rolagem viraria uma escrita em disco.
+        linhaParaGravar.filterNotNull().debounce(ESPERA_GRAVACAO_MS).collect { linha ->
+            val caminho = caminhoDaNota()
+            if (caminho.isNotBlank()) posicoes.guardar(caminho, linha)
+        }
+    }
+
+    private fun caminhoDaNota(): String =
+        runCatching { previousNote.relativePath }.getOrDefault("")
 
     constructor(
         editType: EditType,
@@ -143,10 +170,28 @@ class MarkDownVM : TextVM {
     }
 
     fun rememberAnchor(line: Int) {
-        anchorLine = line.coerceAtLeast(0)
+        val segura = line.coerceAtLeast(0)
+        anchorLine = segura
+        if (!portaoDaAbertura.deveGravar(segura)) return
+        linhaParaGravar.value = segura
     }
 
-    fun consumeAnchor(): Int? = anchorLine.also { anchorLine = null }
+    /**
+     * Devolve a ancora da sessao; na primeira vez, cai para a que foi guardada em
+     * disco. E o que faz a nota reabrir onde ele parou depois de o Android matar o
+     * app -- que e o caso comum de trocar de aplicativo e voltar.
+     */
+    fun consumeAnchor(): Int? {
+        val daSessao = anchorLine
+        anchorLine = null
+        if (daSessao != null) return daSessao
+        if (posicaoDoDiscoLida) return null
+        posicaoDoDiscoLida = true
+        if (editType == EditType.Create) return null
+        val doDisco = posicoes.linhaBloqueante(caminhoDaNota())
+        portaoDaAbertura.retomouEm(doDisco)
+        return doDisco
+    }
 
     fun moveCursorToLine(line: Int) {
         updateSelection(TextRange(offsetOfLineStart(content.value.text, line)))
