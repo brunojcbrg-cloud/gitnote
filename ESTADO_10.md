@@ -9,7 +9,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 |---|---|---|---|---|
 | A | entregue | 2026-09-20 | fe69d70 | b52 (26.08.1.52) |
 | B | entregue | 2026-09-20 | 1b74388 | b53 (26.08.1.53) |
-| C | pendente | | | |
+| C | entregue | 2026-09-20 | 3b41b45 | b55 (26.08.1.55) |
 | D | pendente | | | |
 | E | pendente | | | |
 | F | pendente | | | |
@@ -78,3 +78,27 @@ implementar a Fase B inteira em produção, testar isoladamente as 3 funções p
 `RESULTADO_10_B.md` que os testes de SQL ponta a ponta de `gridNotes`/`gridNotesWithQuery`
 (contagem de linhas por pasta, isolamento entre `Medicina`/`Medicina2`) **não são
 executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho por causa disso.
+
+### Fase C (2026-09-20)
+
+1. **Mesmo bloqueio de `GridViewModel` das Fases A/B.** Não dá para construir o VM real
+   em teste para provar `currentNoteFolderRelativePath.value` ponta a ponta. Segui o
+   padrão já aceito: extraí a decisão em `PastaInicial.escolher` (função pura) e testei
+   ela sozinha — é o mesmo código que o `GridViewModel` chama de verdade
+   (`GridViewModel.kt:63-68`), só que fora do caminho que trava o teste JVM. Não perguntei
+   de novo ao Bruno porque já é o padrão das duas fases anteriores.
+2. **`AppPreferences.kt` e `SettingsScreen.kt` são dois dos arquivos com trabalho de
+   segurança não commitado (regra 9 da seção 0).** Isolei minhas duas mudanças (uma
+   linha em `AppPreferences.kt`, um bloco de UI em `SettingsScreen.kt`) das linhas de
+   segurança e commitei separadamente, sem tocar nem reverter nada do trabalho não
+   commitado — método descrito em `RESULTADO_10_C.md`, seção "Como o commit foi feito".
+   Depois do commit, `git diff` desses dois arquivos mostra exatamente as mesmas linhas
+   de segurança de antes, intactas.
+3. **Erro meu, não do handoff:** o primeiro push (`f72eb8e`) quebrou o
+   `compileDebugKotlin` por um import inválido (`androidx.compose.foundation.lazy.item`
+   não é importável — `item` é método de `LazyListScope`, disponível sem import dentro
+   do `LazyColumn`). Consertado no commit seguinte (`3b41b45`); detalhe e evidência do
+   run vermelho em `RESULTADO_10_C.md`.
+
+**Lista de fases do Sonnet:** A, B e C entregues. Faltam D, E, F, G, H, J.1 nesta ordem —
+nenhuma delas foi antecipada ou modificada por esta sessão.
