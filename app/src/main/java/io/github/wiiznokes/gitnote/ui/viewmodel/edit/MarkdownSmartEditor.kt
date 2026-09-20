@@ -4,25 +4,26 @@ package io.github.wiiznokes.gitnote.ui.viewmodel.edit
 
 import android.util.Log
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import kotlin.math.max
 import kotlin.math.min
 
 
+data class EdicaoDeTexto(val texto: String, val selecao: TextRange)
+
 private const val TAG = "markdownSmartEditor"
 
 fun markdownSmartEditor(
-    prev: TextFieldValue,
-    v: TextFieldValue
-): TextFieldValue {
+    prev: EdicaoDeTexto,
+    v: EdicaoDeTexto
+): EdicaoDeTexto {
 
-    if (v.selection.start == v.selection.end) {
+    if (v.selecao.start == v.selecao.end) {
 
-        val cursorPos = v.selection.start
-        if (cursorPos > 0 && cursorPos <= v.text.length) {
+        val cursorPos = v.selecao.start
+        if (cursorPos > 0 && cursorPos <= v.texto.length) {
 
 
-            if (v.text[cursorPos - 1] == '\n') {
+            if (v.texto[cursorPos - 1] == '\n') {
 
                 // handle delete key when the line is:
                 // - x
@@ -32,20 +33,20 @@ fun markdownSmartEditor(
                     return v
                 }
 
-                val lineStart = v.text.lastIndexOf('\n', startIndex = lineBreakStart - 1).let {
+                val lineStart = v.texto.lastIndexOf('\n', startIndex = lineBreakStart - 1).let {
                     if (it == -1) 0 else it + 1
                 }
-                val lineBefore = v.text.substring(lineStart, lineBreakStart)
+                val lineBefore = v.texto.substring(lineStart, lineBreakStart)
 
-                val currentLine = v.text.indexOf('\n', startIndex = cursorPos).let {
-                    if (it == -1) v.text.length else it
+                val currentLine = v.texto.indexOf('\n', startIndex = cursorPos).let {
+                    if (it == -1) v.texto.length else it
                 }.let {
-                    v.text.substring(cursorPos, it)
+                    v.texto.substring(cursorPos, it)
                 }
 
                 val res = ListItemInfo.parseSafely(lineBefore)
 
-                if (isInsideFencedCodeBlock(v.text, lineStart)) {
+                if (isInsideFencedCodeBlock(v.texto, lineStart)) {
                     return v
                 }
 
@@ -53,12 +54,11 @@ fun markdownSmartEditor(
                 if (currentLine.isBlank() && res?.shouldRemove() == true) {
 
                     return v.copy(
-                        text = v.text.substring(0, lineStart) + v.text.substring(
+                        texto = v.texto.substring(0, lineStart) + v.texto.substring(
                             cursorPos,
-                            v.text.length
+                            v.texto.length
                         ),
-                        selection = TextRange(lineStart),
-                        composition = null,
+                        selecao = TextRange(lineStart),
                     )
                 }
 
@@ -67,15 +67,14 @@ fun markdownSmartEditor(
                 if (res != null) {
                     val newText = res.copy(isChecked = false).prefix(numberOp = { it + 1 })
                     return v.copy(
-                        text = v.text.substring(
+                        texto = v.texto.substring(
                             0,
                             cursorPos
-                        ) + res.padding + newText + v.text.substring(
+                        ) + res.padding + newText + v.texto.substring(
                             cursorPos,
-                            v.text.length
+                            v.texto.length
                         ),
-                        selection = TextRange(cursorPos + res.padding.length + newText.length),
-                        composition = null,
+                        selecao = TextRange(cursorPos + res.padding.length + newText.length),
                     )
                 }
                 // no list found, but we can still add the padding
@@ -83,32 +82,31 @@ fun markdownSmartEditor(
                     val padding = getPadding(lineBefore)
                     if (padding != null) {
                         return v.copy(
-                            text = v.text.substring(0, cursorPos) + padding + v.text.substring(
+                            texto = v.texto.substring(0, cursorPos) + padding + v.texto.substring(
                                 cursorPos,
-                                v.text.length
+                                v.texto.length
                             ),
-                            selection = TextRange(cursorPos + padding.length),
-                            composition = null,
+                            selecao = TextRange(cursorPos + padding.length),
                         )
                     }
                 }
             } else {
                 // remove padding, under certain conditions
-                if (prev.text.length == v.text.length + 1) {
+                if (prev.texto.length == v.texto.length + 1) {
 
-                    val start = v.text.lastIndexOf('\n', startIndex = cursorPos - 1).let {
+                    val start = v.texto.lastIndexOf('\n', startIndex = cursorPos - 1).let {
                         if (it == -1) 0 else it + 1
                     }
 
-                    val currentLine = v.text.substring(start, cursorPos)
+                    val currentLine = v.texto.substring(start, cursorPos)
 
-                    if (currentLine.isBlank() && (prev.text[cursorPos] == ' ' || prev.text[cursorPos] == '\t')) {
+                    if (currentLine.isBlank() && (prev.texto[cursorPos] == ' ' || prev.texto[cursorPos] == '\t')) {
                         return v.copy(
-                            text = v.text.substring(0, start) + v.text.substring(
+                            texto = v.texto.substring(0, start) + v.texto.substring(
                                 cursorPos,
-                                v.text.length
+                                v.texto.length
                             ),
-                            selection = TextRange(cursorPos - (cursorPos - start))
+                            selecao = TextRange(cursorPos - (cursorPos - start))
                         )
                     }
 
@@ -121,25 +119,25 @@ fun markdownSmartEditor(
 }
 
 private fun insertedLineBreakStart(
-    prev: TextFieldValue,
-    value: TextFieldValue,
+    prev: EdicaoDeTexto,
+    value: EdicaoDeTexto,
     cursorPos: Int,
 ): Int? {
-    val lineBreakStart = if (cursorPos >= 2 && value.text[cursorPos - 2] == '\r') {
+    val lineBreakStart = if (cursorPos >= 2 && value.texto[cursorPos - 2] == '\r') {
         cursorPos - 2
     } else {
         cursorPos - 1
     }
-    val selectionStart = prev.selection.min
-    val selectionEnd = prev.selection.max
+    val selectionStart = prev.selecao.min
+    val selectionEnd = prev.selecao.max
 
     if (lineBreakStart != selectionStart) return null
-    if (!value.text.regionMatches(0, prev.text, 0, selectionStart)) return null
+    if (!value.texto.regionMatches(0, prev.texto, 0, selectionStart)) return null
 
-    val suffixLength = prev.text.length - selectionEnd
-    val valueSuffixStart = value.text.length - suffixLength
+    val suffixLength = prev.texto.length - selectionEnd
+    val valueSuffixStart = value.texto.length - suffixLength
     if (valueSuffixStart != cursorPos) return null
-    if (!value.text.regionMatches(valueSuffixStart, prev.text, selectionEnd, suffixLength)) return null
+    if (!value.texto.regionMatches(valueSuffixStart, prev.texto, selectionEnd, suffixLength)) return null
 
     return lineBreakStart
 }
@@ -316,62 +314,62 @@ fun getPadding(line: String): String? {
 }
 
 
-fun onTitle(v: TextFieldValue): TextFieldValue {
-    val cursorPosMin = v.selection.min
+fun onTitle(v: EdicaoDeTexto): EdicaoDeTexto {
+    val cursorPosMin = v.selecao.min
 
     val pattern = "### "
-    return if (v.selection.collapsed) {
+    return if (v.selecao.collapsed) {
         // check if line start with "### "
-        val start = v.text.lastIndexOf('\n', startIndex = cursorPosMin - 1).let {
+        val start = v.texto.lastIndexOf('\n', startIndex = cursorPosMin - 1).let {
             if (it == -1) 0 else it + 1
         }
 
         // remove it
-        if (v.text.startsWith(pattern, startIndex = start)) {
+        if (v.texto.startsWith(pattern, startIndex = start)) {
             v.copy(
-                text = v.text.substring(0, start) + v.text.substring(
+                texto = v.texto.substring(0, start) + v.texto.substring(
                     start + pattern.length,
-                    v.text.length
+                    v.texto.length
                 ),
-                selection = TextRange(cursorPosMin - pattern.length)
+                selecao = TextRange(cursorPosMin - pattern.length)
             )
         }
         // add it
         else {
             v.copy(
-                text = v.text.substring(0, start) + pattern + v.text.substring(
+                texto = v.texto.substring(0, start) + pattern + v.texto.substring(
                     start,
-                    v.text.length
+                    v.texto.length
                 ),
-                selection = TextRange(cursorPosMin + pattern.length)
+                selecao = TextRange(cursorPosMin + pattern.length)
             )
         }
     } else {
         // check if the text before cursorPosStart is "### "
 
         // remove it
-        if (v.text.substring(0, cursorPosMin).endsWith(pattern)) {
+        if (v.texto.substring(0, cursorPosMin).endsWith(pattern)) {
             v.copy(
-                text = v.text.substring(0, cursorPosMin - pattern.length) + v.text.substring(
+                texto = v.texto.substring(0, cursorPosMin - pattern.length) + v.texto.substring(
                     cursorPosMin,
-                    v.text.length
+                    v.texto.length
                 ),
-                selection = TextRange(
-                    start = v.selection.start - pattern.length,
-                    end = v.selection.end - pattern.length,
+                selecao = TextRange(
+                    start = v.selecao.start - pattern.length,
+                    end = v.selecao.end - pattern.length,
                 )
             )
         }
         // add it
         else {
             v.copy(
-                text = v.text.substring(0, cursorPosMin) + pattern + v.text.substring(
+                texto = v.texto.substring(0, cursorPosMin) + pattern + v.texto.substring(
                     cursorPosMin,
-                    v.text.length
+                    v.texto.length
                 ),
-                selection = TextRange(
-                    start = v.selection.start + pattern.length,
-                    end = v.selection.end + pattern.length,
+                selecao = TextRange(
+                    start = v.selecao.start + pattern.length,
+                    end = v.selecao.end + pattern.length,
                 )
             )
         }
@@ -380,36 +378,36 @@ fun onTitle(v: TextFieldValue): TextFieldValue {
 
 
 fun addOrRemovePatternAtTheExtremitiesOfSelection(
-    v: TextFieldValue,
+    v: EdicaoDeTexto,
     startPattern: String,
     endPattern: String
-): TextFieldValue {
-    val cursorPosMin = v.selection.min
-    val cursorPosMax = v.selection.max
+): EdicaoDeTexto {
+    val cursorPosMin = v.selecao.min
+    val cursorPosMax = v.selecao.max
 
     // if already present, remove it
-    return if (v.text.substring(0, cursorPosMin).endsWith(startPattern)
-        && v.text.startsWith(endPattern, startIndex = cursorPosMax)
+    return if (v.texto.substring(0, cursorPosMin).endsWith(startPattern)
+        && v.texto.startsWith(endPattern, startIndex = cursorPosMax)
     ) {
         v.copy(
-            text = v.text.substring(0, cursorPosMin - startPattern.length)
-                    + v.text.substring(cursorPosMin, cursorPosMax)
-                    + v.text.substring(cursorPosMax + endPattern.length, v.text.length),
-            selection = TextRange(
-                start = v.selection.start - startPattern.length,
-                end = v.selection.end - startPattern.length,
+            texto = v.texto.substring(0, cursorPosMin - startPattern.length)
+                    + v.texto.substring(cursorPosMin, cursorPosMax)
+                    + v.texto.substring(cursorPosMax + endPattern.length, v.texto.length),
+            selecao = TextRange(
+                start = v.selecao.start - startPattern.length,
+                end = v.selecao.end - startPattern.length,
             )
         )
     }
     // else, add it
     else {
         v.copy(
-            text = v.text.substring(0, cursorPosMin)
-                    + startPattern + v.text.substring(cursorPosMin, cursorPosMax) + endPattern
-                    + v.text.substring(cursorPosMax, v.text.length),
-            selection = TextRange(
-                start = v.selection.start + startPattern.length,
-                end = v.selection.end + startPattern.length,
+            texto = v.texto.substring(0, cursorPosMin)
+                    + startPattern + v.texto.substring(cursorPosMin, cursorPosMax) + endPattern
+                    + v.texto.substring(cursorPosMax, v.texto.length),
+            selecao = TextRange(
+                start = v.selecao.start + startPattern.length,
+                end = v.selecao.end + startPattern.length,
             )
         )
 
@@ -417,55 +415,55 @@ fun addOrRemovePatternAtTheExtremitiesOfSelection(
 }
 
 fun addOrRemovePatternAtTheExtremitiesOfSelection(
-    v: TextFieldValue,
+    v: EdicaoDeTexto,
     pattern: String
-): TextFieldValue {
+): EdicaoDeTexto {
     return addOrRemovePatternAtTheExtremitiesOfSelection(v, pattern, pattern)
 }
 
-fun onCode(v: TextFieldValue): TextFieldValue {
-    val cursorPosMin = v.selection.min
-    val cursorPosMax = v.selection.max
+fun onCode(v: EdicaoDeTexto): EdicaoDeTexto {
+    val cursorPosMin = v.selecao.min
+    val cursorPosMax = v.selecao.max
 
-    return if (v.text.substring(cursorPosMin, cursorPosMax).contains('\n')) {
+    return if (v.texto.substring(cursorPosMin, cursorPosMax).contains('\n')) {
         addOrRemovePatternAtTheExtremitiesOfSelection(v, "```\n", "\n```")
     } else {
         addOrRemovePatternAtTheExtremitiesOfSelection(v, "`")
     }
 }
 
-fun onLink(v: TextFieldValue): TextFieldValue {
-    val cursorPosMin = v.selection.min
-    val cursorPosMax = v.selection.max
+fun onLink(v: EdicaoDeTexto): EdicaoDeTexto {
+    val cursorPosMin = v.selecao.min
+    val cursorPosMax = v.selecao.max
 
     val startPattern = "["
     val endPattern = "](url)"
 
     // remove url pattern
-    return if (v.text.startsWith(startPattern, startIndex = cursorPosMin - startPattern.length)
-        && v.text.startsWith(endPattern, startIndex = cursorPosMax)
+    return if (v.texto.startsWith(startPattern, startIndex = cursorPosMin - startPattern.length)
+        && v.texto.startsWith(endPattern, startIndex = cursorPosMax)
     ) {
         v.copy(
-            text = v.text.substring(0, cursorPosMin - startPattern.length)
-                    + v.text.substring(cursorPosMin, cursorPosMax)
-                    + v.text.substring(cursorPosMax + endPattern.length, v.text.length),
-            selection = TextRange(
-                start = v.selection.start - startPattern.length,
-                end = v.selection.end - startPattern.length,
+            texto = v.texto.substring(0, cursorPosMin - startPattern.length)
+                    + v.texto.substring(cursorPosMin, cursorPosMax)
+                    + v.texto.substring(cursorPosMax + endPattern.length, v.texto.length),
+            selecao = TextRange(
+                start = v.selecao.start - startPattern.length,
+                end = v.selecao.end - startPattern.length,
             )
         )
     }
     // add it
     else {
         v.copy(
-            text = v.text.substring(0, cursorPosMin)
+            texto = v.texto.substring(0, cursorPosMin)
                     + startPattern
-                    + v.text.substring(cursorPosMin, cursorPosMax)
+                    + v.texto.substring(cursorPosMin, cursorPosMax)
                     + endPattern
-                    + v.text.substring(cursorPosMax, v.text.length),
-            selection = if (v.selection.collapsed) TextRange(
-                start = v.selection.start + startPattern.length,
-                end = v.selection.end + startPattern.length,
+                    + v.texto.substring(cursorPosMax, v.texto.length),
+            selecao = if (v.selecao.collapsed) TextRange(
+                start = v.selecao.start + startPattern.length,
+                end = v.selecao.end + startPattern.length,
             ) else TextRange(
                 start = cursorPosMax + 3,
                 end = cursorPosMax + 6,
@@ -482,27 +480,27 @@ fun Int.max(b: Int): Int = max(this, b)
  * @param f2 this callback is also called on each line selected, after f1. Return the modified line
  */
 private fun multiLinePrefixModifier(
-    v: TextFieldValue,
+    v: EdicaoDeTexto,
     f1: (String) -> Boolean,
     f2: (String, Int) -> String
-): TextFieldValue {
-    val cursorPosMin = if (v.text.getOrNull(v.selection.min) == '\n') {
+): EdicaoDeTexto {
+    val cursorPosMin = if (v.texto.getOrNull(v.selecao.min) == '\n') {
         // if we are at the end of a line, decrement the cursor to include the line
-        v.selection.min - 1
+        v.selecao.min - 1
     } else {
-        v.selection.min
+        v.selecao.min
     }
 
-    val start = v.text.lastIndexOf('\n', startIndex = cursorPosMin).let {
+    val start = v.texto.lastIndexOf('\n', startIndex = cursorPosMin).let {
         if (it == -1) 0 else it + 1
     }
 
-    val cursorPosMax = v.selection.max
-    val end = v.text.indexOf('\n', startIndex = cursorPosMax).let {
-        if (it == -1) v.text.length else it
+    val cursorPosMax = v.selecao.max
+    val end = v.texto.indexOf('\n', startIndex = cursorPosMax).let {
+        if (it == -1) v.texto.length else it
     }
 
-    val subString = v.text.substring(start, end)
+    val subString = v.texto.substring(start, end)
 
     val lines = subString.lines()
 
@@ -510,7 +508,7 @@ private fun multiLinePrefixModifier(
         if (f1(line)) break
     }
 
-    var res = v.text.substring(0, start)
+    var res = v.texto.substring(0, start)
 
     var deltaAll = 0
     var deltaFirstLine = 0
@@ -529,21 +527,21 @@ private fun multiLinePrefixModifier(
         }
     }
 
-    res += v.text.substring(end, v.text.length)
+    res += v.texto.substring(end, v.texto.length)
 
     return v.copy(
-        text = res,
-        selection = if (v.selection.reversed) TextRange(
-            start = (v.selection.start + deltaAll).max(start),
-            end = (v.selection.end + deltaFirstLine).max(start),
+        texto = res,
+        selecao = if (v.selecao.reversed) TextRange(
+            start = (v.selecao.start + deltaAll).max(start),
+            end = (v.selecao.end + deltaFirstLine).max(start),
         ) else TextRange(
-            start = (v.selection.start + deltaFirstLine).max(start),
-            end = (v.selection.end + deltaAll).max(start),
+            start = (v.selecao.start + deltaFirstLine).max(start),
+            end = (v.selecao.end + deltaAll).max(start),
         )
     )
 }
 
-fun onQuote(v: TextFieldValue): TextFieldValue {
+fun onQuote(v: EdicaoDeTexto): EdicaoDeTexto {
 
     var atListOneListToConvert = false
     val pattern = "> "
@@ -568,7 +566,7 @@ fun onQuote(v: TextFieldValue): TextFieldValue {
 }
 
 
-fun onUnorderedList(v: TextFieldValue): TextFieldValue {
+fun onUnorderedList(v: EdicaoDeTexto): EdicaoDeTexto {
 
     var atListOneListToConvert = false
     var defaultListInfo: ListItemInfo? = null
@@ -615,7 +613,7 @@ fun onUnorderedList(v: TextFieldValue): TextFieldValue {
     )
 }
 
-fun onNumberedList(v: TextFieldValue): TextFieldValue {
+fun onNumberedList(v: EdicaoDeTexto): EdicaoDeTexto {
 
     var atListOneListToConvert = false
     var defaultListInfo: ListItemInfo? = null
@@ -661,7 +659,7 @@ fun onNumberedList(v: TextFieldValue): TextFieldValue {
     )
 }
 
-fun onTaskList(v: TextFieldValue): TextFieldValue {
+fun onTaskList(v: EdicaoDeTexto): EdicaoDeTexto {
 
     var atListOneListToConvert = false
     var defaultListInfo: ListItemInfo? = null

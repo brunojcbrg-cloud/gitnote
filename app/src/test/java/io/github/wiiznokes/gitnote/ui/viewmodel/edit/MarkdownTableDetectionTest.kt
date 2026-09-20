@@ -1,7 +1,6 @@
 package io.github.wiiznokes.gitnote.ui.viewmodel.edit
 
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -62,20 +61,20 @@ class MarkdownTableDetectionTest {
     @Test
     fun documentResizeReplacesOnlyTableAndMovesCursorIntoSurvivingFirstCell() {
         val text = "before\n\n$table\n\nafter"
-        val value = TextFieldValue(text, selection = TextRange(text.indexOf("first")))
+        val value = EdicaoDeTexto(text, selecao = TextRange(text.indexOf("first")))
         val result = assertNotNull(resizeTableAt(value, columns = 3, bodyRows = 3))
 
         assertEquals(0, result.lostNonEmptyCells)
-        assertTrue(result.value.text.startsWith("before\n\n| head | value |  |"))
-        assertTrue(result.value.text.endsWith("\n\nafter"))
-        assertEquals('h', result.value.text[result.value.selection.start])
+        assertTrue(result.value.texto.startsWith("before\n\n| head | value |  |"))
+        assertTrue(result.value.texto.endsWith("\n\nafter"))
+        assertEquals('h', result.value.texto[result.value.selecao.start])
     }
 
     @Test
     fun documentResizeReportsExactLossBeforeApplying() {
-        val value = TextFieldValue(table, selection = TextRange(table.indexOf("head")))
+        val value = EdicaoDeTexto(table, selecao = TextRange(table.indexOf("head")))
         val result = assertNotNull(resizeTableAt(value, columns = 1, bodyRows = 1))
         assertEquals(4, result.lostNonEmptyCells)
-        assertEquals("| head |\n| --- |\n| first |", result.value.text)
+        assertEquals("| head |\n| --- |\n| first |", result.value.texto)
     }
 }

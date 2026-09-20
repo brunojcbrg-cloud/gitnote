@@ -156,8 +156,8 @@ class MarkdownSmartEditorTest(
         val previousText = "- item${ending.text}- "
         val editedText = "- item${ending.text}"
         val actual = markdownSmartEditor(
-            prev = TextFieldValue(previousText, selection = TextRange(previousText.length)),
-            v = TextFieldValue(editedText, selection = TextRange(editedText.length)),
+            prev = EdicaoDeTexto(previousText, selecao = TextRange(previousText.length)),
+            v = EdicaoDeTexto(editedText, selecao = TextRange(editedText.length)),
         )
 
         assertValue(editedText, editedText.length, actual)
@@ -180,13 +180,13 @@ class MarkdownSmartEditorTest(
     fun `23 programmatic continuation clears stale IME composition`() {
         val input = "- item"
         val rawText = "$input${ending.text}"
-        val actual = markdownSmartEditor(
-            prev = TextFieldValue(
+        val actual = editMarkdownValue(
+            previous = TextFieldValue(
                 text = input,
                 selection = TextRange(input.length),
                 composition = TextRange(2, input.length),
             ),
-            v = TextFieldValue(
+            value = TextFieldValue(
                 text = rawText,
                 selection = TextRange(rawText.length),
                 composition = TextRange(2, input.length),
@@ -209,15 +209,15 @@ class MarkdownSmartEditorTest(
         val rawText = input.replaceRange(selection.start, selection.end, ending.text)
         val rawCursor = selection.start + ending.text.length
         val actual = markdownSmartEditor(
-            prev = TextFieldValue(input, selection = selection),
-            v = TextFieldValue(rawText, selection = TextRange(rawCursor)),
+            prev = EdicaoDeTexto(input, selecao = selection),
+            v = EdicaoDeTexto(rawText, selecao = TextRange(rawCursor)),
         )
 
         assertValue(expected, expectedCursor, actual)
     }
 
-    private fun assertValue(expectedText: String, expectedCursor: Int, actual: TextFieldValue) {
-        assertEquals(expectedText, actual.text, "text for ${ending.name}")
-        assertEquals(TextRange(expectedCursor), actual.selection, "cursor for ${ending.name}")
+    private fun assertValue(expectedText: String, expectedCursor: Int, actual: EdicaoDeTexto) {
+        assertEquals(expectedText, actual.texto, "text for ${ending.name}")
+        assertEquals(TextRange(expectedCursor), actual.selecao, "cursor for ${ending.name}")
     }
 }
