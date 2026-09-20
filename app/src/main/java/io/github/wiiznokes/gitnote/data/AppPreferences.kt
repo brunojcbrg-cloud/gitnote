@@ -1,6 +1,12 @@
 package io.github.wiiznokes.gitnote.data
 
 import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.manager.PreferencesManager
 import io.github.wiiznokes.gitnote.provider.ProviderType
@@ -15,11 +21,102 @@ import io.github.wiiznokes.gitnote.ui.model.StorageConfiguration
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownTheme
 import io.github.wiiznokes.gitnote.ui.theme.Theme
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import javax.crypto.Cipher
 import kotlin.io.path.pathString
 
 class AppPreferences(
     context: Context
 ) : PreferencesManager(context, "settings") {
+
+    private val mestra = AndroidChaveMestra()
+    private val cofre = CofreDeCredenciais(mestra)
+    @Volatile private var protecaoDisponivel = false
+
+    fun definirProtecaoDisponivel(disponivel: Boolean) {
+        protecaoDisponivel = disponivel
+        if (!disponivel) cofre.bloquear()
+    }
+
+    val protecaoDoCofreDisponivel: Boolean get() = protecaoDisponivel
+
+    val cofreAberto: Boolean get() = !protecaoDisponivel || cofre.aberto
+
+    suspend fun prepararCofre(): Cipher {
+        check(protecaoDisponivel)
+        return mestra.preparar(dataStore.data.first()[MigracaoDeCredenciais.envelope])
+    }
+
+    suspend fun desbloquearCofre(cipher: Cipher): Int {
+        check(protecaoDisponivel)
+        mestra.confirmar(cipher)
+        try {
+            val envelopeAtual = dataStore.data.first()[MigracaoDeCredenciais.envelope]
+            val envelopeNovo = if (envelopeAtual == null) cofre.criarEnvelope() else {
+                cofre.abrirEnvelope(envelopeAtual)
+                null
+            }
+            var migradas = 0
+            dataStore.edit { prefs ->
+                if (envelopeNovo != null) prefs[MigracaoDeCredenciais.envelope] = envelopeNovo
+                if (prefs[MigracaoDeCredenciais.concluida] != true) {
+                    val antigas = listOf(
+                        MigracaoDeCredenciais.privateKeyAntiga,
+                        MigracaoDeCredenciais.passphraseAntiga,
+                        MigracaoDeCredenciais.senhaAntiga
+                    ).filter { prefs[it] != null }
+                    migradas = MigracaoDeCredenciais(cofre).migrar(prefs)
+                    prefs[intPreferencesKey("quantidadeCredenciaisMigradas")] = migradas
+                    prefs[stringPreferencesKey("chavesCredenciaisMigradas")] =
+                        antigas.joinToString(", ") { it.name }
+                }
+            }
+            return migradas
+        } catch (error: Exception) {
+            cofre.bloquear()
+            throw error
+        }
+    }
+
+    fun bloquearCofre() = cofre.bloquear()
+
+    val quantidadeCredenciaisMigradas = intPreference("quantidadeCredenciaisMigradas", 0)
+    val chavesCredenciaisMigradas = stringPreference("chavesCredenciaisMigradas", "")
+
+    inner class Segredo(private val antiga: Preferences.Key<String>, private val nova: Preferences.Key<String>) {
+        private fun ler(prefs: Preferences): String {
+            if (!protecaoDisponivel) return prefs[antiga] ?: ""
+            if (!cofre.aberto) throw CofreBloqueadoException()
+            return prefs[nova]?.let(cofre::decifrar) ?: ""
+        }
+
+        suspend fun get(): String {
+            return ler(dataStore.data.first())
+        }
+
+        suspend fun update(valor: String) {
+            if (!protecaoDisponivel) {
+                dataStore.edit { it[antiga] = valor }
+            } else {
+                val cifrado = cofre.cifrar(valor)
+                dataStore.edit {
+                    it[nova] = cifrado
+                    it.remove(antiga)
+                }
+            }
+        }
+
+        suspend fun reset() {
+            dataStore.edit {
+                it.remove(antiga)
+                it.remove(nova)
+            }
+        }
+
+        @Composable
+        fun getAsState() = dataStore.data.map(::ler).collectAsStateWithLifecycle(initialValue = "")
+    }
 
     companion object {
         val appStorageRepoPath =
@@ -85,13 +182,13 @@ class AppPreferences(
     }
 
     val userPassUsername = stringPreference("userPassUsername", "")
-    val userPassPassword = stringPreference("userPassPassword", "")
+    val userPassPassword = Segredo(MigracaoDeCredenciais.senhaAntiga, MigracaoDeCredenciais.senhaCifrada)
 
     val publicKey = stringPreference("publicKey", "")
-    val privateKey = stringPreference("privateKey", "")
-    val passphrase = stringPreference("passphrase", "")
+    val privateKey = Segredo(MigracaoDeCredenciais.privateKeyAntiga, MigracaoDeCredenciais.privateKeyCifrada)
+    val passphrase = Segredo(MigracaoDeCredenciais.passphraseAntiga, MigracaoDeCredenciais.passphraseCifrada)
 
-    val appAuthToken = stringPreference("appAuthToken", "")
+    val appAuthToken = Segredo(MigracaoDeCredenciais.tokenAntigo, MigracaoDeCredenciais.tokenCifrado)
 
     suspend fun cred(): Cred? {
         return when (credType.get()) {
