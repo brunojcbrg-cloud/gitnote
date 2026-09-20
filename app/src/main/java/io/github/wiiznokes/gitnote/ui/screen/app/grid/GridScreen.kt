@@ -100,6 +100,7 @@ fun GridScreen(
 
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
         ModalDrawerSheet {
+            val pastaPadrao by vm.prefs.pastaPadrao.getAsState()
             DrawerScreen(
                 drawerState = drawerState,
                 currentNoteFolderRelativePath = vm.currentNoteFolderRelativePath.collectAsState().value,
@@ -107,6 +108,7 @@ fun GridScreen(
                 openFolder = vm::openFolder,
                 deleteFolder = vm::deleteFolder,
                 createNoteFolder = vm::createNoteFolder,
+                pastaPadrao = pastaPadrao,
             )
         }
     }) {

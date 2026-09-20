@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -158,6 +159,30 @@ fun SettingsScreen(
                 expanded = pickFolderDialogExpanded,
                 onSelectedFolder = {
                     vm.update { vm.prefs.defaultPathForNewNote.update(it) }
+                }
+            )
+
+            val pastaPadrao by vm.prefs.pastaPadrao.getAsState()
+            val pastaPadraoDialogExpanded = rememberSaveable { mutableStateOf(false) }
+            DefaultSettingsRow(
+                title = stringResource(R.string.default_startup_folder),
+                subTitle = pastaPadrao.ifEmpty { stringResource(id = R.string.none) },
+                onClick = { pastaPadraoDialogExpanded.value = true },
+                endContent = if (pastaPadrao.isNotEmpty()) {
+                    {
+                        Button(
+                            onClick = { vm.update { vm.prefs.pastaPadrao.update("") } }
+                        ) {
+                            Text(stringResource(R.string.clear))
+                        }
+                    }
+                } else null
+            )
+
+            PickFolderDialog(
+                expanded = pastaPadraoDialogExpanded,
+                onSelectedFolder = {
+                    vm.update { vm.prefs.pastaPadrao.update(it) }
                 }
             )
 

@@ -20,6 +20,10 @@
     <string name="sort_order">Sort Order</string>
     <string name="sort_order_folder">Sort Order folder</string>
     <string name="defaultPathForNewNote">Default path for new notes</string>
+    <string name="default_startup_folder">Default folder on startup</string>
+    <string name="default_startup_folder_not_found">Default folder no longer exists, opened the root instead</string>
+    <string name="back_to_default_folder">Back to default folder</string>
+    <string name="clear">Clear</string>
     <string name="minimal_note_width">Minimal width of a note</string>
     <string name="show_long_notes">Show long notes entirely</string>
     <string name="remember_last_opened_folder">Remember last opened folder</string>

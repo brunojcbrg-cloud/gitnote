@@ -141,6 +141,15 @@ interface RepoDatabaseDao {
     )
     suspend fun isNoteExist(relativePath: String): Boolean
 
+    @Query(
+        """
+    SELECT EXISTS(
+        SELECT 1 FROM NoteFolders WHERE relativePath = :relativePath
+    )
+    """
+    )
+    suspend fun isFolderExist(relativePath: String): Boolean
+
     @Query("SELECT * FROM Notes WHERE relativePath = :relativePath")
     suspend fun noteByRelativePath(relativePath: String): Note?
 

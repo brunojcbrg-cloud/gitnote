@@ -60,11 +60,11 @@ class GridViewModel : ViewModel() {
 
 
     private val _currentNoteFolderRelativePath = MutableStateFlow(
-        if (prefs.rememberLastOpenedFolder.getBlocking()) {
-            prefs.lastOpenedFolder.getBlocking()
-        } else {
-            ""
-        }
+        PastaInicial.escolher(
+            rememberLastOpenedFolder = prefs.rememberLastOpenedFolder.getBlocking(),
+            lastOpenedFolder = prefs.lastOpenedFolder.getBlocking(),
+            pastaPadrao = prefs.pastaPadrao.getBlocking(),
+        )
     )
     val currentNoteFolderRelativePath: StateFlow<String>
         get() = _currentNoteFolderRelativePath.asStateFlow()
@@ -78,6 +78,17 @@ class GridViewModel : ViewModel() {
 
     init {
         Log.d(TAG, "init")
+
+        val pastaInicial = _currentNoteFolderRelativePath.value
+        if (pastaInicial != "") {
+            viewModelScope.launch {
+                if (!dao.isFolderExist(pastaInicial)) {
+                    Log.d(TAG, "pasta inicial \"$pastaInicial\" nao existe, caindo para a raiz")
+                    _currentNoteFolderRelativePath.emit("")
+                    uiHelper.makeToast(uiHelper.getString(R.string.default_startup_folder_not_found))
+                }
+            }
+        }
     }
 
     suspend fun refreshSelectedNotes() {

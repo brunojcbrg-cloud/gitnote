@@ -16,6 +16,10 @@
     <string name="dynamic_colors">Cores dinâmicas</string>
     <string name="sort_order">Ordem de organização</string>
     <string name="defaultPathForNewNote">Caminho padrão para novas notas</string>
+    <string name="default_startup_folder">Pasta padrão ao iniciar</string>
+    <string name="default_startup_folder_not_found">A pasta padrão não existe mais, a raiz foi aberta no lugar</string>
+    <string name="back_to_default_folder">Voltar à pasta padrão</string>
+    <string name="clear">Limpar</string>
     <string name="minimal_note_width">Largura máxima de uma nota</string>
     <string name="show_long_notes">Mostrar notas longas por completo</string>
     <string name="remember_last_opened_folder">Lembrar última pasta aberta</string>
