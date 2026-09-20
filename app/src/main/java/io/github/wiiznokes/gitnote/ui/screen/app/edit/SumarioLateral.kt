@@ -94,7 +94,7 @@ internal fun SumarioLateral(
                                 .clickable { onItemClick(item) }
                                 .heightIn(min = 44.dp)
                                 .padding(
-                                    start = 12.dp + (item.nivel - 1) * 12.dp,
+                                    start = 12.dp * item.nivel,
                                     end = 12.dp,
                                     top = 10.dp,
                                     bottom = 10.dp,
