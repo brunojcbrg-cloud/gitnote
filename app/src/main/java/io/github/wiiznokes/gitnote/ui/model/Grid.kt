@@ -1,9 +1,7 @@
 package io.github.wiiznokes.gitnote.ui.model
 
-import androidx.room.Embedded
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
-import io.github.wiiznokes.gitnote.data.room.Note
 
 enum class SortOrder {
     AZ,
@@ -38,10 +36,3 @@ enum class NoteViewType {
     Grid,
     List,
 }
-
-data class GridNote(
-    @Embedded
-    val note: Note,
-    val isUnique: Boolean,
-    val selected: Boolean = false,
-)

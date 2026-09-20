@@ -72,11 +72,12 @@ import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.component.CustomDropDown
 import io.github.wiiznokes.gitnote.ui.component.CustomDropDownModel
 import io.github.wiiznokes.gitnote.ui.model.EditType
-import io.github.wiiznokes.gitnote.ui.model.FileExtension
-import io.github.wiiznokes.gitnote.ui.model.GridNote
+import io.github.wiiznokes.gitnote.ui.model.GridRow
 import io.github.wiiznokes.gitnote.ui.model.NoteViewType
 import io.github.wiiznokes.gitnote.ui.screen.app.DrawerScreen
 import io.github.wiiznokes.gitnote.ui.viewmodel.GridViewModel
+import java.text.DateFormat
+import java.util.Date
 
 
 private const val TAG = "GridScreen"
@@ -190,7 +191,7 @@ private fun GridView(
     vm: GridViewModel,
     nestedScrollConnection: NestedScrollConnection,
     onEditClick: (Note, EditType) -> Unit,
-    selectedNotes: List<Note>,
+    selectedNotes: Set<String>,
     padding: PaddingValues,
     noteViewType: NoteViewType,
 ) {
@@ -272,10 +273,10 @@ private fun GridView(
 
 @Composable
 private fun GridNotesView(
-    gridNotes: LazyPagingItems<GridNote>,
+    gridNotes: LazyPagingItems<GridRow>,
     gridState: LazyStaggeredGridState,
     modifier: Modifier = Modifier,
-    selectedNotes: List<Note>,
+    selectedNotes: Set<String>,
     showFullPathOfNotes: Boolean,
     onEditClick: (Note, EditType) -> Unit,
     vm: GridViewModel,
@@ -297,12 +298,12 @@ private fun GridNotesView(
 
         items(
             count = gridNotes.itemCount,
-            key = gridNotes.itemKey { it.note.id }
+            key = gridNotes.itemKey { it.id }
         ) { index ->
-            val gridNote = gridNotes[index] ?: return@items
+            val gridRow = gridNotes[index] ?: return@items
 
             NoteCard(
-                gridNote = gridNote,
+                gridNote = gridRow,
                 vm = vm,
                 onEditClick = onEditClick,
                 selectedNotes = selectedNotes,
@@ -320,10 +321,10 @@ private fun GridNotesView(
 
 @Composable
 private fun NoteCard(
-    gridNote: GridNote,
+    gridNote: GridRow,
     vm: GridViewModel,
     onEditClick: (Note, EditType) -> Unit,
-    selectedNotes: List<Note>,
+    selectedNotes: Set<String>,
     showFullPathOfNotes: Boolean,
     showFullNoteHeight: Boolean,
     modifier: Modifier = Modifier,
@@ -362,12 +363,12 @@ private fun NoteCard(
                 dropDownExpanded.value = true
             }, onClick = {
                 if (selectedNotes.isEmpty()) {
-                    onEditClick(
-                        gridNote.note, EditType.Update
-                    )
+                    vm.abrirNota(gridNote.relativePath) { note ->
+                        onEditClick(note, EditType.Update)
+                    }
                 } else {
                     vm.selectNote(
-                        gridNote.note, add = !gridNote.selected
+                        gridNote.relativePath, add = !gridNote.selected
                     )
                 }
             })
@@ -392,9 +393,9 @@ private fun NoteCard(
                 horizontalAlignment = Alignment.Start,
             ) {
                 val title = if (showFullPathOfNotes || !gridNote.isUnique) {
-                    gridNote.note.relativePath
+                    gridNote.relativePath
                 } else {
-                    gridNote.note.nameWithoutExtension()
+                    gridNote.nameWithoutExtension()
                 }
                 Text(
                     text = title,
@@ -406,30 +407,16 @@ private fun NoteCard(
                     color = MaterialTheme.colorScheme.tertiary
                 )
 
-                if (gridNote.note.fileExtension() is FileExtension.Md) {
-
-                    MarkdownCustom(
-                        content = gridNote.note.content,
-                        onClick = {
-                            if (selectedNotes.isEmpty()) {
-                                onEditClick(
-                                    gridNote.note, EditType.Update
-                                )
-                            } else {
-                                vm.selectNote(
-                                    gridNote.note, add = !gridNote.selected
-                                )
-                            }
-                        }
-                    )
-                } else {
-                    Text(
-                        text = gridNote.note.content,
-                        modifier = Modifier,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                val formattedDate = remember(gridNote.lastModifiedTimeMillis) {
+                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+                        .format(Date(gridNote.lastModifiedTimeMillis))
                 }
+                Text(
+                    text = formattedDate,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -438,8 +425,8 @@ private fun NoteCard(
 @Composable
 internal fun NoteActionsDropdown(
     vm: GridViewModel,
-    gridNote: GridNote,
-    selectedNotes: List<Note>,
+    gridNote: GridRow,
+    selectedNotes: Set<String>,
     dropDownExpanded: MutableState<Boolean>,
     clickPosition: MutableState<Offset>,
 ) {
@@ -452,10 +439,10 @@ internal fun NoteActionsDropdown(
             options = listOf(
                 CustomDropDownModel(
                     text = stringResource(R.string.delete_this_note),
-                    onClick = { vm.deleteNote(gridNote.note) }),
+                    onClick = { vm.deleteNote(gridNote.relativePath) }),
                 if (selectedNotes.isEmpty()) CustomDropDownModel(
                     text = stringResource(R.string.select_multiple_notes),
-                    onClick = { vm.selectNote(gridNote.note, true) }) else null,
+                    onClick = { vm.selectNote(gridNote.relativePath, true) }) else null,
             ),
             clickPosition = clickPosition
         )

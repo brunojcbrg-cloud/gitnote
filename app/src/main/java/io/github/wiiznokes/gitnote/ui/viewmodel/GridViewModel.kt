@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class GridViewModel : ViewModel() {
 
@@ -69,9 +70,9 @@ class GridViewModel : ViewModel() {
         get() = _currentNoteFolderRelativePath.asStateFlow()
 
 
-    private val _selectedNotes: MutableStateFlow<List<Note>> = MutableStateFlow(emptyList())
+    private val _selectedNotes: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())
 
-    val selectedNotes: StateFlow<List<Note>>
+    val selectedNotes: StateFlow<Set<String>>
         get() = _selectedNotes.asStateFlow()
 
 
@@ -80,10 +81,25 @@ class GridViewModel : ViewModel() {
     }
 
     suspend fun refreshSelectedNotes() {
-        selectedNotes.value.filter { selectedNote ->
-            dao.isNoteExist(selectedNote.relativePath)
-        }.let { newSelectedNotes ->
+        selectedNotes.value.filter { relativePath ->
+            dao.isNoteExist(relativePath)
+        }.toSet().let { newSelectedNotes ->
             _selectedNotes.emit(newSelectedNotes)
+        }
+    }
+
+    /**
+     * O card/linha da grade so guarda [io.github.wiiznokes.gitnote.ui.model.GridRow]
+     * (sem conteudo, Fase B do handoff 10). Quem precisa da nota inteira — abrir no
+     * editor ou apagar — busca sob demanda aqui.
+     */
+    fun abrirNota(relativePath: String, onNoteLoaded: (Note) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            dao.noteByRelativePath(relativePath)?.let { note ->
+                withContext(Dispatchers.Main) {
+                    onNoteLoaded(note)
+                }
+            }
         }
     }
 
@@ -147,31 +163,34 @@ class GridViewModel : ViewModel() {
     /**
      * @param add true if the note must be selected, false otherwise
      */
-    fun selectNote(note: Note, add: Boolean) = viewModelScope.launch {
+    fun selectNote(relativePath: String, add: Boolean) = viewModelScope.launch {
         if (add) {
-            selectedNotes.value.plus(note)
+            selectedNotes.value.plus(relativePath)
         } else {
-            selectedNotes.value.minus(note)
+            selectedNotes.value.minus(relativePath)
         }.let {
             _selectedNotes.emit(it)
         }
     }
 
     fun unselectAllNotes() = viewModelScope.launch {
-        _selectedNotes.emit(emptyList())
+        _selectedNotes.emit(emptySet())
     }
 
     fun deleteSelectedNotes() {
         CoroutineScope(Dispatchers.IO).launch {
-            val currentSelectedNotes = selectedNotes.value
+            val currentSelectedPaths = selectedNotes.value
             unselectAllNotes()
-            storageManager.deleteNotes(currentSelectedNotes)
+            val notes = currentSelectedPaths.mapNotNull { dao.noteByRelativePath(it) }
+            storageManager.deleteNotes(notes)
         }
     }
 
-    fun deleteNote(note: Note) {
+    fun deleteNote(relativePath: String) {
         CoroutineScope(Dispatchers.IO).launch {
-            storageManager.deleteNote(note)
+            dao.noteByRelativePath(relativePath)?.let { note ->
+                storageManager.deleteNote(note)
+            }
         }
     }
 
@@ -226,9 +245,9 @@ class GridViewModel : ViewModel() {
             }
         ).flow.cachedIn(viewModelScope)
     }.combine(selectedNotes) { gridNotes, selectedNotes ->
-        gridNotes.map { gridNote ->
-            gridNote.copy(
-                selected = selectedNotes.contains(gridNote.note)
+        gridNotes.map { gridRow ->
+            gridRow.copy(
+                selected = selectedNotes.contains(gridRow.relativePath)
             )
         }
     }.stateIn(

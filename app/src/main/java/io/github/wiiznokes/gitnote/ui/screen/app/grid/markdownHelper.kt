@@ -2,16 +2,11 @@ package io.github.wiiznokes.gitnote.ui.screen.app.grid
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
@@ -56,26 +51,6 @@ import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
 
-
-@Composable
-fun MarkdownCustom(
-    content: String,
-    onClick: () -> Unit,
-) {
-    CompositionLocalProvider(
-        LocalUriHandler provides object : UriHandler {
-            override fun openUri(uri: String) {
-                onClick()
-            }
-        }
-    ) {
-        MarkdownCustomInner(
-            content = content,
-            modifier = Modifier
-                .verticalScroll(state = rememberScrollState(), enabled = false)
-        )
-    }
-}
 
 @Composable
 fun MarkdownCustomInner(

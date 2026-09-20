@@ -59,3 +59,22 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
    não commitado; o `git status` real mostra 8 — `AndroidChaveMestra.kt` também aparece
    como `M`. Não toquei nele (só li, para confirmar que construir `AppPreferences` em
    teste não dispara Keystore). Registrando para o Bruno confirmar que é esperado.
+
+### Fase B (2026-09-20) — decisão do Bruno sobre os testes de SQL
+
+Confirmado no início da Fase B, exatamente como a divergência 2 da Fase A antecipava:
+`gridNotes`, `gridNotesWithQuery` e `drawerFolders` só funcionam com 4 funções SQLite
+customizadas (`fullName`, `parentPath`, `rank`, `caseFold`), registradas hoje só por
+`RepoDatabase.buildFactory` (via `RequerySQLiteOpenHelperFactory`). Essa lib nativa não
+carrega na JVM de teste (`UnsatisfiedLinkError`, já medido na Fase A). Não há API pública
+do Android para registrar função SQLite customizada — é por isso que o projeto depende do
+requery. Levantei duas alternativas: (a) SQLite puro em JVM via `org.xerial:sqlite-jdbc`,
+testando o texto literal do SQL fora do Android/Robolectric — dependência nova, primeira
+vez no repo; (b) API interna não documentada do Robolectric
+(`nativeRegisterCustomFunction`/`SQLiteCustomFunction`) — mais arriscada, não dá para
+confirmar sem compilar localmente. Perguntei ao Bruno; ele escolheu **aceitar a lacuna**:
+implementar a Fase B inteira em produção, testar isoladamente as 3 funções puras
+(`ParentPath`/`FullName`/`CaseFold`, já são Kotlin sem SQL) e documentar no
+`RESULTADO_10_B.md` que os testes de SQL ponta a ponta de `gridNotes`/`gridNotesWithQuery`
+(contagem de linhas por pasta, isolamento entre `Medicina`/`Medicina2`) **não são
+executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho por causa disso.

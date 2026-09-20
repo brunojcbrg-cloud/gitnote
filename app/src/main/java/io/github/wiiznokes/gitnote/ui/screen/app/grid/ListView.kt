@@ -33,17 +33,17 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.model.EditType
-import io.github.wiiznokes.gitnote.ui.model.GridNote
+import io.github.wiiznokes.gitnote.ui.model.GridRow
 import io.github.wiiznokes.gitnote.ui.viewmodel.GridViewModel
 import java.text.DateFormat
 import java.util.Date
 
 @Composable
 internal fun NoteListView(
-    gridNotes: LazyPagingItems<GridNote>,
+    gridNotes: LazyPagingItems<GridRow>,
     listState: LazyListState,
     modifier: Modifier = Modifier,
-    selectedNotes: List<Note>,
+    selectedNotes: Set<String>,
     showFullPathOfNotes: Boolean,
     onEditClick: (Note, EditType) -> Unit,
     vm: GridViewModel,
@@ -59,7 +59,7 @@ internal fun NoteListView(
 
         items(
             count = gridNotes.itemCount,
-            key = gridNotes.itemKey { it.note.id }
+            key = gridNotes.itemKey { it.id }
         ) { index ->
             val gridNote = gridNotes[index] ?: return@items
             NoteListRow(
@@ -79,21 +79,21 @@ internal fun NoteListView(
 
 @Composable
 private fun NoteListRow(
-    gridNote: GridNote,
+    gridNote: GridRow,
     vm: GridViewModel,
     onEditClick: (Note, EditType) -> Unit,
-    selectedNotes: List<Note>,
+    selectedNotes: Set<String>,
     showFullPathOfNotes: Boolean,
 ) {
     val dropDownExpanded = remember { mutableStateOf(false) }
     val clickPosition = remember { mutableStateOf(Offset.Zero) }
 
-    val formattedDate = remember(gridNote.note.lastModifiedTimeMillis) {
+    val formattedDate = remember(gridNote.lastModifiedTimeMillis) {
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-            .format(Date(gridNote.note.lastModifiedTimeMillis))
+            .format(Date(gridNote.lastModifiedTimeMillis))
     }
 
-    val title = gridNote.note.relativePath
+    val title = gridNote.relativePath
 
     val rowBackground =
         if (gridNote.selected) MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)
@@ -107,9 +107,11 @@ private fun NoteListRow(
                 onLongClick = { dropDownExpanded.value = true },
                 onClick = {
                     if (selectedNotes.isEmpty()) {
-                        onEditClick(gridNote.note, EditType.Update)
+                        vm.abrirNota(gridNote.relativePath) { note ->
+                            onEditClick(note, EditType.Update)
+                        }
                     } else {
-                        vm.selectNote(gridNote.note, add = !gridNote.selected)
+                        vm.selectNote(gridNote.relativePath, add = !gridNote.selected)
                     }
                 }
             )

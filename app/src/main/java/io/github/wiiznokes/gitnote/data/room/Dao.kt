@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteQuery
 import io.github.wiiznokes.gitnote.data.platform.NodeFs
 import io.github.wiiznokes.gitnote.manager.Progress
 import io.github.wiiznokes.gitnote.manager.isExtensionSupportedLib
-import io.github.wiiznokes.gitnote.ui.model.GridNote
+import io.github.wiiznokes.gitnote.ui.model.GridRow
 import io.github.wiiznokes.gitnote.ui.model.SortOrder
 import io.github.wiiznokes.gitnote.ui.screen.app.DrawerFolderModel
 import io.requery.android.database.sqlite.SQLiteDatabase
@@ -154,7 +154,7 @@ interface RepoDatabaseDao {
     suspend fun allNoteFolders(): List<NoteFolder>
 
     @RawQuery(observedEntities = [Note::class])
-    fun gridNotesRaw(query: SupportSQLiteQuery): PagingSource<Int, GridNote>
+    fun gridNotesRaw(query: SupportSQLiteQuery): PagingSource<Int, GridRow>
 
     @RawQuery(observedEntities = [Note::class])
     suspend fun wikilinkCandidatesRaw(query: SupportSQLiteQuery): List<WikilinkCandidate>
@@ -182,30 +182,29 @@ interface RepoDatabaseDao {
             .distinctBy { it.relativePath }
     }
 
+    /**
+     * Sem funcao de janela e sem `fullName()`: a pasta e exata (nao recursiva), entao
+     * todo `relativePath` devolvido comeca com o mesmo prefixo de pasta e ordenar por
+     * `relativePath` da o mesmo resultado que ordenar pelo nome do arquivo. E dentro de
+     * uma unica pasta o nome do arquivo e sempre unico (e a chave primaria), entao
+     * `isUnique` e sempre 1 — nao precisa mais ser calculado.
+     */
     fun gridNotes(
         currentNoteFolderRelativePath: String,
         sortOrder: SortOrder,
-    ): PagingSource<Int, GridNote> {
+    ): PagingSource<Int, GridRow> {
 
         val (sortColumn, order) = when (sortOrder) {
-            SortOrder.AZ -> "fileName" to "ASC"
-            SortOrder.ZA -> "fileName" to "DESC"
+            SortOrder.AZ -> "relativePath" to "ASC"
+            SortOrder.ZA -> "relativePath" to "DESC"
             SortOrder.MostRecent -> "lastModifiedTimeMillis" to "DESC"
             SortOrder.Oldest -> "lastModifiedTimeMillis" to "ASC"
         }
 
         val sql = """
-            WITH notes_with_filename AS (
-                SELECT *, fullName(relativePath) AS fileName
-                FROM Notes
-                WHERE relativePath LIKE :currentNoteFolderRelativePath || '%'
-            )
-            SELECT *,
-                   CASE 
-                       WHEN COUNT(*) OVER (PARTITION BY fileName) = 1 THEN 1
-                       ELSE 0
-                   END AS isUnique
-            FROM notes_with_filename
+            SELECT relativePath, id, lastModifiedTimeMillis, 1 AS isUnique
+            FROM Notes
+            WHERE parentPath(relativePath) = :currentNoteFolderRelativePath
             ORDER BY $sortColumn $order
         """.trimIndent()
 
@@ -217,7 +216,7 @@ interface RepoDatabaseDao {
         currentNoteFolderRelativePath: String,
         sortOrder: SortOrder,
         query: String,
-    ): PagingSource<Int, GridNote> {
+    ): PagingSource<Int, GridRow> {
 
         val (sortColumn, order) = when (sortOrder) {
             SortOrder.AZ -> "fileName" to "ASC"
@@ -240,21 +239,31 @@ interface RepoDatabaseDao {
             }
         }
 
+        // A busca continua recursiva (varias pastas descendentes), entao o desambiguador
+        // de nomes repetidos continua sendo preciso aqui — ao contrario de gridNotes.
         val sql = """
             WITH notes_with_filename AS (
-                SELECT Notes.*, rank(matchinfo(NotesFts, 'pcx')) AS score, fullName(Notes.relativePath) as fileName
+                SELECT
+                    Notes.relativePath,
+                    Notes.id,
+                    Notes.lastModifiedTimeMillis,
+                    rank(matchinfo(NotesFts, 'pcx')) AS score,
+                    fullName(Notes.relativePath) as fileName
                 FROM Notes
                 JOIN NotesFts ON NotesFts.rowid = Notes.rowid
                 WHERE
-                    Notes.relativePath LIKE :currentNoteFolderRelativePath || '%'
+                    (:currentNoteFolderRelativePath = '' OR Notes.relativePath LIKE :currentNoteFolderRelativePath || '/%')
                     AND
                     NotesFts MATCH :query
             )
-            SELECT *,
-                   CASE 
-                       WHEN COUNT(*) OVER (PARTITION BY fileName) = 1 THEN 1
-                       ELSE 0
-                   END AS isUnique
+            SELECT
+                relativePath,
+                id,
+                lastModifiedTimeMillis,
+                CASE
+                    WHEN COUNT(*) OVER (PARTITION BY fileName) = 1 THEN 1
+                    ELSE 0
+                END AS isUnique
             FROM notes_with_filename
             ORDER BY score DESC, $sortColumn $order
         """.trimIndent()
