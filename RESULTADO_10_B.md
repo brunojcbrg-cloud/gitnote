@@ -109,4 +109,9 @@ executáveis neste CI hoje. Texto completo da pergunta e da resposta em `ESTADO_
 
 ## Release do CI
 
-_(preencher depois do push)_
+Push (`1b74388`): **CI verde de primeira** — run
+[35515592253](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35515592253),
+release **b53 (26.08.1.53)**, publicada em 2026-09-20T14:14:21Z. Os 18 testes novos
+(`GridQuerySqlTextTest`, `NoteFolderFilterLogicTest`, `GridRowTest`,
+`GridScreenCardSemConteudoTest`) aparecem no log, todos `PASSED`; nenhum teste
+existente ficou vermelho.

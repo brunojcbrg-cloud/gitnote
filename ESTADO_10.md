@@ -8,7 +8,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | Fase | Status | Data | Commit | Release |
 |---|---|---|---|---|
 | A | entregue | 2026-09-20 | fe69d70 | b52 (26.08.1.52) |
-| B | pendente | | | |
+| B | entregue | 2026-09-20 | 1b74388 | b53 (26.08.1.53) |
 | C | pendente | | | |
 | D | pendente | | | |
 | E | pendente | | | |
