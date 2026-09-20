@@ -20,17 +20,50 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | K | pendente (prioritária — ver nota acima) | | | |
 | G | pendente | | | |
 | H.1 | pendente | | | |
-| H.2 | **em curso** em worktree paralelo `handoff10-h2` | 2026-09-20 | 4ba4656 (empurrado) | via PR |
+| H.2 | entregue e mesclada | 2026-09-20 | 3591284 (squash de `handoff10-h2`, PR #3) | b65 (26.08.1.65) |
 | H.3/H.4/H.5 | pendente | | | |
 | J.1 | entregue e mesclada | 2026-09-20 | df8d403 (squash de `handoff10-j1`, PR #2, mesclada pelo Bruno) | build próprio cancelado (ver nota) |
+
+### Números medidos na H.2 (e a ressalva que vale para a H.3)
+
+Cache de uma entrada no `companion object` de `MarkdownLivePreviewTransformation`, memorizando
+`MarkdownScanner.scan(source)`. No `companion` e não na instância porque `MarkDown.kt` cria uma
+transformação nova a cada mudança de seleção — cache por instância nunca seria reaproveitado.
+
+`PERF_H2_SCAN_CACHE`, nota de 1.946 linhas / 180.046 caracteres, 5 amostras, run 35524589778:
+
+| Cenário | Amostras (ms) | Mediana |
+|---|---|---|
+| Texto muda a cada chamada (pior caso) | 32,597 / 21,07 / 15,593 / 7,919 / 7,847 | **15,593 ms** |
+| Texto igual, só a seleção muda (o que o cache resolve) | 25,509 / 7,883 / 16,313 / 10,997 / 7,861 | **10,997 ms** |
+
+**Ler esses números com desconfiança.** A dispersão vai de 7,8 a 32,6 ms nos *dois* cenários —
+o runner do CI é ruidoso, e as medianas se sobrepõem. A direção é a esperada, mas **isto não
+prova a economia**. Quem provar de verdade é a prova funcional que a sessão escreveu, que não
+depende de tempo: `scanCacheReusesTheSameSpanListWhenTheTextDidNotChange` verifica **por
+identidade de referência** que texto igual reaproveita a lista e texto diferente revarre.
+
+**Para a H.3:** a H.2 sozinha corta o custo do `scan`, **não** a reconstrução inteira do
+`filter()` (o `AnnotatedString` e os dois `IntArray` continuam sendo refeitos). A medição que
+decide sobre a Fase J é depois da H.1, não agora — e precisa de mais amostras para vencer o
+ruído do runner.
 
 ### Sessões abertas em 2026-09-20 (atualizar ao fechar)
 
 | Onde | Branch | Fase | Arquivos que ela detém |
 |---|---|---|---|
 | `E:/Projetos/gitnote` | `master` | — | livre (Fase F fechada em 20/09; próxima é a **K**) |
-| `E:/Projetos/gitnote-h2` | `handoff10-h2` | H.2 | `MarkdownLivePreviewTransformation.kt` e os testes dele |
-| `E:/Projetos/gitnote-j1` | `handoff10-j1` | — | worktree já cumprido (PR #2 mesclada); pode ser removido |
+| `E:/Projetos/gitnote-h2` | — | — | worktree já cumprido (PR #3 mesclada em 17:15); pode ser removido |
+| `E:/Projetos/gitnote-j1` | — | — | worktree já cumprido (PR #2 mesclada); pode ser removido |
+
+**Nenhuma sessão de código aberta.** A próxima é a **Fase K**, na master.
+
+Limpeza pendente (comandos, quando quiser):
+`git worktree remove --force "E:/Projetos/gitnote-h2"` e o mesmo para `gitnote-j1`.
+
+**O handoff 10 não está versionado.** Os handoffs 07, 08 e 09 estão no git; o
+`HANDOFF_10_...md` só existe em disco, em três cópias soltas. Commitá-lo não dispara CI
+(o `paths-ignore` de `**.md` cobre o `fork-release.yml`).
 
 **Regra de convivência:** quem está num worktree entrega por pull request e **não** edita este
 arquivo — deixa a linha pronta no fim do seu `RESULTADO_10_*.md`. Quem está na master edita
