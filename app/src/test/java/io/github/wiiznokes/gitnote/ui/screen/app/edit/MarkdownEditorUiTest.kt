@@ -11,8 +11,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.TextField
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -23,6 +25,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -34,6 +37,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import io.github.wiiznokes.gitnote.ui.theme.MarkdownTheme
+import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.editMarkdownValue
 import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.insertTable
@@ -55,6 +61,47 @@ import kotlin.test.assertTrue
 class MarkdownEditorUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun cursorOnSameLineKeepsThePreviewTransformationInstance() {
+        val source = "**primeira**\n_segunda_"
+        var selection by mutableStateOf(TextRange(3))
+        var current: androidx.compose.ui.text.input.VisualTransformation? = null
+        var reconstructions = 0
+
+        composeRule.setContent {
+            MaterialTheme {
+                val transformation = rememberMarkdownVisualTransformation(
+                    text = source,
+                    selection = selection,
+                    colors = markdownColorScheme(MarkdownTheme.MATERIAL),
+                    isMarkdownThemeActive = true,
+                    baseFontSize = 16.sp,
+                )
+                SideEffect {
+                    if (current !== transformation) {
+                        current = transformation
+                        reconstructions++
+                    }
+                }
+            }
+        }
+
+        composeRule.runOnIdle { assertEquals(1, reconstructions) }
+        val first = current
+        composeRule.runOnIdle { selection = TextRange(4) }
+        composeRule.runOnIdle {
+            assertEquals(1, reconstructions, "cursor na mesma linha nao reconstrui")
+            assertTrue(first === current)
+            assertEquals("**primeira**\nsegunda", current!!.filter(AnnotatedString(source)).text.text)
+        }
+
+        composeRule.runOnIdle { selection = TextRange(source.indexOf("segunda") + 1) }
+        composeRule.runOnIdle {
+            assertEquals(2, reconstructions, "outra linha deve atualizar o preview")
+            assertEquals("primeira\n_segunda_", current!!.filter(AnnotatedString(source)).text.text)
+        }
+    }
 
     @Test
     fun buscarEAvancarTresVezesSelecionaAQuartaOcorrenciaNoTextField() {

@@ -64,10 +64,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
@@ -93,6 +95,7 @@ import io.github.wiiznokes.gitnote.ui.screen.app.grid.MarkdownCustomInner
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownTypographyThemed
 import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
+import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -113,6 +116,24 @@ private const val ANCHOR_DEBOUNCE_MS = 120L
 
 /** Altura de linha estimada, em multiplos do tamanho da fonte. */
 private const val EDIT_LINE_HEIGHT_FACTOR = 1.5f
+
+@Composable
+internal fun rememberMarkdownVisualTransformation(
+    text: String,
+    selection: TextRange,
+    colors: MarkdownColorScheme,
+    isMarkdownThemeActive: Boolean,
+    baseFontSize: TextUnit,
+): VisualTransformation {
+    val activeLines = activeMarkdownLines(text, selection.start, selection.end)
+    return remember(text, activeLines, colors, isMarkdownThemeActive, baseFontSize) {
+        if (isMarkdownThemeActive) {
+            MarkdownLivePreviewTransformation(colors, activeLines, baseFontSize)
+        } else {
+            VisualTransformation.None
+        }
+    }
+}
 
 /** Intervalo minimo entre dois movimentos de cursor durante o arrasto. */
 private const val FAST_SCROLL_EMIT_INTERVAL_MS = 90L
@@ -477,27 +498,13 @@ fun MarkDownContent(
             cursorLine = line
             vm.rememberAnchor(line)
         }
-        val visualTransformation = remember(
-            textContent.text,
-            textContent.selection,
-            colors,
-            isMarkdownThemeActive,
-            baseFontSize,
-        ) {
-            if (!isMarkdownThemeActive) {
-                VisualTransformation.None
-            } else {
-                MarkdownLivePreviewTransformation(
-                    colors = colors,
-                    activeLines = activeMarkdownLines(
-                        text = textContent.text,
-                        selectionStart = textContent.selection.start,
-                        selectionEnd = textContent.selection.end,
-                    ),
-                    baseFontSize = baseFontSize,
-                )
-            }
-        }
+        val visualTransformation = rememberMarkdownVisualTransformation(
+            text = textContent.text,
+            selection = textContent.selection,
+            colors = colors,
+            isMarkdownThemeActive = isMarkdownThemeActive,
+            baseFontSize = baseFontSize,
+        )
         val editLineCount = remember(textContent.text) {
             textContent.text.count { it == '\n' } + 1
         }

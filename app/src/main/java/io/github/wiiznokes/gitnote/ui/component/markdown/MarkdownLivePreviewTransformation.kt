@@ -19,11 +19,8 @@ class MarkdownLivePreviewTransformation(
 ) : VisualTransformation {
 
     companion object {
-        // Cache de uma entrada so, no objeto companion (nao na instancia): MarkDown.kt
-        // cria uma MarkdownLivePreviewTransformation nova a cada mudanca de selecao
-        // (remember(textContent.text, textContent.selection, ...)), entao um cache por
-        // instancia nunca seria reaproveitado. Mover o cursor sem alterar o texto reusa
-        // a varredura guardada aqui.
+        // Cache de uma entrada no companion: mudancas de texto e trocas da linha ativa
+        // ainda criam instancias novas. Nesses casos, o mesmo texto reusa a varredura.
         private var cachedSource: String? = null
         private var cachedSpans: List<MdSpan> = emptyList()
 

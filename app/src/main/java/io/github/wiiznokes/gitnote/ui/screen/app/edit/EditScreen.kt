@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
+import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.manager.ExtensionType
 import io.github.wiiznokes.gitnote.manager.extensionType
@@ -53,6 +54,7 @@ import io.github.wiiznokes.gitnote.ui.component.RequestConfirmationDialog
 import io.github.wiiznokes.gitnote.ui.component.SimpleIcon
 import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
+import io.github.wiiznokes.gitnote.ui.destination.resolveEditNote
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.TextVM
@@ -73,13 +75,29 @@ fun EditScreen(
     onFinished: () -> Unit,
     onOpenNote: (Note, String?) -> Unit = { _, _ -> },
 ) {
-
+    var openedNote by remember(editParams) { mutableStateOf<Note?>(null) }
+    LaunchedEffect(editParams) {
+        val note = withContext(Dispatchers.IO) {
+            resolveEditNote(editParams) { relativePath ->
+                MyApp.appModule.repoDatabase.repoDatabaseDao.noteByRelativePath(relativePath)
+            }
+        }
+        if (note == null) {
+            val path = (editParams as EditParams.Idle).relativePath
+            val uiHelper = MyApp.appModule.uiHelper
+            uiHelper.makeToast(uiHelper.getString(R.string.error_wikilink_not_found, path))
+            onFinished()
+        } else {
+            openedNote = note
+        }
+    }
+    val note = openedNote ?: return
 
     val extension = editParams.fileExtension()
 
     val vm = when (extensionType(extension.text)) {
-        ExtensionType.Text -> newEditViewModel(editParams)
-        ExtensionType.Markdown -> newMarkDownVM(editParams)
+        ExtensionType.Text -> newEditViewModel(editParams, note)
+        ExtensionType.Markdown -> newMarkDownVM(editParams, note)
         null -> throw Exception("file extension not supported, but present in the database?? $extension")
     }
 

@@ -323,6 +323,31 @@ class MarkdownLivePreviewTransformationTest {
     }
 
     @Test
+    fun perfLivePreviewSameLineKeyAfterH1() {
+        val source = largeNoteFixture(lineCount = 1_946, characterCount = 180_046)
+        val lineStart = source.indexOf('\n', source.length / 2) + 1
+        val positions = (1..9).map { lineStart + it }
+        val previousKey = activeMarkdownLines(source, lineStart, lineStart)
+        repeat(2) { activeMarkdownLines(source, positions[it], positions[it]) }
+
+        // H.1: a chave e recalculada; sendo igual, remember preserva a instancia
+        // e o TextField nao precisa chamar filter() para o movimento do cursor.
+        val samples = positions.map { position ->
+            measureTime {
+                val activeLines = activeMarkdownLines(source, position, position)
+                assertEquals(previousKey, activeLines)
+            }.inWholeMicroseconds / 1_000.0
+        }
+        println(
+            "PERF_LIVE_PREVIEW phase=after_h1 lines=1946 chars=180046 " +
+                "samples_ms=$samples median_ms=${samples.sorted()[samples.size / 2]} " +
+                "min_ms=${samples.min()} max_ms=${samples.max()}",
+        )
+        assertEquals(1_946, source.count { it == '\n' } + 1)
+        assertEquals(180_046, source.length)
+    }
+
+    @Test
     fun aFenceLineKeepsItsOwnTextOnScreen() {
         val source = "``` - lembrar da tabela\nconteudo\n```\ndepois"
         val result = transform(source)

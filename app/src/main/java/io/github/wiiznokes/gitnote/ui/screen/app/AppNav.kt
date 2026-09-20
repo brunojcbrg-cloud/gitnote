@@ -117,7 +117,7 @@ fun AppScreen(
                         )
                     },
                     onEditClick = { note, editType ->
-                        navController.navigate(AppDestination.Edit(EditParams.Idle(note, editType)))
+                        navController.navigate(AppDestination.Edit(EditParams.Idle(note.relativePath, editType)))
                     },
                 )
             }
@@ -135,7 +135,7 @@ fun AppScreen(
                 onBack = { navController.pop() },
                 onOpenNote = { note, section ->
                     navController.navigate(
-                        AppDestination.Edit(EditParams.Idle(note, EditType.Update, section))
+                        AppDestination.Edit(EditParams.Idle(note.relativePath, EditType.Update, section))
                     )
                 },
             )
@@ -147,7 +147,7 @@ fun AppScreen(
                 },
                 onOpenNote = { note, section ->
                     navController.navigate(
-                        AppDestination.Edit(EditParams.Idle(note, EditType.Update, section))
+                        AppDestination.Edit(EditParams.Idle(note.relativePath, EditType.Update, section))
                     )
                 },
             )
