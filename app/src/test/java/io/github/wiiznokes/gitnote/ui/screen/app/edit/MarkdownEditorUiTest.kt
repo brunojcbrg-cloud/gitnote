@@ -68,6 +68,7 @@ class MarkdownEditorUiTest {
         var selection by mutableStateOf(TextRange(3))
         var current: androidx.compose.ui.text.input.VisualTransformation? = null
         var reconstructions = 0
+        var filterInvocations = 0
 
         composeRule.setContent {
             MaterialTheme {
@@ -77,6 +78,20 @@ class MarkdownEditorUiTest {
                     colors = markdownColorScheme(MarkdownTheme.MATERIAL),
                     isMarkdownThemeActive = true,
                     baseFontSize = 16.sp,
+                )
+                val observedTransformation = remember(transformation) {
+                    object : androidx.compose.ui.text.input.VisualTransformation {
+                        override fun filter(text: AnnotatedString): androidx.compose.ui.text.input.TransformedText {
+                            filterInvocations++
+                            return transformation.filter(text)
+                        }
+                    }
+                }
+                TextField(
+                    value = TextFieldValue(source, selection = selection),
+                    onValueChange = { selection = it.selection },
+                    visualTransformation = observedTransformation,
+                    modifier = Modifier.size(300.dp),
                 )
                 SideEffect {
                     if (current !== transformation) {
@@ -89,10 +104,12 @@ class MarkdownEditorUiTest {
 
         composeRule.runOnIdle { assertEquals(1, reconstructions) }
         val first = current
+        val firstFilterCount = filterInvocations
         composeRule.runOnIdle { selection = TextRange(4) }
         composeRule.runOnIdle {
             assertEquals(1, reconstructions, "cursor na mesma linha nao reconstrui")
             assertTrue(first === current)
+            println("PERF_LIVE_PREVIEW_FILTER_CALLS same_line_before=$firstFilterCount same_line_after=$filterInvocations")
             assertEquals("**primeira**\nsegunda", current!!.filter(AnnotatedString(source)).text.text)
         }
 
