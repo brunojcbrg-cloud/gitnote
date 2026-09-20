@@ -25,6 +25,10 @@ class MyApp : Application() {
 
         scope.launch {
             appModule.appPreferences.preload()
+            // Tem de vir junto: a retomada da posicao le de forma bloqueante na
+            // composicao da tela, e uma leitura em arquivo ainda nao aberto volta
+            // vazia -- a nota abriria no topo depois de o app ser fechado.
+            appModule.posicoesDeLeitura.preload()
         }
     }
 }

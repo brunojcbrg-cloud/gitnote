@@ -17,6 +17,8 @@ import io.github.wiiznokes.gitnote.ui.viewmodel.viewModelFactory
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
@@ -41,6 +43,17 @@ class MarkDownVM : TextVM {
     /** Segura os zeros que a montagem da tela anuncia antes da retomada. */
     private val portaoDaAbertura = PortaoDaAbertura()
     private val linhaParaGravar = MutableStateFlow<Int?>(null)
+
+    private val _posicaoTardia = MutableStateFlow<Int?>(null)
+
+    /**
+     * Posicao que chegou tarde demais para a primeira composicao.
+     *
+     * No arranque frio o arquivo pode ainda nao ter aberto quando a tela monta, e
+     * a leitura bloqueante volta vazia. A tela observa isto e rola quando o valor
+     * chega -- desde que ele nao tenha mexido na rolagem nesse meio tempo.
+     */
+    val posicaoTardia: StateFlow<Int?> = _posicaoTardia.asStateFlow()
 
     @OptIn(FlowPreview::class)
     private val gravador = viewModelScope.launch {
@@ -190,7 +203,20 @@ class MarkDownVM : TextVM {
         if (editType == EditType.Create) return null
         val doDisco = posicoes.linhaBloqueante(caminhoDaNota())
         portaoDaAbertura.retomouEm(doDisco)
+        if (doDisco == null) buscarPosicaoTardia()
         return doDisco
+    }
+
+    private fun buscarPosicaoTardia() {
+        viewModelScope.launch {
+            val caminho = caminhoDaNota()
+            if (caminho.isBlank()) return@launch
+            val tardia = posicoes.linha(caminho) ?: return@launch
+            if (tardia <= 0) return@launch
+            // Ainda vale proteger o zero da montagem: a tela nem rolou ainda.
+            portaoDaAbertura.retomouEm(tardia)
+            _posicaoTardia.value = tardia
+        }
     }
 
     fun moveCursorToLine(line: Int) {

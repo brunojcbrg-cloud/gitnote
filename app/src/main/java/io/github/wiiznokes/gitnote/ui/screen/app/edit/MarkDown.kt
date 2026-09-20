@@ -40,6 +40,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -191,6 +192,27 @@ fun MarkDownContent(
                 ) ?: 0
                 scrollState.scrollTo(y.coerceIn(0, scrollState.maxValue))
             }
+        }
+
+        // Rede de seguranca do arranque frio: quando o app e morto e ele volta, a
+        // tela pode montar antes de a posicao ser lida do disco. Quando ela chega
+        // depois, aplica aqui -- mas so se ele ainda nao tiver mexido na rolagem,
+        // para nao puxar a tela debaixo do dedo.
+        val posicaoTardia by vm.posicaoTardia.collectAsStateWithLifecycle()
+        LaunchedEffect(posicaoTardia, renderedContent) {
+            val alvo = posicaoTardia ?: return@LaunchedEffect
+            if (pendingReadAnchor != null) return@LaunchedEffect
+            if (scrollState.value != 0 || lastTouchedLine != null) return@LaunchedEffect
+            snapshotFlow { containerCoordinates }
+                .filter { it != null }
+                .first()
+            withFrameNanos { }
+            if (scrollState.value != 0 || lastTouchedLine != null) return@LaunchedEffect
+            val y = nearestAnchorAtOrBefore(
+                line = alvo,
+                anchors = measuredBlockPositions(),
+            ) ?: return@LaunchedEffect
+            scrollState.scrollTo(y.coerceIn(0, scrollState.maxValue))
         }
 
         LaunchedEffect(renderedContent, scrollState) {

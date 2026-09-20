@@ -1,6 +1,7 @@
 package io.github.wiiznokes.gitnote.data
 
 import android.content.Context
+import android.util.Log
 import io.github.wiiznokes.gitnote.manager.PreferencesManager
 
 /**
@@ -104,6 +105,8 @@ class PortaoDaAbertura {
     }
 }
 
+private const val TAG = "PosicoesDeLeitura"
+
 class PosicoesDeLeitura(context: Context) : PreferencesManager(context, "posicoes-de-leitura") {
 
     private val registro = stringPreference("registro", "")
@@ -116,12 +119,24 @@ class PosicoesDeLeitura(context: Context) : PreferencesManager(context, "posicoe
      * aconteceria. O mesmo caminho ja existe em `repoPathBlocking`.
      */
     fun linhaBloqueante(caminho: String): Int? =
-        runCatching { RegistroDePosicoes.posicao(registro.getBlocking(), caminho) }.getOrNull()
+        runCatching { RegistroDePosicoes.posicao(registro.getBlocking(), caminho) }
+            .onFailure { Log.w(TAG, "leitura bloqueante falhou para $caminho", it) }
+            .getOrNull()
+
+    /**
+     * Mesma leitura, sem bloquear. E a rede de seguranca do arranque frio: se a
+     * leitura bloqueante voltar vazia porque o arquivo ainda nao abriu, esta aqui
+     * chega depois e a tela aplica o resultado.
+     */
+    suspend fun linha(caminho: String): Int? =
+        runCatching { RegistroDePosicoes.posicao(registro.get(), caminho) }
+            .onFailure { Log.w(TAG, "leitura falhou para $caminho", it) }
+            .getOrNull()
 
     suspend fun guardar(caminho: String, linha: Int) {
         runCatching {
             registro.update(RegistroDePosicoes.registrar(registro.get(), caminho, linha))
-        }
+        }.onFailure { Log.w(TAG, "nao consegui guardar $caminho na linha $linha", it) }
     }
 
     suspend fun esquecer(caminho: String) {
