@@ -231,4 +231,8 @@
     <string name="close_outline">Close outline</string>
     <string name="outline_collapse_all">Collapse all</string>
     <string name="outline_expand_all">Expand all</string>
+    <string name="search_in_note">Find in note</string>
+    <string name="previous_occurrence">Previous occurrence</string>
+    <string name="next_occurrence">Next occurrence</string>
+    <string name="close_search">Close search</string>
 </resources>

@@ -15,6 +15,7 @@ import androidx.compose.ui.text.withStyle
 import com.mikepenz.markdown.model.MarkdownAnnotator
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import org.intellij.markdown.MarkdownElementTypes
+import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
 import java.net.URI
 import java.net.URLDecoder
@@ -177,9 +178,10 @@ fun missingWikilinkAnnotator(
     warningColor: Color,
     highlightColor: Color,
     highlightBackground: Color,
+    highlightRange: IntRange? = null,
 ): MarkdownAnnotator {
     val uriHandler = LocalUriHandler.current
-    return remember(uriHandler, warningColor, highlightColor, highlightBackground) {
+    return remember(uriHandler, warningColor, highlightColor, highlightBackground, highlightRange) {
         val linkStyles = TextLinkStyles(
             style = SpanStyle(
                 color = warningColor,
@@ -192,6 +194,18 @@ fun missingWikilinkAnnotator(
         }
 
         obsidianLineBreaksAnnotator { content, child ->
+            if (child.type == MarkdownTokenTypes.TEXT && highlightRange != null &&
+                child.startOffset <= highlightRange.last && child.endOffset > highlightRange.first
+            ) {
+                val inicio = highlightRange.first.coerceIn(child.startOffset, child.endOffset)
+                val fim = (highlightRange.last + 1).coerceIn(inicio, child.endOffset)
+                append(content, child.startOffset, inicio)
+                withStyle(SpanStyle(color = highlightColor, background = highlightBackground)) {
+                    append(content, inicio, fim)
+                }
+                append(content, fim, child.endOffset)
+                return@obsidianLineBreaksAnnotator true
+            }
             if (child.type != MarkdownElementTypes.INLINE_LINK) {
                 return@obsidianLineBreaksAnnotator false
             }

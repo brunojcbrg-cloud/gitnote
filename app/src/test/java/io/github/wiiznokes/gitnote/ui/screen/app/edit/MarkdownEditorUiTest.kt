@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.editMarkdownValue
+import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.insertTable
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.toEdicaoDeTexto
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.toTextFieldValue
@@ -53,6 +55,46 @@ import kotlin.test.assertTrue
 class MarkdownEditorUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun buscarEAvancarTresVezesSelecionaAQuartaOcorrenciaNoTextField() {
+        val fonte = "alfa alfa alfa alfa alfa"
+        var observado = TextFieldValue(fonte)
+        composeRule.setContent {
+            var valor by remember { mutableStateOf(observado) }
+            var termo by remember { mutableStateOf("") }
+            var indice by remember { mutableStateOf(0) }
+            val encontrados = remember(termo) { ocorrencias(fonte, termo) }
+            observado = valor
+            LaunchedEffect(encontrados) {
+                encontrados.firstOrNull()?.let { valor = valor.copy(selection = TextRange(it.first, it.last + 1)) }
+            }
+            Column {
+                BuscaNaNotaBarra(
+                    termo = termo,
+                    indice = indice,
+                    total = encontrados.size,
+                    onTermoChange = { termo = it; indice = 0 },
+                    onAnterior = {},
+                    onProximo = {
+                        indice = (indice + 1) % encontrados.size
+                        val alvo = encontrados[indice]
+                        valor = valor.copy(selection = TextRange(alvo.first, alvo.last + 1))
+                    },
+                    onFechar = {},
+                )
+                TextField(value = valor, onValueChange = { valor = it }, modifier = Modifier.testTag("editor-busca"))
+            }
+        }
+
+        composeRule.onNodeWithTag("note-search-field").performTextInput("alfa")
+        composeRule.waitForIdle()
+        repeat(3) { composeRule.onNodeWithText("›").performClick() }
+        composeRule.runOnIdle {
+            val inicio = fonte.lastIndexOf("alfa", startIndex = fonte.length - 6)
+            assertEquals(TextRange(inicio, inicio + 4), observado.selection)
+        }
+    }
 
     @Test
     fun enterThroughRealTextFieldContinuesAList() {

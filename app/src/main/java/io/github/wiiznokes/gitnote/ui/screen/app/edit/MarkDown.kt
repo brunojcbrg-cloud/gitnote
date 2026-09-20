@@ -82,6 +82,7 @@ import io.github.wiiznokes.gitnote.ui.component.markdown.lineStartOffsets
 import io.github.wiiznokes.gitnote.ui.component.markdown.missingWikilinkAnnotator
 import io.github.wiiznokes.gitnote.ui.component.markdown.nearestAnchorAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.nearestLineAtOrBefore
+import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
@@ -94,6 +95,8 @@ import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownTypographyThemed
 import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -124,6 +127,9 @@ fun MarkDownContent(
     textContent: TextFieldValue,
     sumarioAberto: Boolean = false,
     onSumarioAbertoChange: (Boolean) -> Unit = {},
+    termoBusca: String = "",
+    ocorrenciaBusca: IntRange? = null,
+    onResultadosBusca: (List<IntRange>) -> Unit = {},
 ) {
     val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
     val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
@@ -149,6 +155,16 @@ fun MarkDownContent(
         val renderedContent = remember(textContent.text, existingNames) {
             preprocessWikilinksForReading(textContent.text, existingNames)
         }
+        LaunchedEffect(renderedContent, termoBusca) {
+            if (termoBusca.isEmpty()) {
+                onResultadosBusca(emptyList())
+            } else {
+                delay(150)
+                onResultadosBusca(withContext(Dispatchers.Default) {
+                    ocorrencias(renderedContent, termoBusca)
+                })
+            }
+        }
         val itensDeSumario = remember(renderedContent) { sumarioDe(renderedContent) }
         // Recolhimento é só de exibição: o texto salvo (textContent) nunca muda.
         var recolhidas by rememberSaveable(vm.previousNote.relativePath) { mutableStateOf(setOf<Int>()) }
@@ -159,6 +175,15 @@ fun MarkDownContent(
             (headingPositions[item.offset]?.y ?: Int.MAX_VALUE) <= scrollState.value
         }?.linha ?: 0
         val renderedLineStarts = remember(renderedContent) { lineStartOffsets(renderedContent) }
+        val destaqueVisivel = remember(ocorrenciaBusca, textoDobrado) {
+            ocorrenciaBusca?.let { busca ->
+                val inicio = textoDobrado.mapa.paraVisivel(busca.first)
+                val fim = textoDobrado.mapa.paraVisivel(busca.last + 1)
+                if (fim > inicio && fim - inicio == busca.last - busca.first + 1) {
+                    inicio until fim
+                } else null
+            }
+        }
         val blockCoordinates = remember(renderedContent) {
             mutableMapOf<Int, LayoutCoordinates>()
         }
@@ -179,6 +204,22 @@ fun MarkDownContent(
             val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
             val line = lineOfOffset(renderedLineStarts, sourceOffset)
             blockCoordinates[line] = coordinates
+        }
+
+        LaunchedEffect(ocorrenciaBusca, renderedContent, recolhidas) {
+            val alvo = ocorrenciaBusca ?: return@LaunchedEffect
+            val ocultas = secoesDe(renderedContent, itensDeSumario)
+                .filter { alvo.first in it.inicioCorpo until it.fimCorpo && it.titulo.offset in recolhidas }
+                .map { it.titulo.offset }
+                .toSet()
+            if (ocultas.isNotEmpty()) {
+                recolhidas = recolhidas - ocultas
+                return@LaunchedEffect
+            }
+            val linha = lineOfOffset(renderedLineStarts, alvo.first)
+            withFrameNanos { }
+            val y = nearestAnchorAtOrBefore(linha, measuredBlockPositions()) ?: 0
+            scrollState.scrollTo(y.coerceIn(0, scrollState.maxValue))
         }
 
         // Uma varredura so, depois que os blocos assentam. Fazer isso dentro do
@@ -323,6 +364,7 @@ fun MarkDownContent(
                         warningColor = MaterialTheme.colorScheme.error,
                         highlightColor = colors.highlight,
                         highlightBackground = colors.highlightBackground,
+                        highlightRange = destaqueVisivel,
                     )
 
                     SelectionContainer {

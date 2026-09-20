@@ -249,6 +249,10 @@ open class TextVM() : ViewModel() {
         }
     }
 
+    fun selecionarOcorrencia(ocorrencia: IntRange) {
+        updateSelection(TextRange(ocorrencia.first, ocorrencia.last + 1))
+    }
+
     protected fun updateSelection(selection: TextRange) {
         val nextValue = content.value.copy(
             selection = selection,
