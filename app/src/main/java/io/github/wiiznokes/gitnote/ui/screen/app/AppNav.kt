@@ -119,9 +119,6 @@ fun AppScreen(
                     onEditClick = { note, editType ->
                         navController.navigate(AppDestination.Edit(EditParams.Idle(note, editType)))
                     },
-                    onFlashcardsClick = {
-                        navController.navigate(AppDestination.FlashcardDecks)
-                    },
                 )
             }
 
