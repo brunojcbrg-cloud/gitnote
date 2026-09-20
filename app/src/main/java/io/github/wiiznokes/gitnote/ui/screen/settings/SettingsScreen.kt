@@ -184,6 +184,14 @@ fun SettingsScreen(
                 }
             )
 
+            val bloquearCapturaDeTela by vm.prefs.bloquearCapturaDeTela.getAsState()
+            ToggleableSettings(
+                title = stringResource(R.string.block_screen_capture),
+                subtitle = stringResource(R.string.block_screen_capture_subtitle),
+                checked = bloquearCapturaDeTela,
+                onCheckedChange = { vm.update { vm.prefs.bloquearCapturaDeTela.update(it) } }
+            )
+
             val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
             ToggleableSettings(
                 title = stringResource(R.string.markdown_theme_enabled),
@@ -219,6 +227,12 @@ fun SettingsScreen(
         SettingsSection(
             title = stringResource(R.string.repository)
         ) {
+
+            val storageConfig by vm.prefs.storageConfig.getAsState()
+            DefaultSettingsRow(
+                title = stringResource(R.string.storage_config_title),
+                subTitle = "StorageConfig.${storageConfig.name}"
+            )
 
             val gitAuthorName by vm.prefs.gitAuthorName.getAsState()
             StringSettings(

@@ -187,4 +187,7 @@
     <string name="configure_table">Configurar tabela</string>
     <string name="continue_action">Continuar</string>
     <string name="table_content_loss_confirmation">%1$d célula(s) com conteúdo serão perdidas. Continuar?</string>
+    <string name="block_screen_capture">Bloquear capturas e gravação de tela</string>
+    <string name="block_screen_capture_subtitle">Oculta as notas na tela de apps recentes. Desative temporariamente para fazer uma captura.</string>
+    <string name="storage_config_title">Armazenamento do repositório</string>
 </resources>

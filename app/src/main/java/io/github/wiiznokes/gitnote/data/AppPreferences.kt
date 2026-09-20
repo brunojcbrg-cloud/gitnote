@@ -179,6 +179,7 @@ class AppPreferences(
     }
 
     val isReadOnlyModeActive = booleanPreference("isReadOnlyModeActive", false)
+    val bloquearCapturaDeTela = booleanPreference("bloquearCapturaDeTela", true)
     val isMarkdownThemeActive = booleanPreference("isMarkdownThemeActive", true)
     val markdownColorTheme = enumPreference("markdownColorTheme", MarkdownTheme.MATERIAL)
 

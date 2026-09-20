@@ -216,4 +216,7 @@
     <string name="configure_table">Configure table</string>
     <string name="continue_action">Continue</string>
     <string name="table_content_loss_confirmation">%1$d non-empty cell(s) will be lost. Continue?</string>
+    <string name="block_screen_capture">Block screenshots and screen recording</string>
+    <string name="block_screen_capture_subtitle">Hide notes in the recent apps preview. Turn off temporarily when you need a screenshot.</string>
+    <string name="storage_config_title">Repository storage</string>
 </resources>
