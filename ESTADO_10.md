@@ -12,7 +12,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | C | entregue | 2026-09-20 | 3b41b45 | b55 (26.08.1.55) |
 | D | entregue | 2026-09-20 | 33576e1 | b56 (26.08.1.56) |
 | E | entregue | 2026-09-20 | afa2580 | b58 (26.08.1.58) |
-| F | pendente | | | |
+| F | entregue (F.1+F.2; F.3 fica para a sessão de H.4) | 2026-09-20 | | |
 | G | pendente | | | |
 | H | pendente | | | |
 | J.1 | entregue (PR aberta, não mesclada) | 2026-09-20 | cb00b7d (branch `handoff10-j1`, PR #2) | — |
@@ -133,9 +133,60 @@ executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho po
    na indentação. Corrigido em `afa2580`; o CI seguinte passou em testes e APK,
    e publicou b58. Detalhe em `RESULTADO_10_E.md`.
 
-**Lista de fases do Sonnet:** A, B, C, D, E e J.1 entregues (J.1 feita fora de ordem, o que o
-handoff permite explicitamente: "J.1 pode ser feita a qualquer momento, inclusive já: não
-muda comportamento"). Faltam F, G, H.
+**Lista de fases do Sonnet:** A, B, C, D, E, F e J.1 entregues (J.1 feita fora de ordem, o que
+o handoff permite explicitamente: "J.1 pode ser feita a qualquer momento, inclusive já: não
+muda comportamento"). Faltam G, H. F.3 (recolher no modo de edição) fica para a sessão de H.4,
+por instrução explícita desta rodada — não é dívida técnica, é escopo adiado de propósito.
+
+### Fase F (2026-09-20) — F.1 e F.2 só; F.3 não foi feita (por instrução)
+
+1. **Divergência real entre dois critérios de aceitação, perguntada ao Bruno antes de
+   codar "Recolher tudo".** A regra "não pode regredir" exige que recolher uma seção
+   também recolha (esconda) os títulos aninhados de nível maior dentro dela — testado e
+   medido. O critério de aceitação separado ("nota com 257 títulos, recolher tudo → o
+   texto visível tem 257 linhas") só é possível numa nota **sem aninhamento** (todos os
+   títulos no mesmo nível): numa nota real com títulos aninhados, marcar todos os
+   títulos e aplicar a cascata deixa visível só os títulos que não estão dentro de
+   nenhuma seção recolhida — ou seja, só os de nível mais alto (o de nível mínimo
+   presente). Medido na própria máquina, na maior nota real de `06_Conhecimento`
+   (`Aula Introdução à micro.md`, agora com **269 títulos**, não mais 257 — contagem
+   mudou de novo desde a Fase E): níveis 1/2/3/4 = 117/25/79/48. "Recolher tudo" em
+   cascata nessa nota deixa **117** títulos visíveis (os de nível 1), não 269.
+   Perguntei ao Bruno qual comportamento valia; ele escolheu **cascata** (a opção
+   recomendada — reusa `dobrar` sem mecanismo novo, consistente com a regra de não
+   regressão). Os testes refletem isso: `DobraTest.recolherTudoNumaNotaSemAninhamentoDeixaSoAsLinhasDeTitulo`
+   prova a frase literal do handoff numa nota sintética sem aninhamento (mesmo padrão
+   flat de `SumarioTest`), e `DobraTest.recolherTudoNaNotaRealMaisAninhadaDeixaSoOsTitulosDeNivel1`
+   prova o número real (117 de 269) que uma nota aninhada de verdade produz.
+2. **`MapaDeDobra.paraOriginal` tinha um bug real na fronteira de um corte**, achado
+   rodando o algoritmo (reimplementado em Python) sobre as 140 notas reais com seções
+   aleatórias recolhidas: o título que vem **logo depois** de uma seção recolhida (o
+   que encerrou a seção) mapeia para o mesmo ponto visível que o **início** do trecho
+   escondido — os dois colapsam no mesmo offset visível, porque o trecho removido tem
+   largura zero no texto visível. A primeira versão desempatava para o início do corte
+   (escondido); a correta é desempatar para o fim do corte (o título seguinte, que é o
+   que está de fato visível ali). Sem essa correção, `paraOriginal(paraVisivel(x)) == x`
+   falhava sempre que um título ficava logo após uma seção recolhida — bem comum, não é
+   caso de borda raro. Corrigido em `Dobra.kt`, revalidado: 0 falhas de identidade e 0
+   falhas de round-trip em 2.270 offsets de título testados nas 140 notas reais
+   (script local, não faz parte do CI — mesma limitação de sempre, ver item 3).
+3. **Verificação nas 140 notas reais é local, não roda no CI**, pelo mesmo motivo de
+   sempre (o vault não está no repositório do app). Repeti o método da Fase E: reescrevi
+   `sumarioDe`/`secoesDe`/`dobrar`/`MapaDeDobra` em Python, rodei contra os arquivos de
+   verdade, e só os casos sintéticos entram como teste Kotlin no CI.
+4. **Nenhum teste de UI constrói `MarkDownVM`/`GridViewModel` reais** — mesmo bloqueio
+   de `GitManager`/`git_wrapper` das Fases A/C/E. O chevron de recolher foi testado
+   compondo `MarkdownCustomInner` direto (como a Fase E fez com `SumarioLateral`); a
+   integração do estado `recolhidas` dentro de `MarkDownContent` (que fica em
+   `MarkDown.kt`, arquivo liberado para a Fase F) foi revisada no código e provada por
+   um teste estrutural (`RecolhimentoNaoAlteraTextoSalvoTest`) que lê o código-fonte e
+   garante que o ramo do modo de edição nunca referencia o texto dobrado.
+5. **F.3 não foi feita nesta sessão, por instrução explícita do prompt desta rodada**
+   (não da minha decisão): o handoff pede medir F.2 antes de decidir F.3, e o arquivo
+   que F.3 precisaria tocar (`MarkDownVM.kt`, view model do editor) estava sendo
+   alterado em paralelo pela sessão da branch `handoff10-j1`. Fica pendente para a
+   sessão de H.4, como o próprio handoff já previa ("Se F.2 sair antes de H, deixar F.3
+   para a sessão de H.4").
 
 ### Fase J.1 (2026-09-20)
 

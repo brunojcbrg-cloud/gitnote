@@ -198,4 +198,6 @@
     <string name="storage_config_title">Armazenamento do repositório</string>
     <string name="note_outline">Sumário</string>
     <string name="close_outline">Fechar sumário</string>
+    <string name="outline_collapse_all">Recolher tudo</string>
+    <string name="outline_expand_all">Expandir tudo</string>
 </resources>

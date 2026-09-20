@@ -2,6 +2,7 @@ package io.github.wiiznokes.gitnote.ui.screen.app.edit
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -22,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -41,6 +44,9 @@ internal fun SumarioLateral(
     onItemClick: (ItemDeSumario) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onRecolherTudo: (() -> Unit)? = null,
+    onExpandirTudo: (() -> Unit)? = null,
+    onRecolherAteNivel: ((Int) -> Unit)? = null,
 ) {
     val selecionado = itens.indexOfLast { it.linha <= linhaAtual }.coerceAtLeast(0)
     val listState = rememberLazyListState()
@@ -70,6 +76,37 @@ internal fun SumarioLateral(
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_outline))
+                    }
+                }
+                if (onRecolherTudo != null || onExpandirTudo != null || onRecolherAteNivel != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .testTag("sumario-acoes-dobra"),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (onRecolherTudo != null) {
+                            TextButton(onClick = onRecolherTudo) {
+                                Text(stringResource(R.string.outline_collapse_all), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        if (onExpandirTudo != null) {
+                            TextButton(onClick = onExpandirTudo) {
+                                Text(stringResource(R.string.outline_expand_all), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        if (onRecolherAteNivel != null) {
+                            val niveisPresentes = itens.map { it.nivel }.distinct().sorted()
+                            for (nivel in niveisPresentes) {
+                                TextButton(
+                                    onClick = { onRecolherAteNivel(nivel) },
+                                    modifier = Modifier.testTag("sumario-recolher-nivel-$nivel"),
+                                ) {
+                                    Text("H$nivel", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
                     }
                 }
                 LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {

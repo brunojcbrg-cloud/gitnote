@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -70,5 +71,45 @@ class SumarioLateralTest {
         val larguraTela = composeRule.onNodeWithTag("largura-tela")
             .fetchSemanticsNode().boundsInRoot.width
         assertTrue(largura <= larguraTela * 0.62f + 1f)
+    }
+
+    @Test
+    fun acoesDeDobraNaoAparecemSemCallback() {
+        composeRule.setContent {
+            SumarioLateral(
+                itens = sumarioDe("# Único"),
+                linhaAtual = 0,
+                onItemClick = {},
+                onDismiss = {},
+            )
+        }
+        composeRule.onNodeWithTag("sumario-acoes-dobra").assertDoesNotExist()
+    }
+
+    @Test
+    fun recolherTudoExpandirTudoERecolherAteNivelChamamOsCallbacksCertos() {
+        val nota = listOf("# A", "## B", "### C").joinToString("\n")
+        val itens = sumarioDe(nota)
+        var recolherTudoChamado = false
+        var expandirTudoChamado = false
+        var nivelPedido: Int? = null
+        composeRule.setContent {
+            SumarioLateral(
+                itens = itens,
+                linhaAtual = 0,
+                onItemClick = {},
+                onDismiss = {},
+                onRecolherTudo = { recolherTudoChamado = true },
+                onExpandirTudo = { expandirTudoChamado = true },
+                onRecolherAteNivel = { nivelPedido = it },
+            )
+        }
+        composeRule.onNodeWithTag("sumario-acoes-dobra").assertExists()
+        composeRule.onNodeWithText("Collapse all").performClick()
+        composeRule.runOnIdle { assertTrue(recolherTudoChamado) }
+        composeRule.onNodeWithText("Expand all").performClick()
+        composeRule.runOnIdle { assertTrue(expandirTudoChamado) }
+        composeRule.onNodeWithTag("sumario-recolher-nivel-2").performClick()
+        composeRule.runOnIdle { assertEquals(2, nivelPedido) }
     }
 }

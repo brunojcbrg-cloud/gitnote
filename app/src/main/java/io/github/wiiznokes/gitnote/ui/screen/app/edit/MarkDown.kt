@@ -46,6 +46,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -72,6 +73,7 @@ import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.component.markdown.HeadingAnchor
+import io.github.wiiznokes.gitnote.ui.component.markdown.dobrar
 import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
 import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
 import io.github.wiiznokes.gitnote.ui.component.markdown.firstLineAtOrAfter
@@ -83,6 +85,7 @@ import io.github.wiiznokes.gitnote.ui.component.markdown.nearestLineAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
+import io.github.wiiznokes.gitnote.ui.component.markdown.secoesDe
 import io.github.wiiznokes.gitnote.ui.component.markdown.sumarioDe
 import io.github.wiiznokes.gitnote.ui.component.markdown.wikilinkNames
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.MarkdownCustomInner
@@ -147,6 +150,10 @@ fun MarkDownContent(
             preprocessWikilinksForReading(textContent.text, existingNames)
         }
         val itensDeSumario = remember(renderedContent) { sumarioDe(renderedContent) }
+        // Recolhimento é só de exibição: o texto salvo (textContent) nunca muda.
+        var recolhidas by rememberSaveable(vm.previousNote.relativePath) { mutableStateOf(setOf<Int>()) }
+        val textoDobrado = remember(renderedContent, recolhidas) { dobrar(renderedContent, recolhidas) }
+        val conteudoExibido = textoDobrado.visivel
         var arrastandoSumario by remember { mutableStateOf(false) }
         val linhaAtual = itensDeSumario.lastOrNull { item ->
             (headingPositions[item.offset]?.y ?: Int.MAX_VALUE) <= scrollState.value
@@ -168,7 +175,8 @@ fun MarkDownContent(
             }.toMap()
         }
 
-        fun registerBlock(sourceOffset: Int, coordinates: LayoutCoordinates) {
+        fun registerBlock(sourceOffsetVisivel: Int, coordinates: LayoutCoordinates) {
+            val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
             val line = lineOfOffset(renderedLineStarts, sourceOffset)
             blockCoordinates[line] = coordinates
         }
@@ -319,12 +327,13 @@ fun MarkDownContent(
 
                     SelectionContainer {
                         MarkdownCustomInner(
-                            content = renderedContent,
+                            content = conteudoExibido,
                             colors = readingColors,
                             typography = readingTypography,
                             annotator = annotator,
-                            onHeadingPositioned = { text, sourceOffset, coordinates ->
-                                registerBlock(sourceOffset, coordinates)
+                            onHeadingPositioned = { text, sourceOffsetVisivel, coordinates ->
+                                registerBlock(sourceOffsetVisivel, coordinates)
+                                val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
                                 val container = containerCoordinates
                                 if (container != null && coordinates.isAttached) {
                                     val y = container
@@ -338,6 +347,17 @@ fun MarkDownContent(
                                 }
                             },
                             onBlockPositioned = ::registerBlock,
+                            onHeadingCollapseToggle = { sourceOffsetVisivel ->
+                                val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
+                                recolhidas = if (sourceOffset in recolhidas) {
+                                    recolhidas - sourceOffset
+                                } else {
+                                    recolhidas + sourceOffset
+                                }
+                            },
+                            isHeadingCollapsed = { sourceOffsetVisivel ->
+                                textoDobrado.mapa.paraOriginal(sourceOffsetVisivel) in recolhidas
+                            },
                             modifier = Modifier.padding(15.dp),
                         )
                     }
@@ -355,6 +375,15 @@ fun MarkDownContent(
                     onDismiss = { onSumarioAbertoChange(false) },
                     onItemClick = { item ->
                         onSumarioAbertoChange(false)
+                        // Se o título estiver escondido dentro de uma seção recolhida, abre
+                        // essa seção primeiro: senão a rolagem some num ponto sem título.
+                        if (recolhidas.isNotEmpty()) {
+                            val secao = secoesDe(renderedContent, itensDeSumario)
+                                .firstOrNull { item.offset in it.inicioCorpo until it.fimCorpo }
+                            if (secao != null && secao.titulo.offset in recolhidas) {
+                                recolhidas = recolhidas - secao.titulo.offset
+                            }
+                        }
                         coroutineScope.launch {
                             val proximo = headingPositions[item.offset]?.y
                                 ?: nearestAnchorAtOrBefore(item.linha, measuredBlockPositions())
@@ -372,6 +401,15 @@ fun MarkDownContent(
                         }
                     },
                     modifier = Modifier.align(Alignment.CenterStart),
+                    onRecolherTudo = {
+                        recolhidas = itensDeSumario.map { it.offset }.toSet()
+                    },
+                    onExpandirTudo = {
+                        recolhidas = emptySet()
+                    },
+                    onRecolherAteNivel = { nivel ->
+                        recolhidas = itensDeSumario.filter { it.nivel == nivel }.map { it.offset }.toSet()
+                    },
                 )
             }
         }

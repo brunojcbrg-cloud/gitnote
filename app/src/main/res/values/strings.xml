@@ -227,4 +227,6 @@
     <string name="storage_config_title">Repository storage</string>
     <string name="note_outline">Outline</string>
     <string name="close_outline">Close outline</string>
+    <string name="outline_collapse_all">Collapse all</string>
+    <string name="outline_expand_all">Expand all</string>
 </resources>
