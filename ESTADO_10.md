@@ -15,7 +15,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | F | pendente | | | |
 | G | pendente | | | |
 | H | pendente | | | |
-| J.1 | pendente | | | |
+| J.1 | entregue (PR aberta, não mesclada) | 2026-09-20 | cb00b7d (branch `handoff10-j1`, PR #2) | — |
 
 ## Divergências entre handoff e código real
 
@@ -133,4 +133,23 @@ executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho po
    na indentação. Corrigido em `afa2580`; o CI seguinte passou em testes e APK,
    e publicou b58. Detalhe em `RESULTADO_10_E.md`.
 
-**Lista de fases do Sonnet:** A, B, C, D e E entregues. Faltam F, G, H, J.1 nesta ordem.
+**Lista de fases do Sonnet:** A, B, C, D, E e J.1 entregues (J.1 feita fora de ordem, o que o
+handoff permite explicitamente: "J.1 pode ser feita a qualquer momento, inclusive já: não
+muda comportamento"). Faltam F, G, H.
+
+### Fase J.1 (2026-09-20)
+
+1. **PR aberta, não mesclada — decisão pendente do Bruno.** As 3 tentativas do CI (run
+   [35520521548](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35520521548))
+   falharam só em `SumarioTest.perfSumarioNaNotaDe1946Linhas` (Fase E, fora do escopo de
+   J.1): mediana 7,636 ms, depois 3,198 ms, depois 8,235 ms, contra limite de 3 ms — o
+   mesmo teste tinha medido 2,005 ms no `master` na própria Fase E. Instabilidade do
+   runner, não regressão: J.1 não toca nenhum arquivo `Sumario*`. Todos os outros 330
+   testes passaram nas 3 tentativas. Detalhe em `RESULTADO_10_J1.md`.
+2. **Esta sessão não mesclou a PR nem prosseguiu para J.2.** Por instrução do handoff
+   (seção "Ao terminar J.1"), J.2 exige Opus 5 com esforço máximo e aval do Bruno, além
+   de H.2 entregue e medido — e H ainda está pendente. Prompt pronto salvo em
+   `PROXIMO_PROMPT_J2.md`, mas **não deve ser usado ainda**: falta H (e H.2 em particular).
+3. **Pendências para o Bruno:** (a) decidir o que fazer com a PR #2 — mesclar com a falha
+   documentada, tentar mais uma rodada, ou isolar/afrouxar o limite de 3 ms da Fase E; (b)
+   confirmar que quer seguir a ordem recomendada e fazer F, G, H antes de autorizar J.2.
