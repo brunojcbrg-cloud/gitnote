@@ -45,7 +45,11 @@ class GridQueryPerfTest {
         val db = Room.inMemoryDatabaseBuilder(
             RuntimeEnvironment.getApplication(),
             RepoDatabase::class.java,
-        ).build()
+        )
+            // medir tem que ser sincrono; sem isto o Room barra a consulta na thread
+            // principal do Robolectric (medido no run 35535567673).
+            .allowMainThreadQueries()
+            .build()
 
         try {
             runBlocking {

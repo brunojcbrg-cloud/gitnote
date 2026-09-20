@@ -35,7 +35,11 @@ class GradeSqlTest {
     private val db = Room.inMemoryDatabaseBuilder(
         RuntimeEnvironment.getApplication(),
         RepoDatabase::class.java,
-    ).build()
+    )
+        // `query()` direto e sincrono: sem isto o Room barra a chamada na thread
+        // principal do Robolectric (medido no run 35535567673).
+        .allowMainThreadQueries()
+        .build()
 
     @AfterTest
     fun fechar() = db.close()
