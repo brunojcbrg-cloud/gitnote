@@ -7,7 +7,10 @@ Ordem: A, B, C, D, E, F, **K**, G, H, J.1
 (`382aaf7`, release b67). A regressão da Fase B está consertada: pasta que só tem subpastas
 volta a mostrar as subpastas na grade, e a leva de 10 voltou a ser recursiva. Detalhe em
 `RESULTADO_10_K.md`. A Fase G também foi entregue em 20/09 (`0112399`, release b68).
-**A próxima sessão é H.1 + H.3 + H.5**; H.2 já foi entregue e medida.
+**H.1 e H.5 foram implementadas em 20/09/2026 e passaram no CI b71; H.3 está pausada
+por divergência medida no `TextField` (ver abaixo).** H.2 já foi entregue e medida.
+Antes de prosseguir para J.2 ou encerrar H, é necessária decisão do Bruno sobre essa
+divergência.
 
 Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 
@@ -21,9 +24,11 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | F | entregue (F.1+F.2; F.3 adiada para H.4) | 2026-09-20 | 829456a | b64 (26.08.1.64) |
 | K | entregue | 2026-09-20 | 382aaf7 | b67 (26.08.1.67) |
 | G | entregue | 2026-09-20 | 0112399 | b68 (26.08.1.68) |
-| H.1 | pendente | | | |
+| H.1 | implementada; efeito real no `filter()` sob revisão | 2026-09-20 | b422ccf; observação f4b78a2 | b71 (26.08.1.71) |
 | H.2 | entregue e mesclada | 2026-09-20 | 3591284 (squash de `handoff10-h2`, PR #3) | b65 (26.08.1.65) |
-| H.3/H.4/H.5 | pendente | | | |
+| H.3 | pausada: premissa do `filter()` divergiu | 2026-09-20 | 1cfa111; b422ccf; f4b78a2 | b69–b71 |
+| H.4 | pendente; fora desta sessão | | | |
+| H.5 | implementada e testada | 2026-09-20 | b422ccf | b71 (26.08.1.71) |
 | J.1 | entregue e mesclada | 2026-09-20 | df8d403 (squash de `handoff10-j1`, PR #2, mesclada pelo Bruno) | build próprio cancelado (ver nota) |
 
 ### Números medidos na H.2 (e a ressalva que vale para a H.3)
@@ -54,9 +59,10 @@ ruído do runner.
 
 | Onde | Branch | Fase | Arquivos que ela detém |
 |---|---|---|---|
-| `E:/Projetos/gitnote` | `master` | — | livre (Fase G fechada em 20/09; próxima é **H.1 + H.3 + H.5**) |
+| `E:/Projetos/gitnote` | `master` | — | livre (H.3 pausada à espera da decisão do Bruno) |
 
-**Nenhuma sessão de código aberta.** A próxima é **H.1 + H.3 + H.5**, na master.
+**Nenhuma sessão de código aberta.** A implementação H.1/H.5 está na master verde;
+H.3 aguarda a decisão do Bruno registrada na divergência abaixo.
 
 Os worktrees de H.2 e J.1 já não existem no disco nem em `git worktree list`; as PRs #3 e #2
 estão mescladas. O worktree `gitnote-pos` permanece registrado e não faz parte desta limpeza.
@@ -229,7 +235,8 @@ executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho po
 
 **Lista de fases do Sonnet:** A, B, C, D, E, F e J.1 entregues (J.1 feita fora de ordem, o que
 o handoff permite explicitamente: "J.1 pode ser feita a qualquer momento, inclusive já: não
-muda comportamento"). G e K também foram entregues em 20/09. Faltam H.1, H.3 e H.5.
+muda comportamento"). G e K também foram entregues em 20/09. H.1 e H.5 estão
+implementadas e verdes; H.3 permanece aberta pela divergência medida.
 F.3 (recolher no modo de edição) fica para a sessão de H.4,
 por instrução explícita desta rodada — não é dívida técnica, é escopo adiado de propósito.
 
@@ -342,3 +349,41 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
    construir `MarkDownVM`/`TextVM` reais na JVM. O Robolectric compôs a barra com um
    `TextField` e confirmou a seleção depois de três toques em ›; a ligação de produção
    a `updateSelection` foi revisada no código. Detalhes em `RESULTADO_10_G.md`.
+
+### Fase H.1/H.3/H.5 (2026-09-20) — pausada para decisão do Bruno
+
+1. **H.1 implementada; premissa de custo divergiu.** `MarkDown.kt` agora calcula
+   `activeMarkdownLines` antes do `remember` e usa o conjunto como chave no lugar da
+   seleção inteira. O teste Compose `cursorOnSameLineKeepsThePreviewTransformationInstance`
+   passou: a instância permanece a mesma ao mover o cursor na linha e muda ao trocar
+   de linha, com os marcadores visíveis corretos. O cache de `MarkdownScanner.scan`
+   da H.2 permaneceu intacto.
+2. **H.3 não pode ser concluída com a medição atual.** Na mesma nota sintética de
+   1.946 linhas / 180.046 caracteres e com nove amostras, o CI b69 mediu a
+   reconstrução anterior em 10,744–12,383 ms (mediana 10,850 ms). No run b70, a
+   simulação do caminho anterior ficou em 21,398–33,858 ms (mediana 24,768 ms), e o
+   cálculo da nova chave em 0,426–1,639 ms (mediana 1,587 ms). No run b71, os
+   intervalos foram 11,118–24,961 ms (mediana 19,245 ms) e 1,577–2,687 ms
+   (mediana 1,624 ms). Os intervalos dentro de cada run não se sobrepõem, mas a
+   dispersão entre runs é grande. **O ponto decisivo:** o mesmo teste de UI com um
+   `TextField` real contou chamadas a `VisualTransformation.filter()` de **3 antes
+   para 5 depois** de um movimento do cursor dentro da mesma linha, apesar da mesma
+   instância. Portanto, os números de 1–2 ms representam somente o cálculo da chave;
+   não provam que o custo real do preview caiu. Isto contraria a premissa do handoff
+   de que trocar a chave deixaria de reconstruir a transformação completa na seleção.
+   A sessão parou aqui, sem iniciar H.4, J.2 ou qualquer outra fase. Bruno precisa
+   decidir se quer uma medição H.3 do `TextField` completo e diagnóstico da chamada
+   residual a `filter()`, ou se aceita H.1 como redução de alocação da instância e
+   deixa o custo do filtro para a Fase J.
+3. **H.5 implementada e verde.** `TextVM.history` mantém no máximo 100 entradas,
+   descartando as mais antigas. `EditParams.Idle` leva `relativePath` em vez de `Note`;
+   o editor busca notas existentes por `dao.noteByRelativePath` ao abrir. Criação
+   reconstrói a nota vazia pelo caminho; `EditParams.Saved` preserva nome, conteúdo
+   não gravado e nota anterior. Os testes de descarte, recuperação por DAO real,
+   round-trip Parcelable e estado Idle menor que 1 KB passaram.
+4. **CI verde até a parada:** commits `1cfa111`, `b422ccf`, `f4b78a2`; run final
+   [35544952882](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35544952882),
+   job **Unit tests + APK** verde, **381 testes `PASSED`**, APK e release
+   **b71 (26.08.1.71)**. As mudanças locais de segurança ficaram fora dos commits.
+   `RESULTADO_10_H.md` e o prompt seguinte aguardam a decisão, porque H.3 não foi
+   concluída.
