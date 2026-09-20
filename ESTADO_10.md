@@ -10,7 +10,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | A | entregue | 2026-09-20 | fe69d70 | b52 (26.08.1.52) |
 | B | entregue | 2026-09-20 | 1b74388 | b53 (26.08.1.53) |
 | C | entregue | 2026-09-20 | 3b41b45 | b55 (26.08.1.55) |
-| D | pendente | | | |
+| D | entregue | 2026-09-20 | 33576e1 | b56 (26.08.1.56) |
 | E | pendente | | | |
 | F | pendente | | | |
 | G | pendente | | | |
@@ -100,5 +100,21 @@ executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho po
    do `LazyColumn`). Consertado no commit seguinte (`3b41b45`); detalhe e evidência do
    run vermelho em `RESULTADO_10_C.md`.
 
-**Lista de fases do Sonnet:** A, B e C entregues. Faltam D, E, F, G, H, J.1 nesta ordem —
+### Fase D (2026-09-20)
+
+1. **A migração destrutiva só dispara quando o Room abre o banco.** O caminho real de
+   `StorageManager.updateDatabaseWithoutLocker` comparava `fsCommit` com
+   `databaseCommit` antes da primeira consulta ao banco. Sem mudança no Git, podia
+   retornar antes de `onDestructiveMigration` zerar a preferência, contrariando a
+   reindexação imediata prevista no handoff. A fase D passou a abrir o banco antes
+   dessa comparação. Descoberto por leitura do fluxo, sem medição em aparelho.
+2. **Os testes completos do VM e do SQL da grade seguem com as limitações já
+   registradas em A/B/C.** `GitManager` carrega `git_wrapper` na JVM do VM;
+   `RequerySQLiteOpenHelperFactory` não roda no Robolectric. A Fase D testou a
+   durabilidade e a expressão `ORDER BY MAX(...)` em SQLite real, o limite em
+   função pura e a ligação do SQL/VM por leitura do código. Para executar
+   `clearAndInit` no Robolectric, o predicado de extensão foi injetado no teste,
+   evitando a função Rust nativa sem alterar a execução de produção.
+
+**Lista de fases do Sonnet:** A, B, C e D entregues. Faltam E, F, G, H, J.1 nesta ordem —
 nenhuma delas foi antecipada ou modificada por esta sessão.
