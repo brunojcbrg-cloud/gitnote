@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.ui.component.markdown.offsetOfLineStart
 import io.github.wiiznokes.gitnote.ui.component.markdown.sumarioDe
@@ -93,23 +94,32 @@ class SumarioLateralTest {
         var expandirTudoChamado = false
         var nivelPedido: Int? = null
         composeRule.setContent {
-            SumarioLateral(
-                itens = itens,
-                linhaAtual = 0,
-                onItemClick = {},
-                onDismiss = {},
-                onRecolherTudo = { recolherTudoChamado = true },
-                onExpandirTudo = { expandirTudoChamado = true },
-                onRecolherAteNivel = { nivelPedido = it },
-            )
+            Box(Modifier.width(320.dp).height(600.dp)) {
+                SumarioLateral(
+                    itens = itens,
+                    linhaAtual = 0,
+                    onItemClick = {},
+                    onDismiss = {},
+                    onRecolherTudo = { recolherTudoChamado = true },
+                    onExpandirTudo = { expandirTudoChamado = true },
+                    onRecolherAteNivel = { nivelPedido = it },
+                )
+            }
         }
         composeRule.onNodeWithTag("sumario-acoes-dobra").assertExists()
         composeRule.onNodeWithText("Collapse all").performClick()
         composeRule.runOnIdle { assertTrue(recolherTudoChamado) }
         composeRule.onNodeWithText("Expand all").performClick()
         composeRule.runOnIdle { assertTrue(expandirTudoChamado) }
-        composeRule.onNodeWithTag("sumario-recolher-nivel-2").assertExists()
-        composeRule.onNodeWithText("H2").performClick()
+        // POR QUE `performScrollTo` (medido na rodada 35523618557: expected:<2> but
+        // was:<null>, com o `assertExists` da mesma tag passando): a linha de ações é um
+        // `Row` com `horizontalScroll` dentro de um painel de `min(280dp, 62% da tela)`.
+        // "Collapse all" + "Expand all" já consomem essa largura, então o botão de nível
+        // fica fora do recorte: o nó existe e tem coordenadas, mas o toque injetado no
+        // centro dele cai fora da área clipada e não atinge botão nenhum. Num aparelho o
+        // usuário rola a linha -- o teste é que clicava sem rolar. A asserção continua a
+        // mesma: o callback de verdade tem de ser chamado com o nível 2.
+        composeRule.onNodeWithTag("sumario-recolher-nivel-2").performScrollTo().performClick()
         composeRule.runOnIdle { assertEquals(2, nivelPedido) }
     }
 }
