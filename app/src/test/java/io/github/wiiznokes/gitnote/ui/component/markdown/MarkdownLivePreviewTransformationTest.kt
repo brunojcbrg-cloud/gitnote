@@ -292,6 +292,37 @@ class MarkdownLivePreviewTransformationTest {
     }
 
     @Test
+    fun perfLivePreviewMovingCursorWithinOneLine() {
+        val source = largeNoteFixture(lineCount = 1_946, characterCount = 180_046)
+        val lineStart = source.indexOf('\n', source.length / 2) + 1
+        val positions = (1..9).map { lineStart + it }
+        val expectedLines = positions.map { activeMarkdownLines(source, it, it) }
+        assertEquals(1, expectedLines.distinct().size)
+
+        // Com a selecao como chave de remember, cada movimento criava uma nova
+        // transformacao e refazia filter(), mesmo sem mudar de linha.
+        repeat(2) { index ->
+            val activeLines = activeMarkdownLines(source, positions[index], positions[index])
+            MarkdownLivePreviewTransformation(colors, activeLines, 16.sp)
+                .filter(AnnotatedString(source))
+        }
+        val samples = positions.map { position ->
+            measureTime {
+                val activeLines = activeMarkdownLines(source, position, position)
+                MarkdownLivePreviewTransformation(colors, activeLines, 16.sp)
+                    .filter(AnnotatedString(source))
+            }.inWholeMicroseconds / 1_000.0
+        }
+        println(
+            "PERF_LIVE_PREVIEW phase=before_h1 lines=1946 chars=180046 " +
+                "samples_ms=$samples median_ms=${samples.sorted()[samples.size / 2]} " +
+                "min_ms=${samples.min()} max_ms=${samples.max()}",
+        )
+        assertEquals(1_946, source.count { it == '\n' } + 1)
+        assertEquals(180_046, source.length)
+    }
+
+    @Test
     fun aFenceLineKeepsItsOwnTextOnScreen() {
         val source = "``` - lembrar da tabela\nconteudo\n```\ndepois"
         val result = transform(source)
