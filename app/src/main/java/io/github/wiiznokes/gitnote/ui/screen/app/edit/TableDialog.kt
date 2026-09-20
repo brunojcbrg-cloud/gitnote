@@ -36,6 +36,7 @@ import io.github.wiiznokes.gitnote.ui.viewmodel.edit.buildTable
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.parseTable
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.resizeTableAt
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.tableRegionAt
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.toEdicaoDeTexto
 
 @Composable
 internal fun TableActionButton(
@@ -73,7 +74,7 @@ internal fun TableActionButton(
             if (context == null) {
                 0
             } else {
-                resizeTableAt(snapshot, columns, rows)?.lostNonEmptyCells ?: 0
+                resizeTableAt(snapshot.toEdicaoDeTexto(), columns, rows)?.lostNonEmptyCells ?: 0
             }
         },
         onValidation = if (context == null) onInsert else onResize,

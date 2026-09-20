@@ -1,7 +1,6 @@
 package io.github.wiiznokes.gitnote.ui.viewmodel.edit
 
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 
 data class MdTableCell(val text: String)
 
@@ -39,7 +38,7 @@ data class MdTableRegion(
 )
 
 data class MdTableDocumentResizeResult(
-    val value: TextFieldValue,
+    val value: EdicaoDeTexto,
     val lostNonEmptyCells: Int,
 )
 
@@ -173,21 +172,20 @@ fun tableRegionAt(text: String, offset: Int): MdTableRegion? {
 }
 
 fun resizeTableAt(
-    value: TextFieldValue,
+    value: EdicaoDeTexto,
     columns: Int,
     bodyRows: Int,
 ): MdTableDocumentResizeResult? {
-    val region = tableRegionAt(value.text, value.selection.min) ?: return null
-    val table = parseTable(value.text, region.headerLine) ?: return null
+    val region = tableRegionAt(value.texto, value.selecao.min) ?: return null
+    val table = parseTable(value.texto, region.headerLine) ?: return null
     val resized = resizeTable(table, columns, bodyRows)
     val rendered = renderTable(resized.table)
-    val lines = tableLines(value.text)
+    val lines = tableLines(value.texto)
     val start = lines[region.headerLine].start
     val end = lines[region.lastLine].end
     val newValue = value.copy(
-        text = value.text.substring(0, start) + rendered + value.text.substring(end),
-        selection = TextRange(start + firstCellCursor(rendered, resized.table.style.outerPipes)),
-        composition = null,
+        texto = value.texto.substring(0, start) + rendered + value.texto.substring(end),
+        selecao = TextRange(start + firstCellCursor(rendered, resized.table.style.outerPipes)),
     )
     return MdTableDocumentResizeResult(
         value = newValue,
@@ -226,9 +224,9 @@ fun buildTable(columns: Int, bodyRows: Int, lineEnding: String): String {
     }.joinToString(lineEnding)
 }
 
-fun insertTable(value: TextFieldValue, columns: Int, bodyRows: Int): TextFieldValue {
-    val text = value.text
-    val offset = value.selection.min.coerceIn(0, text.length)
+fun insertTable(value: EdicaoDeTexto, columns: Int, bodyRows: Int): EdicaoDeTexto {
+    val text = value.texto
+    val offset = value.selecao.min.coerceIn(0, text.length)
     val lineEnding = dominantLineEnding(text)
     val lineStart = text.lastIndexOf('\n', startIndex = (offset - 1).coerceAtLeast(0)).let {
         if (offset == 0 || it == -1) 0 else it + 1
@@ -261,9 +259,8 @@ fun insertTable(value: TextFieldValue, columns: Int, bodyRows: Int): TextFieldVa
     val firstCellOffset = insertionOffset + before.length + 2
 
     return value.copy(
-        text = prefix + insertion + suffix,
-        selection = TextRange(firstCellOffset),
-        composition = null,
+        texto = prefix + insertion + suffix,
+        selecao = TextRange(firstCellOffset),
     )
 }
 

@@ -33,8 +33,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
-import io.github.wiiznokes.gitnote.ui.viewmodel.edit.markdownSmartEditor
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.editMarkdownValue
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.insertTable
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.toEdicaoDeTexto
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.toTextFieldValue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,7 +63,7 @@ class MarkdownEditorUiTest {
             observed = value
             TextField(
                 value = value,
-                onValueChange = { next -> value = markdownSmartEditor(value, next) },
+                onValueChange = { next -> value = editMarkdownValue(value, next) },
                 modifier = Modifier.testTag("editor"),
             )
         }
@@ -88,7 +90,10 @@ class MarkdownEditorUiTest {
                 )
                 TableActionButton(
                     currentValue = { value },
-                    onInsert = { columns, rows -> value = insertTable(value, columns, rows) },
+                    onInsert = { columns, rows ->
+                        value = insertTable(value.toEdicaoDeTexto(), columns, rows)
+                            .toTextFieldValue(value, clearComposition = true)
+                    },
                     onResize = { _, _ -> error("empty document cannot resize") },
                 )
             }

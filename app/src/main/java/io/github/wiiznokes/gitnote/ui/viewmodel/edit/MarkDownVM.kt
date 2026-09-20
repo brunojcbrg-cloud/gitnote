@@ -17,6 +17,14 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "MarkDownVM"
 
+internal fun editMarkdownValue(previous: TextFieldValue, value: TextFieldValue): TextFieldValue {
+    val edited = markdownSmartEditor(previous.toEdicaoDeTexto(), value.toEdicaoDeTexto())
+    // Automatic continuation clears the IME composition; padding deletion keeps it.
+    val continuedLine = edited.texto != value.text &&
+        value.selection.collapsed && value.text.getOrNull(value.selection.start - 1) == '\n'
+    return edited.toTextFieldValue(value, clearComposition = continuedLine)
+}
+
 
 class MarkDownVM : TextVM {
 
@@ -43,64 +51,60 @@ class MarkDownVM : TextVM {
     ) : super(editType, previousNote, name, content)
 
     override fun onValueChange(v: TextFieldValue) {
-        val newValue = markdownSmartEditor(content.value, v)
-        super.onValueChange(newValue)
+        super.onValueChange(editMarkdownValue(content.value, v))
+    }
+
+    private fun applyEdit(transform: (EdicaoDeTexto) -> EdicaoDeTexto) {
+        val original = content.value
+        super.onValueChange(transform(original.toEdicaoDeTexto()).toTextFieldValue(original))
     }
 
     fun onTitle() {
-        val newValue = onTitle(content.value)
-        super.onValueChange(newValue)
+        applyEdit { onTitle(it) }
     }
 
     fun onBold() {
-        val newValue = addOrRemovePatternAtTheExtremitiesOfSelection(content.value, "**")
-        super.onValueChange(newValue)
+        applyEdit { addOrRemovePatternAtTheExtremitiesOfSelection(it, "**") }
     }
 
     fun onItalic() {
-        val newValue = addOrRemovePatternAtTheExtremitiesOfSelection(content.value, "_")
-        super.onValueChange(newValue)
+        applyEdit { addOrRemovePatternAtTheExtremitiesOfSelection(it, "_") }
     }
 
     fun onCode() {
-        val newValue = onCode(content.value)
-        super.onValueChange(newValue)
+        applyEdit { onCode(it) }
     }
 
     fun onQuote() {
-        val newValue = onQuote(content.value)
-        //Log.d(TAG, "onQuote result: text=\"${v.text.replace("\n", "\\n")}\", start=${v.selection.start}, end=${v.selection.end}")
-        super.onValueChange(newValue)
+        applyEdit { onQuote(it) }
     }
 
     fun onLink() {
-        val newValue = onLink(content.value)
-        super.onValueChange(newValue)
+        applyEdit { onLink(it) }
     }
 
     fun onUnorderedList() {
-        val newValue = onUnorderedList(content.value)
-        super.onValueChange(newValue)
+        applyEdit { onUnorderedList(it) }
     }
 
     fun onNumberedList() {
-        val newValue = onNumberedList(content.value)
-        super.onValueChange(newValue)
+        applyEdit { onNumberedList(it) }
     }
 
     fun onTaskList() {
-        val newValue = onTaskList(content.value)
-        super.onValueChange(newValue)
+        applyEdit { onTaskList(it) }
     }
 
     fun onTableInsert(columns: Int, bodyRows: Int) {
-        val newValue = insertTable(content.value, columns, bodyRows)
-        super.onValueChange(newValue)
+        val original = content.value
+        val edited = insertTable(original.toEdicaoDeTexto(), columns, bodyRows)
+        super.onValueChange(edited.toTextFieldValue(original, clearComposition = true))
     }
 
     fun onTableResize(columns: Int, bodyRows: Int) {
-        val result = resizeTableAt(content.value, columns, bodyRows) ?: return
-        super.onValueChange(result.value)
+        val original = content.value
+        val result = resizeTableAt(original.toEdicaoDeTexto(), columns, bodyRows) ?: return
+        super.onValueChange(result.value.toTextFieldValue(original, clearComposition = true))
     }
 
     suspend fun resolveWikilinks(names: Set<String>): Map<String, String?> {
