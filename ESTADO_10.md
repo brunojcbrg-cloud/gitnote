@@ -1,7 +1,11 @@
 # ESTADO_10 — controle de fases do HANDOFF_10
 
-Ordem: A, B, C, D, E, F, G, H, J.1
+Ordem: A, B, C, D, E, F, **K**, G, H, J.1
 (I e Parte V bloqueadas em decisão do Bruno; J.2+ exige aval dele e outro modelo — fora desta lista)
+
+**A Fase K entrou em 20/09** e tem prioridade sobre G e H: conserta uma regressão da Fase B
+(pasta que só tem subpastas abre em branco — 513 pastas do vault, inclusive a pasta padrão
+dele). Ver a seção "FASE K" do handoff.
 
 Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 
@@ -12,10 +16,32 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | C | entregue | 2026-09-20 | 3b41b45 | b55 (26.08.1.55) |
 | D | entregue | 2026-09-20 | 33576e1 | b56 (26.08.1.56) |
 | E | entregue | 2026-09-20 | afa2580 | b58 (26.08.1.58) |
-| F | entregue (F.1+F.2; F.3 fica para a sessão de H.4) | 2026-09-20 | | |
+| F | entregue (F.1+F.2; F.3 adiada para H.4) | 2026-09-20 | 829456a | b64 (26.08.1.64) |
+| K | pendente (prioritária — ver nota acima) | | | |
 | G | pendente | | | |
-| H | pendente | | | |
+| H.1 | pendente | | | |
+| H.2 | **em curso** em worktree paralelo `handoff10-h2` | 2026-09-20 | 4ba4656 (empurrado) | via PR |
+| H.3/H.4/H.5 | pendente | | | |
 | J.1 | entregue e mesclada | 2026-09-20 | df8d403 (squash de `handoff10-j1`, PR #2, mesclada pelo Bruno) | build próprio cancelado (ver nota) |
+
+### Sessões abertas em 2026-09-20 (atualizar ao fechar)
+
+| Onde | Branch | Fase | Arquivos que ela detém |
+|---|---|---|---|
+| `E:/Projetos/gitnote` | `master` | — | livre (Fase F fechada em 20/09; próxima é a **K**) |
+| `E:/Projetos/gitnote-h2` | `handoff10-h2` | H.2 | `MarkdownLivePreviewTransformation.kt` e os testes dele |
+| `E:/Projetos/gitnote-j1` | `handoff10-j1` | — | worktree já cumprido (PR #2 mesclada); pode ser removido |
+
+**Regra de convivência:** quem está num worktree entrega por pull request e **não** edita este
+arquivo — deixa a linha pronta no fim do seu `RESULTADO_10_*.md`. Quem está na master edita
+aqui normalmente, mas **preserva as linhas das outras fases**.
+
+**Pendências que não são fase e dependem só do Bruno:**
+- **F.3** (recolher no modo de edição) — adiado por decisão do handoff para a sessão de H.4.
+- **I.0** — pasta de anexos e exceção no `.gitignore` do vault. Bloqueia a Fase I inteira.
+- **I.7** — renderizar ou não imagem remota (`![](https://…)`).
+- **Parte V** — a renomeação `06_Conhecimento` → `NOTAS`. Sem impedimento técnico desde a Fase C.
+- **J.2** — exige Opus 5 com esforço máximo e aval dele; prompt pronto em `PROXIMO_PROMPT_J2.md`.
 
 ## Divergências entre handoff e código real
 
@@ -187,6 +213,30 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
    alterado em paralelo pela sessão da branch `handoff10-j1`. Fica pendente para a
    sessão de H.4, como o próprio handoff já previa ("Se F.2 sair antes de H, deixar F.3
    para a sessão de H.4").
+
+6. **Os testes Robolectric da Fase F seguraram a master por quatro rodadas, e a causa não
+   era o recolher — era a fronteira entre o composable e a árvore semântica.** Fica aqui
+   porque vale para toda fase que testar UI neste repositório:
+   - **O markdown não está na árvore quando o teste olha.** `com.mikepenz` v0.43.0 parseia
+     em `withContext(Dispatchers.Default)` dentro de um `LaunchedEffect`; só parseia dentro
+     do `remember { }` quando `immediate = true`, cujo default é `LocalInspectionMode.current`
+     (falso em teste). `waitForIdle()`/`runOnIdle` **não** esperam thread de fora do Compose,
+     então o teste media `State.Loading`, que desenha o `loading = { Box(modifier) }` vazio —
+     e o erro que aparece é "could not find any node", que parece defeito do composable.
+     Quem for compor markdown em teste: envolver em
+     `CompositionLocalProvider(LocalInspectionMode provides true)`.
+   - **Nó que existe mas não recebe toque.** Dentro de um contêiner que rola e recorta
+     (`horizontalScroll`, `LazyColumn`), `assertExists()` passa para um nó fora da viewport,
+     e `performClick()` injeta o toque sem erro — ele só cai fora da área clipada e não
+     atinge nada. O sintoma é o callback não ser chamado, que parece defeito de produção.
+     Usar `performScrollTo()` antes do clique.
+   - Consequência prática registrada: o relatório HTML de teste **só vira artefato quando a
+     rodada falha** (`gh run download <id> -n test-report-<n>`), e é ele que traz a mensagem
+     de erro completa — o log do job mostra só `AssertionError at Arquivo.kt:linha`. Ler o
+     artefato antes de tentar conserto economizou a quinta rodada.
+   - Um teste que a rodada anterior tinha trocado por leitura de código-fonte
+     (`semCallbackDeToggle...`) voltou a ser prova de comportamento com o modo de inspeção
+     ligado. Detalhe completo em `RESULTADO_10_F.md`.
 
 ### Fase J.1 (2026-09-20)
 

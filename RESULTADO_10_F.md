@@ -1,5 +1,8 @@
 # RESULTADO 10 — FASE F (F.1 e F.2; F.3 não feita, por instrução)
 
+**Fechada em 2026-09-20**: master verde na rodada `35524423286`, release **b64
+(26.08.1.64)** publicada. 344 testes, 0 falhas.
+
 ## O que mudou
 
 - `Dobra.kt` (novo, `ui/component/markdown`): `secoesDe` segmenta o texto a partir do
@@ -52,18 +55,67 @@ todos consertados antes deste relatório:
      veio 279 — o último título preserva sua própria quebra de linha (fica antes do
      corte dele), então `split("\n")` conta uma linha vazia extra no fim.
      `removeSuffix("\n")` antes do split corrige, sem mudar o que está sendo provado.
-   - `SumarioLateralTest`: clicar em `onNodeWithTag("sumario-recolher-nivel-2")` não
-     disparava o callback (`nivelPedido` ficava `null`) — causa não identificada com
-     confiança (a mesma técnica de tag funciona nos outros testes do arquivo). Troquei
-     para `onNodeWithText("H2")`, que já tinha histórico de funcionar no mesmo teste
-     (para "Collapse all"/"Expand all"); mantive um `assertExists()` pela tag para não
-     perder a cobertura de que o botão certo está lá.
-   - `MarkdownCustomInnerRecolherTest.semCallbackDeToggleOTituloContinuaSemChevronClicavelExtra`:
-     sem `onHeadingCollapseToggle`, "Título" simplesmente não aparecia no Robolectric —
-     mesmo caminho (`return delegate`) que já existia antes da Fase F e que
-     `FlashcardScreens.kt` usa em produção; não decifrei a causa raiz nesse ambiente de
-     teste. Troquei por uma prova estrutural (leitura do código-fonte), no mesmo padrão
-     que o resto do repositório usa quando o Robolectric não coopera.
+   - Os outros dois (`SumarioLateralTest` e `MarkdownCustomInnerRecolherTest`)
+     sobreviveram a mais duas rodadas de tentativa e viraram a seção abaixo.
+
+## As duas falhas que seguraram a master por quatro rodadas
+
+As rodadas `35522309543`, `35522529452`, `35522716693` e `35523618557` deixaram a master
+vermelha, ou seja, **nenhuma release saiu entre a b58 (Fase E) e a b64**. Nas duas últimas
+sobraram estes dois testes. Os palpites das tentativas anteriores (trocar a tag por texto,
+trocar o teste de UI por leitura de código-fonte, acrescentar `waitForIdle`) não pegaram a
+causa; ela saiu do relatório HTML da rodada `35523618557` — que só vira artefato quando
+falha — mais a leitura do código da própria biblioteca de markdown.
+
+**Nenhum dos dois era defeito do recolher.** Os dois erravam na borda entre o que o
+composable emite e o que o teste procura na árvore semântica, e as duas correções mantêm as
+asserções originais: muda só como o teste alcança o nó.
+
+### 1. `MarkdownCustomInnerRecolherTest` — o markdown ainda nem tinha sido parseado
+
+Mensagem exata: `Failed to inject touch input. Reason: Expected exactly '1' node but could
+not find any node that satisfies: (Text + InputText + EditableText contains 'Título')`.
+Não era asserção de valor: **não existia nó nenhum** com aquele texto.
+
+Causa, lida em `MarkdownState.kt` da `com.mikepenz:multiplatform-markdown-renderer` v0.43.0:
+`rememberMarkdownState` só chama `parseBlocking()` dentro do `remember { }` quando
+`immediate = true`, e esse parâmetro tem default `LocalInspectionMode.current` — falso em
+teste. Fora disso o parse vai para `withContext(Dispatchers.Default)`, disparado por um
+`LaunchedEffect`, e **nem `waitForIdle()` nem `runOnIdle` esperam trabalho numa thread de
+fora do Compose**. O teste media a árvore com o estado ainda em `State.Loading`, que desenha
+o `loading = { Box(modifier) }` — vazio. Em produção o parse termina em milissegundos e o
+título aparece; o modo leitura nunca esteve quebrado.
+
+Conserto: compor sob `CompositionLocalProvider(LocalInspectionMode provides true)` — o mesmo
+interruptor que a biblioteca usa nos previews —, o que torna o parse síncrono na primeira
+composição. Nada de produção mudou. Um `waitUntil` de 5 s ficou como rede, para o caso de
+alguém tirar o modo de inspeção depois.
+
+Efeito colateral bom: com a árvore realmente renderizada, o teste
+`semCallbackDeToggleOTituloContinuaSemChevronClicavelExtra` **voltou a ser prova de
+comportamento** (`assertHasNoClickAction()` no título renderizado sem o callback), em vez da
+leitura de código-fonte que a rodada anterior tinha colocado no lugar. A checagem estrutural
+continua ali como segunda asserção, mas já não é a única.
+
+### 2. `SumarioLateralTest` — o botão estava fora do recorte
+
+Mensagem exata: `expected:<2> but was:<null>`, com o `assertExists()` da mesma tag passando
+na linha anterior. Ou seja: o botão existe, o toque foi injetado, e nada aconteceu.
+
+Causa: a linha de ações é um `Row` com `horizontalScroll` dentro de um painel de
+`min(280dp, 62% da tela)` — 198 dp na tela padrão do Robolectric. "Collapse all" e
+"Expand all" já consomem essa largura, então o botão de nível fica além do recorte. O nó tem
+coordenadas (por isso `assertExists` passa e o clique não dá erro), mas o ponto tocado cai
+fora da área clipada e não atinge botão nenhum. Num aparelho o usuário rola a linha; o teste
+é que clicava sem rolar.
+
+Conserto: `performScrollTo()` antes do `performClick()`. A asserção segue a mesma — o
+callback de verdade tem de ser chamado com o nível 2.
+
+> Fica registrado, sem ser defeito: num telefone de 360–410 dp o painel dá 223–254 dp, então
+> os botões de nível também nascem fora da viewport e só aparecem se o usuário arrastar a
+> linha na horizontal. É rolável de propósito e o critério da Fase F não fala em layout, mas
+> vale olhar isso quando alguém encostar nesse painel de novo.
 
 ## Duas coisas encontradas nesta fase (detalhe completo em `ESTADO_10.md`)
 
@@ -82,7 +134,8 @@ todos consertados antes deste relatório:
    trecho escondido, não o próprio título). Corrigido trocando o desempate de fronteira
    para o fim do corte. Revalidado com 0 falhas em 2.270 offsets de título testados.
 
-Commits: `<preencher no push>`. Só os arquivos abaixo entraram: `Dobra.kt` (novo),
+Commits: `38a27b8` (F.1+F.2), `1d429fc` / `43b8863` / `27b8bfc` (compilação e testes) e
+`829456a` (as duas falhas acima). Só os arquivos abaixo entraram: `Dobra.kt` (novo),
 `MarkDown.kt`, `SumarioLateral.kt`, `markdownHelper.kt`, `strings.xml` (values e
 values-pt-rBR), os quatro arquivos de teste novos/alterados, `ESTADO_10.md` e este
 relatório. O trabalho de segurança não commitado (`PortaoDeSeguranca.kt` e os outros)
@@ -103,7 +156,7 @@ não roda no CI — mesma limitação da Fase E) sobre as **140 notas reais** de
 - "Recolher tudo" na maior nota real (269 títulos, níveis 1/2/3/4 = 117/25/79/48) deixa
   **117** títulos visíveis (os de nível 1) — número registrado para a divergência 1.
 
-No CI, job **[a preencher após o push]**, os testes novos:
+No CI, rodada **35524423286** (verde, release **b64 — 26.08.1.64**), os testes novos:
 
 1. `DobraTest.secaoDeNivel2CobreOsNiveis3a6AteAProximaDeNivel2`
 2. `DobraTest.conjuntoVazioDevolveOTextoIdentico`
@@ -126,7 +179,7 @@ No CI, job **[a preencher após o push]**, os testes novos:
     `MarkDown.kt`, de que o ramo do modo edição nunca referencia `conteudoExibido`/
     `textoDobrado`, e que `conteudoExibido` só entra em `MarkdownCustomInner`.
 
-`PERF_DOBRAR`: **[preencher com o número do log do CI]**.
+`PERF_DOBRAR`: `linhas=1946 chars=180046 recolhidas=93 amostras_ms=[7.214, 0.996, 0.959, 0.953, 0.937]` → **mediana 0,959 ms**. Dobrar 93 das 278 seções da nota de 180 KB custa menos de 1 ms — cabe folgado num toque.
 
 ## Limites da verificação
 
