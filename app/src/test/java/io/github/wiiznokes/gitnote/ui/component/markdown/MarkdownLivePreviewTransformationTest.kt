@@ -330,8 +330,8 @@ class MarkdownLivePreviewTransformationTest {
         val previousKey = activeMarkdownLines(source, lineStart, lineStart)
         repeat(2) { activeMarkdownLines(source, positions[it], positions[it]) }
 
-        // H.1: a chave e recalculada; sendo igual, remember preserva a instancia
-        // e o TextField nao precisa chamar filter() para o movimento do cursor.
+        // H.1: a chave e recalculada; sendo igual, remember preserva a instancia.
+        // Este microbenchmark mede so a chave, nao o custo real do TextField.
         val samples = positions.map { position ->
             measureTime {
                 val activeLines = activeMarkdownLines(source, position, position)
