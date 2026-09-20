@@ -11,7 +11,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | B | entregue | 2026-09-20 | 1b74388 | b53 (26.08.1.53) |
 | C | entregue | 2026-09-20 | 3b41b45 | b55 (26.08.1.55) |
 | D | entregue | 2026-09-20 | 33576e1 | b56 (26.08.1.56) |
-| E | pendente | | | |
+| E | entregue | 2026-09-20 | afa2580 | b58 (26.08.1.58) |
 | F | pendente | | | |
 | G | pendente | | | |
 | H | pendente | | | |
@@ -116,5 +116,21 @@ executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho po
    `clearAndInit` no Robolectric, o predicado de extensão foi injetado no teste,
    evitando a função Rust nativa sem alterar a execução de produção.
 
-**Lista de fases do Sonnet:** A, B, C e D entregues. Faltam E, F, G, H, J.1 nesta ordem —
-nenhuma delas foi antecipada ou modificada por esta sessão.
+### Fase E (2026-09-20)
+
+1. **Contagem do vault mudou durante a edição das notas.** A primeira medição
+   encontrou 2.486 títulos fora de cercas, contra 2.465 no handoff. Bruno explicou
+   que estava editando uma nota e pediu para prosseguir sem interação. A medição
+   final, no mesmo conjunto de 140 notas, encontrou **2.487 títulos** e **269**
+   na maior nota. A contagem é um retrato do momento, não uma constante do app.
+   O teste de UI usa 269 títulos; o módulo usa uma lista dinâmica.
+2. **O teste de UI não instancia `MarkDownVM` real.** O bloqueio de
+   `GitManager`/`git_wrapper` na JVM segue igual ao das Fases A/C. O Robolectric
+   compôs `SumarioLateral` e verificou seleção, callback de navegação e largura
+   em 320/375 dp; a seleção exata da linha foi calculada com
+   `offsetOfLineStart`, a mesma função chamada pelo VM.
+3. **A primeira execução do CI falhou na compilação** por uma expressão `Int * Dp`
+   na indentação. Corrigido em `afa2580`; o CI seguinte passou em testes e APK,
+   e publicou b58. Detalhe em `RESULTADO_10_E.md`.
+
+**Lista de fases do Sonnet:** A, B, C, D e E entregues. Faltam F, G, H, J.1 nesta ordem.
