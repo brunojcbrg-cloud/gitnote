@@ -3,9 +3,10 @@
 Ordem: A, B, C, D, E, F, **K**, G, H, J.1
 (I e Parte V bloqueadas em decisão do Bruno; J.2+ exige aval dele e outro modelo — fora desta lista)
 
-**A Fase K entrou em 20/09** e tem prioridade sobre G e H: conserta uma regressão da Fase B
-(pasta que só tem subpastas abre em branco — 513 pastas do vault, inclusive a pasta padrão
-dele). Ver a seção "FASE K" do handoff.
+~~**A Fase K entrou em 20/09** e tem prioridade sobre G e H~~ — **entregue em 20/09**
+(`382aaf7`, release b67). A regressão da Fase B está consertada: pasta que só tem subpastas
+volta a mostrar as subpastas na grade, e a leva de 10 voltou a ser recursiva. Detalhe em
+`RESULTADO_10_K.md`. **A próxima da fila é a G.**
 
 Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 
@@ -17,7 +18,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | D | entregue | 2026-09-20 | 33576e1 | b56 (26.08.1.56) |
 | E | entregue | 2026-09-20 | afa2580 | b58 (26.08.1.58) |
 | F | entregue (F.1+F.2; F.3 adiada para H.4) | 2026-09-20 | 829456a | b64 (26.08.1.64) |
-| K | pendente (prioritária — ver nota acima) | | | |
+| K | entregue | 2026-09-20 | 382aaf7 | b67 (26.08.1.67) |
 | G | pendente | | | |
 | H.1 | pendente | | | |
 | H.2 | entregue e mesclada | 2026-09-20 | 3591284 (squash de `handoff10-h2`, PR #3) | b65 (26.08.1.65) |
@@ -52,11 +53,11 @@ ruído do runner.
 
 | Onde | Branch | Fase | Arquivos que ela detém |
 |---|---|---|---|
-| `E:/Projetos/gitnote` | `master` | — | livre (Fase F fechada em 20/09; próxima é a **K**) |
+| `E:/Projetos/gitnote` | `master` | — | livre (Fase K fechada em 20/09; próxima é a **G**) |
 | `E:/Projetos/gitnote-h2` | — | — | worktree já cumprido (PR #3 mesclada em 17:15); pode ser removido |
 | `E:/Projetos/gitnote-j1` | — | — | worktree já cumprido (PR #2 mesclada); pode ser removido |
 
-**Nenhuma sessão de código aberta.** A próxima é a **Fase K**, na master.
+**Nenhuma sessão de código aberta.** A próxima é a **Fase G**, na master.
 
 Limpeza pendente (comandos, quando quiser):
 `git worktree remove --force "E:/Projetos/gitnote-h2"` e o mesmo para `gitnote-j1`.
@@ -192,9 +193,44 @@ executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho po
    na indentação. Corrigido em `afa2580`; o CI seguinte passou em testes e APK,
    e publicou b58. Detalhe em `RESULTADO_10_E.md`.
 
+### Fase K (2026-09-20)
+
+1. **A base de comparação de PERF que o handoff pede para a Fase K não existe.** O
+   critério 6 manda comparar os três números novos com o `PERF_GRID_QUERY` registrado no
+   `RESULTADO_10_B.md` — mas aquele relatório diz, com todas as letras, que **não escreveu
+   esse número**: a consulta da Fase B usava `parentPath()`, e a anterior a ela usava
+   `fullName()` mais função de janela; nenhuma das duas roda na JVM do CI (é a divergência
+   das Fases A/B, o requery não carrega). Perguntei ao Bruno antes de codar; ele escolheu
+   **medir os três cenários de verdade e registrar a ausência da base**, sem emular a
+   consulta antiga para fabricar um quarto número. **A medição só passou a ser possível
+   agora**: o filtro recursivo da K.2 dispensou `parentPath()`, e na ordem padrão a
+   consulta da grade não usa mais nenhuma função customizada — por isso `GradeSqlTest` é o
+   primeiro teste deste repositório que executa a consulta da grade de verdade, em vez de
+   conferir o texto do SQL.
+2. **Duas consequências da listagem recursiva que o handoff não previa**, as duas
+   decididas pelo Bruno antes do código:
+   - **Título do card.** Com recursão, duas notas de mesmo nome em subpastas diferentes
+     apareceriam idênticas, e o desambiguador (função de janela) não pode voltar. Escolha:
+     o título passa a ser o caminho a partir da pasta aberta (`GridRow.tituloRelativoA`);
+     nota da própria pasta continua só com o nome.
+   - **Contagem por pasta.** O `JOIN` de `drawerFolders` usava `LIKE f.relativePath || '%'`
+     **sem barra** — `Medicina` contava as notas de `Medicina2/` e de um `Medicina.md` ao
+     lado. É o mesmo defeito que a K.2 proíbe de voltar, e a K.1 levou esse número para a
+     grade. Escolha: corrigir junto, na mesma fase.
+3. **A contagem de pastas do vault mudou entre a manhã e a noite de 20/09.** O handoff
+   registra 1.598 pastas e 513 abrindo em branco; a varredura desta sessão deu **1.952 e
+   548**. É retrato do momento (mesma natureza da contagem de títulos na Fase E), e as três
+   pastas do critério de aceitação (`06_Conhecimento` com 6 subpastas e 0 notas diretas,
+   `Medicina` com 5, `Matérias Básicas` com 10) batem exatamente.
+4. **Lição repetida sobre teste com banco:** o primeiro push ficou vermelho não pelo SQL,
+   mas por `assertNotMainThread` do Room — `query()` direto na thread principal do
+   Robolectric. `allowMainThreadQueries()` no banco em memória resolve, e só o teste muda.
+   O artefato `test-report-<n>` (que só existe quando a rodada falha) trouxe a exceção
+   completa; o log do job mostrava apenas `FAILED`.
+
 **Lista de fases do Sonnet:** A, B, C, D, E, F e J.1 entregues (J.1 feita fora de ordem, o que
 o handoff permite explicitamente: "J.1 pode ser feita a qualquer momento, inclusive já: não
-muda comportamento"). Faltam G, H. F.3 (recolher no modo de edição) fica para a sessão de H.4,
+muda comportamento"). Faltam G, H — e a **K**, entregue em 20/09 fora dessa lista original, já está fechada. F.3 (recolher no modo de edição) fica para a sessão de H.4,
 por instrução explícita desta rodada — não é dívida técnica, é escopo adiado de propósito.
 
 ### Fase F (2026-09-20) — F.1 e F.2 só; F.3 não foi feita (por instrução)
