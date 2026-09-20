@@ -51,6 +51,9 @@ internal fun NoteListView(
     onEditClick: (Note, EditType) -> Unit,
     vm: GridViewModel,
     totalParaMostrarTodas: Int?,
+    pastaAtual: String,
+    itensDeNavegacao: List<ItemDeNavegacao>,
+    mostrarVazio: Boolean,
 ) {
 
     LazyColumn(
@@ -59,6 +62,23 @@ internal fun NoteListView(
     ) {
         item {
             Spacer(modifier = Modifier.height(topSpacerHeight))
+        }
+
+        // Fase K.1: as mesmas pastas da grade escalonada, aqui como linhas comuns.
+        items(
+            count = itensDeNavegacao.size,
+            key = { indice -> itensDeNavegacao[indice].chave },
+        ) { indice ->
+            LinhaDeNavegacao(
+                item = itensDeNavegacao[indice],
+                onAbrirPasta = vm::openFolder,
+            )
+        }
+
+        if (mostrarVazio) {
+            item {
+                GradeVazia()
+            }
         }
 
         items(
@@ -72,6 +92,7 @@ internal fun NoteListView(
                 onEditClick = onEditClick,
                 selectedNotes = selectedNotes,
                 showFullPathOfNotes = showFullPathOfNotes,
+                pastaAtual = pastaAtual,
             )
         }
 
@@ -96,6 +117,7 @@ private fun NoteListRow(
     onEditClick: (Note, EditType) -> Unit,
     selectedNotes: Set<String>,
     showFullPathOfNotes: Boolean,
+    pastaAtual: String,
 ) {
     val dropDownExpanded = remember { mutableStateOf(false) }
     val clickPosition = remember { mutableStateOf(Offset.Zero) }
@@ -105,7 +127,13 @@ private fun NoteListRow(
             .format(Date(gridNote.lastModifiedTimeMillis))
     }
 
-    val title = gridNote.relativePath
+    // Fase K.2: listagem recursiva — o caminho a partir da pasta aberta ja diz de que
+    // subpasta a nota veio, sem repetir o caminho inteiro em toda linha.
+    val title = if (showFullPathOfNotes || !gridNote.isUnique) {
+        gridNote.relativePath
+    } else {
+        gridNote.tituloRelativoA(pastaAtual)
+    }
 
     val rowBackground =
         if (gridNote.selected) MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)

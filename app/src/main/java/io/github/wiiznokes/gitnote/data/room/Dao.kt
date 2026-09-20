@@ -175,9 +175,13 @@ interface RepoDatabaseDao {
     @RawQuery(observedEntities = [Note::class])
     fun countNotesInFolderRaw(query: SupportSQLiteQuery): Flow<Int>
 
+    /**
+     * Total de notas da pasta **e das descendentes** (Fase K.2): e o numero do rodape
+     * "Mostrar todas (N)", e desde a Fase K "todas" inclui as subpastas.
+     */
     fun countNotesInFolder(relativePath: String): Flow<Int> = countNotesInFolderRaw(
         SimpleSQLiteQuery(
-            "SELECT COUNT(*) FROM Notes WHERE parentPath(relativePath) = ?",
+            GradeSql.contagemDaPasta(),
             arrayOf(relativePath),
         ),
     )
@@ -209,11 +213,15 @@ interface RepoDatabaseDao {
     }
 
     /**
-     * Sem funcao de janela e sem `fullName()`: a pasta e exata (nao recursiva), entao
-     * todo `relativePath` devolvido comeca com o mesmo prefixo de pasta e ordenar por
-     * `relativePath` da o mesmo resultado que ordenar pelo nome do arquivo. E dentro de
-     * uma unica pasta o nome do arquivo e sempre unico (e a chave primaria), entao
-     * `isUnique` e sempre 1 — nao precisa mais ser calculado.
+     * Listagem da grade: a pasta aberta **e as descendentes** (Fase K.2 do handoff 10).
+     *
+     * A Fase B trocou este filtro por `parentPath(relativePath) = :path` (so os filhos
+     * diretos), e isso deixou em branco as 513 pastas do vault que so tem subpastas —
+     * inclusive a pasta padrao do Bruno. A Fase K volta ao filtro recursivo, agora
+     * **com a barra** (`|| '/%'`), e quem segura o custo e o `LIMIT` da Fase D.
+     *
+     * O que **nao** volta, porque era o que pesava de verdade: a coluna `content` na
+     * projecao e a funcao de janela sobre o conjunto inteiro. Ver [GradeSql].
      */
     fun gridNotes(
         currentNoteFolderRelativePath: String,
@@ -221,25 +229,10 @@ interface RepoDatabaseDao {
         teto: Int? = null,
     ): PagingSource<Int, GridRow> {
 
-        val (sortColumn, order) = when (sortOrder) {
-            SortOrder.AZ -> "relativePath" to "ASC"
-            SortOrder.ZA -> "relativePath" to "DESC"
-            SortOrder.MostRecent -> "lastModifiedTimeMillis" to "DESC"
-            SortOrder.Oldest -> "lastModifiedTimeMillis" to "ASC"
-            SortOrder.UltimaVisualizacao -> "MAX(lastOpenedTimeMillis, lastModifiedTimeMillis)" to "DESC"
-        }
-
-        val limite = if (teto == null) "" else "LIMIT ${teto.coerceAtLeast(0)}"
-
-        val sql = """
-            SELECT relativePath, id, lastModifiedTimeMillis, 1 AS isUnique
-            FROM Notes
-            WHERE parentPath(relativePath) = :currentNoteFolderRelativePath
-            ORDER BY $sortColumn $order, relativePath ASC
-            $limite
-        """.trimIndent()
-
-        val query = SimpleSQLiteQuery(sql, arrayOf(currentNoteFolderRelativePath))
+        val query = SimpleSQLiteQuery(
+            GradeSql.notasDaPasta(sortOrder, teto),
+            arrayOf(currentNoteFolderRelativePath),
+        )
         return this.gridNotesRaw(query)
     }
 
@@ -330,7 +323,7 @@ interface RepoDatabaseDao {
         val sql = """
             SELECT f.relativePath, f.id, COUNT(n.relativePath) as noteCount, fullName(f.relativePath) as folderName
             FROM NoteFolders AS f
-            LEFT JOIN Notes AS n ON n.relativePath LIKE f.relativePath || '%'
+            LEFT JOIN Notes AS n ON n.relativePath LIKE f.relativePath || '/%'
             WHERE parentPath(f.relativePath) = ?
             GROUP BY f.relativePath, f.id, folderName
             ORDER BY $sortColumn $order

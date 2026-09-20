@@ -1,19 +1,23 @@
 package io.github.wiiznokes.gitnote.data.room
 
+import io.github.wiiznokes.gitnote.ui.model.SortOrder
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Fase B do handoff 10 (B.1/B.2/B.3). `gridNotes`/`gridNotesWithQuery` so funcionam
- * com as funcoes SQLite customizadas `parentPath`/`fullName`/`rank`, que so carregam
- * via `RepoDatabase.buildFactory` (requery) — e essa lib nativa nao roda na JVM de
- * teste (ver ESTADO_10.md, divergencia da Fase B). Sem poder executar a consulta de
- * verdade, este teste le o texto do SQL de producao em `Dao.kt` (mesmo estilo de
- * `GridScreenFlashcardsRemovedTest`, da Fase A) e confere que o texto que vai pro
- * banco tem exatamente as mudancas da Fase B — a logica de particionamento em si
- * esta provada em `NoteFolderFilterLogicTest`.
+ * Fase B do handoff 10 (B.1/B.3), atualizada pela Fase K.2.
+ *
+ * O que a Fase B ganhou e nao pode voltar continua garantido aqui: **sem coluna
+ * `content`** e **sem funcao de janela** na consulta da grade. O que mudou na Fase K.2 e
+ * so o filtro de pasta: a listagem voltou a ser recursiva (a pasta e as descendentes),
+ * agora com a barra obrigatoria, e quem segura o custo e o `LIMIT` da Fase D — por isso
+ * as assercoes de `parentPath(relativePath) = :path` sairam.
+ *
+ * `gridNotesWithQuery` continua so verificavel como texto (usa `rank`/`fullName`, que so
+ * carregam pelo requery — ver ESTADO_10.md, divergencia da Fase B). A listagem da grade
+ * ja nao: desde a K.2 ela roda de verdade em `GradeSqlTest`.
  */
 class GridQuerySqlTextTest {
 
@@ -45,28 +49,30 @@ class GridQuerySqlTextTest {
     }
 
     @Test
-    fun gridNotesFiltraPastaExataNaoPrefixo() {
-        val fonte = lerDaoFonte()
-        val bloco = blocoDaFuncao(fonte, "fun gridNotes(", "fun gridNotesWithQuery(")
+    fun gridNotesFiltraAPastaEAsDescendentesSemPegarAIrmaDeNomeParecido() {
+        val sql = GradeSql.notasDaPasta(SortOrder.UltimaVisualizacao, teto = 10)
 
         assertTrue(
-            bloco.contains("parentPath(relativePath) = :currentNoteFolderRelativePath"),
-            "gridNotes deveria filtrar por parentPath(relativePath), nao por prefixo",
+            sql.contains("LIKE :currentNoteFolderRelativePath || '/%'"),
+            "a Fase K.2 voltou ao filtro recursivo, e a barra impede Medicina de casar com Medicina2",
         )
         assertFalse(
-            bloco.contains("LIKE :currentNoteFolderRelativePath || '%'"),
-            "o LIKE de prefixo antigo (que trazia notas de todas as subpastas) nao pode sobrar em gridNotes",
+            sql.contains("LIKE :currentNoteFolderRelativePath || '%'"),
+            "o LIKE de prefixo SEM a barra e o defeito latente que a Fase B corrigiu; nao pode voltar",
+        )
+        assertTrue(
+            lerDaoFonte().contains("GradeSql.notasDaPasta(sortOrder, teto)"),
+            "o DAO tem que usar exatamente o SQL que este teste verifica",
         )
     }
 
     @Test
     fun gridNotesNaoTemMaisFuncaoDeJanelaNemColunaDeConteudo() {
-        val fonte = lerDaoFonte()
-        val bloco = blocoDaFuncao(fonte, "fun gridNotes(", "fun gridNotesWithQuery(")
+        val sql = GradeSql.notasDaPasta(SortOrder.UltimaVisualizacao, teto = null)
 
-        assertFalse(bloco.contains("COUNT(*) OVER"), "a janela por particao devia ter sido removida de gridNotes")
-        assertFalse(bloco.contains("content"), "gridNotes nao pode selecionar a coluna content")
-        assertTrue(bloco.contains("1 AS isUnique"), "dentro de uma unica pasta o nome e sempre unico")
+        assertFalse(sql.contains("COUNT(*) OVER"), "a janela por particao saiu na Fase B e nao volta")
+        assertFalse(sql.contains("content"), "gridNotes nao pode selecionar a coluna content")
+        assertTrue(sql.contains("1 AS isUnique"), "o desambiguador de nome nao pode voltar a ser calculado")
     }
 
     @Test

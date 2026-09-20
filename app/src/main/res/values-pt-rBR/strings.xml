@@ -6,6 +6,8 @@
     <string name="oldest_sort_order">Mais antigo</string>
     <string name="last_viewed_sort_order">Última visualização ou modificação</string>
     <string name="show_all_notes">Mostrar todas (%1$d)</string>
+    <string name="go_up_one_level">Subir um nível</string>
+    <string name="empty_folder">Esta pasta não tem notas nem subpastas</string>
     <string name="new_folder_label">Nome da nova pasta</string>
     <string name="create_new_folder">Criar nova pasta</string>
     <string name="yes">Sim</string>

@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
@@ -75,6 +76,7 @@ import io.github.wiiznokes.gitnote.ui.component.CustomDropDownModel
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.model.GridRow
 import io.github.wiiznokes.gitnote.ui.model.NoteViewType
+import io.github.wiiznokes.gitnote.ui.screen.app.DrawerFolderModel
 import io.github.wiiznokes.gitnote.ui.screen.app.DrawerScreen
 import io.github.wiiznokes.gitnote.ui.viewmodel.GridViewModel
 import java.text.DateFormat
@@ -99,13 +101,18 @@ fun GridScreen(
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
+    // Fase K.1: as pastas sao as MESMAS que a gaveta ja usa — nenhuma consulta nova.
+    // Sobem para ca so para alimentar tambem a grade.
+    val pastaAtual by vm.currentNoteFolderRelativePath.collectAsState()
+    val pastas by vm.drawerFolders.collectAsState()
+
     ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
         ModalDrawerSheet {
             val pastaPadrao by vm.prefs.pastaPadrao.getAsState()
             DrawerScreen(
                 drawerState = drawerState,
-                currentNoteFolderRelativePath = vm.currentNoteFolderRelativePath.collectAsState().value,
-                drawerFolders = vm.drawerFolders.collectAsState().value,
+                currentNoteFolderRelativePath = pastaAtual,
+                drawerFolders = pastas,
                 openFolder = vm::openFolder,
                 deleteFolder = vm::deleteFolder,
                 createNoteFolder = vm::createNoteFolder,
@@ -155,6 +162,8 @@ fun GridScreen(
                 nestedScrollConnection = nestedScrollConnection,
                 padding = padding,
                 noteViewType = noteViewType,
+                pastaAtual = pastaAtual,
+                pastas = pastas,
             )
 
             TopBar(
@@ -197,10 +206,22 @@ private fun GridView(
     selectedNotes: Set<String>,
     padding: PaddingValues,
     noteViewType: NoteViewType,
+    pastaAtual: String,
+    pastas: List<DrawerFolderModel>,
 ) {
     val gridNotes = vm.gridNotes.collectAsLazyPagingItems()
     val query = vm.query.collectAsState()
     val totalParaMostrarTodas by vm.totalParaMostrarTodas.collectAsState()
+
+    val itensDeNavegacao = remember(pastaAtual, query.value, pastas) {
+        PastasNaGrade.itens(pastaAtual, query.value, pastas)
+    }
+
+    val mostrarVazio = PastasNaGrade.mostrarVazio(
+        itens = itensDeNavegacao,
+        quantidadeDeNotas = gridNotes.itemCount,
+        notasCarregando = gridNotes.loadState.refresh is LoadState.Loading,
+    )
 
 
     val isRefreshing by vm.isRefreshing.collectAsStateWithLifecycle()
@@ -238,6 +259,9 @@ private fun GridView(
                     onEditClick = onEditClick,
                     vm = vm,
                     totalParaMostrarTodas = totalParaMostrarTodas,
+                    pastaAtual = pastaAtual,
+                    itensDeNavegacao = itensDeNavegacao,
+                    mostrarVazio = mostrarVazio,
                 )
             }
 
@@ -257,6 +281,9 @@ private fun GridView(
                     onEditClick = onEditClick,
                     vm = vm,
                     totalParaMostrarTodas = totalParaMostrarTodas,
+                    pastaAtual = pastaAtual,
+                    itensDeNavegacao = itensDeNavegacao,
+                    mostrarVazio = mostrarVazio,
                 )
             }
         }
@@ -287,6 +314,9 @@ private fun GridNotesView(
     onEditClick: (Note, EditType) -> Unit,
     vm: GridViewModel,
     totalParaMostrarTodas: Int?,
+    pastaAtual: String,
+    itensDeNavegacao: List<ItemDeNavegacao>,
+    mostrarVazio: Boolean,
 ) {
 
 
@@ -303,6 +333,25 @@ private fun GridNotesView(
             Spacer(modifier = Modifier.height(topSpacerHeight))
         }
 
+        // Fase K.1: pastas acima das notas, ocupando a linha inteira. O teto de 10 da
+        // Fase D e das notas; pasta nao entra nessa conta.
+        items(
+            count = itensDeNavegacao.size,
+            key = { indice -> itensDeNavegacao[indice].chave },
+            span = { StaggeredGridItemSpan.FullLine },
+        ) { indice ->
+            LinhaDeNavegacao(
+                item = itensDeNavegacao[indice],
+                onAbrirPasta = vm::openFolder,
+            )
+        }
+
+        if (mostrarVazio) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                GradeVazia()
+            }
+        }
+
         items(
             count = gridNotes.itemCount,
             key = gridNotes.itemKey { it.id }
@@ -316,6 +365,7 @@ private fun GridNotesView(
                 selectedNotes = selectedNotes,
                 showFullPathOfNotes = showFullPathOfNotes,
                 showFullNoteHeight = showFullNoteHeight.value,
+                pastaAtual = pastaAtual,
                 modifier = Modifier.padding(3.dp)
             )
         }
@@ -342,6 +392,7 @@ private fun NoteCard(
     selectedNotes: Set<String>,
     showFullPathOfNotes: Boolean,
     showFullNoteHeight: Boolean,
+    pastaAtual: String,
     modifier: Modifier = Modifier,
 ) {
     val dropDownExpanded = remember {
@@ -407,10 +458,14 @@ private fun NoteCard(
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.Start,
             ) {
+                // Fase K.2: a listagem voltou a ser recursiva, entao o titulo mostra o
+                // caminho a partir da pasta aberta — nota da propria pasta continua so
+                // com o nome. Sem isso, duas notas de mesmo nome em subpastas
+                // diferentes ficariam identicas na tela.
                 val title = if (showFullPathOfNotes || !gridNote.isUnique) {
                     gridNote.relativePath
                 } else {
-                    gridNote.nameWithoutExtension()
+                    gridNote.tituloRelativoA(pastaAtual)
                 }
                 Text(
                     text = title,

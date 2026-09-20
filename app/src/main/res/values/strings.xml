@@ -9,6 +9,8 @@
     <string name="oldest_sort_order">Oldest</string>
     <string name="last_viewed_sort_order">Last viewed or modified</string>
     <string name="show_all_notes">Show all (%1$d)</string>
+    <string name="go_up_one_level">Up one level</string>
+    <string name="empty_folder">This folder has no notes or subfolders</string>
     <string name="new_folder_label">New folder name</string>
     <string name="create_new_folder">Create new folder</string>
     <string name="yes">Yes</string>
