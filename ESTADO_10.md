@@ -3,9 +3,11 @@
 Ordem: A, B, C, D, E, F, G, H, J.1
 (I e Parte V bloqueadas em decisão do Bruno; J.2+ exige aval dele e outro modelo — fora desta lista)
 
+Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
+
 | Fase | Status | Data | Commit | Release |
 |---|---|---|---|---|
-| A | pendente | | | |
+| A | entregue | 2026-09-20 | fe69d70 | b52 (26.08.1.52) |
 | B | pendente | | | |
 | C | pendente | | | |
 | D | pendente | | | |
@@ -40,7 +42,19 @@ Ordem: A, B, C, D, E, F, G, H, J.1
    separada para dar ao `AppModule` um seam testável (ex.: `GitManager`/`StorageManager`
    injetáveis) antes de continuar — não fiz isso aqui porque mexeria em arquitetura fora
    do pedido da Fase A.
-2. **`AndroidChaveMestra.kt` também está modificado e sem menção no handoff.**
+2. **`RepoDatabase.buildFactory` (SQLite do requery) não carrega na JVM de teste.**
+   Medido direto no CI: `UnsatisfiedLinkError` ao tentar usar
+   `RequerySQLiteOpenHelperFactory` num teste Robolectric (o `.so` é específico de
+   Android). `NotesContainingTagPerfTest` passou a usar o SQLite padrão do Room
+   (Robolectric o sombreia com uma libsqlite nativa do host), que serve porque
+   `notesContainingTag` não usa nenhuma das funções customizadas (`fullName`,
+   `parentPath`, `rank`, `caseFold`) que só o factory do requery registra. **Isto importa
+   para a Fase B**: os testes de SQL que ela pede exercitam `gridNotes`/
+   `gridNotesWithQuery`, que USAM essas funções — investigar isso no início da Fase B
+   antes de escrever os testes, porque pode ser preciso outro caminho (talvez registrar
+   as mesmas funções como um `SQLiteFunction` diferente compatível com o SQLite padrão,
+   ou aceitar que esses testes específicos não rodam no CI Linux como estão).
+3. **`AndroidChaveMestra.kt` também está modificado e sem menção no handoff.**
    O handoff (seção 0, item 9) lista 7 arquivos modificados pelo trabalho de segurança
    não commitado; o `git status` real mostra 8 — `AndroidChaveMestra.kt` também aparece
    como `M`. Não toquei nele (só li, para confirmar que construir `AppPreferences` em
