@@ -6,7 +6,8 @@ Ordem: A, B, C, D, E, F, **K**, G, H, J.1
 ~~**A Fase K entrou em 20/09** e tem prioridade sobre G e H~~ — **entregue em 20/09**
 (`382aaf7`, release b67). A regressão da Fase B está consertada: pasta que só tem subpastas
 volta a mostrar as subpastas na grade, e a leva de 10 voltou a ser recursiva. Detalhe em
-`RESULTADO_10_K.md`. **A próxima da fila é a G.**
+`RESULTADO_10_K.md`. A Fase G também foi entregue em 20/09 (`0112399`, release b68).
+**A próxima sessão é H.1 + H.3 + H.5**; H.2 já foi entregue e medida.
 
 Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 
@@ -19,7 +20,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | E | entregue | 2026-09-20 | afa2580 | b58 (26.08.1.58) |
 | F | entregue (F.1+F.2; F.3 adiada para H.4) | 2026-09-20 | 829456a | b64 (26.08.1.64) |
 | K | entregue | 2026-09-20 | 382aaf7 | b67 (26.08.1.67) |
-| G | pendente | | | |
+| G | entregue | 2026-09-20 | 0112399 | b68 (26.08.1.68) |
 | H.1 | pendente | | | |
 | H.2 | entregue e mesclada | 2026-09-20 | 3591284 (squash de `handoff10-h2`, PR #3) | b65 (26.08.1.65) |
 | H.3/H.4/H.5 | pendente | | | |
@@ -53,9 +54,9 @@ ruído do runner.
 
 | Onde | Branch | Fase | Arquivos que ela detém |
 |---|---|---|---|
-| `E:/Projetos/gitnote` | `master` | — | livre (Fase K fechada em 20/09; próxima é a **G**) |
+| `E:/Projetos/gitnote` | `master` | — | livre (Fase G fechada em 20/09; próxima é **H.1 + H.3 + H.5**) |
 
-**Nenhuma sessão de código aberta.** A próxima é a **Fase G**, na master.
+**Nenhuma sessão de código aberta.** A próxima é **H.1 + H.3 + H.5**, na master.
 
 Os worktrees de H.2 e J.1 já não existem no disco nem em `git worktree list`; as PRs #3 e #2
 estão mescladas. O worktree `gitnote-pos` permanece registrado e não faz parte desta limpeza.
@@ -228,7 +229,8 @@ executáveis neste CI hoje**. Sem dependência nova, sem risco de CI vermelho po
 
 **Lista de fases do Sonnet:** A, B, C, D, E, F e J.1 entregues (J.1 feita fora de ordem, o que
 o handoff permite explicitamente: "J.1 pode ser feita a qualquer momento, inclusive já: não
-muda comportamento"). Faltam G, H — e a **K**, entregue em 20/09 fora dessa lista original, já está fechada. F.3 (recolher no modo de edição) fica para a sessão de H.4,
+muda comportamento"). G e K também foram entregues em 20/09. Faltam H.1, H.3 e H.5.
+F.3 (recolher no modo de edição) fica para a sessão de H.4,
 por instrução explícita desta rodada — não é dívida técnica, é escopo adiado de propósito.
 
 ### Fase F (2026-09-20) — F.1 e F.2 só; F.3 não foi feita (por instrução)
@@ -326,3 +328,17 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
    exige Opus 5 com esforço máximo e aval do Bruno. H.2 foi entregue e medida na release
    b65; falta H.1 para liberar a Fase J. Prompt pronto salvo em `PROXIMO_PROMPT_J2.md`,
    mas **não deve ser usado ainda**: falta H.1.
+
+### Fase G (2026-09-20)
+
+1. **Os worktrees H.2 e J.1 já estavam removidos.** Os caminhos não existiam no disco
+   nem apareciam em `git worktree list` antes desta sessão. A limpeza documental
+   (`065c737`) retirou as linhas antigas; `gitnote-pos` permanece registrado.
+2. **A base de testes indicada no pedido estava desatualizada.** A Fase K já tinha
+   encerrado com 369 testes verdes, não 331. A Fase G acrescentou cinco: o run
+   [35542498709](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35542498709)
+   listou **374 `PASSED`**, `PERF_BUSCA` mediana **3,598 ms**, APK e release b68.
+3. **O teste de UI usa o padrão das fases anteriores.** `GitManager` ainda impede
+   construir `MarkDownVM`/`TextVM` reais na JVM. O Robolectric compôs a barra com um
+   `TextField` e confirmou a seleção depois de três toques em ›; a ligação de produção
+   a `updateSelection` foi revisada no código. Detalhes em `RESULTADO_10_G.md`.
