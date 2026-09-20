@@ -8,7 +8,7 @@
 - `TableDialog.kt` converte o snapshot antes de chamar `resizeTableAt` na pré-visualização de perda de células.
 - Testes adaptados mecanicamente ao novo tipo, sem mudar nenhuma asserção de texto/cursor: `MarkdownSmartEditorTest`, `MarkdownTableDetectionTest`, `MarkdownTableInsertionTest`, `MarkdownEditorUiTest`.
 
-Commit: `cb00b7d` — branch `handoff10-j1`, PR [#2](https://github.com/brunojcbrg-cloud/gitnote/pull/2), **ainda não mesclada** (ver "Situação").
+Commit: `cb00b7d` — branch `handoff10-j1`, mesclado em `master` via squash (`df8d403`) na PR [#2](https://github.com/brunojcbrg-cloud/gitnote/pull/2).
 
 ## Verificação de que o comportamento não mudou
 
@@ -35,7 +35,7 @@ Para comparação, o mesmo teste no `master`, medido na própria Fase E (run [35
 
 ## Situação
 
-PR [#2](https://github.com/brunojcbrg-cloud/gitnote/pull/2) aberta, não mesclada. Código revisado e correto; o CI fica vermelho só pela variação do runner num teste fora do escopo desta fase. Fica para o Bruno decidir: mesclar assim mesmo (com esta falha documentada), tentar mais uma rodada, ou tratar separadamente o limite de 3 ms da Fase E antes de mesclar. Esta sessão não mesclou a PR por conta própria.
+PR [#2](https://github.com/brunojcbrg-cloud/gitnote/pull/2) mesclada pelo Bruno em `master` (squash `df8d403`), depois de revisão desta sessão. Código revisado e correto; o CI da PR só ficou vermelho pela variação do runner num teste fora do escopo desta fase. O build de release do próprio commit de merge foi cancelado (run [35522118827](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35522118827)) porque a sessão da Fase F empurrou `38a27b8` logo em seguida no mesmo branch, e o `fork-release.yml` cancela por concorrência; o build de F.1+F.2 que sucedeu já contém o código de J.1 e serve como validação combinada.
 
 ## Limites da verificação
 

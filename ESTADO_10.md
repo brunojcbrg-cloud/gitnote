@@ -15,7 +15,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | F | entregue (F.1+F.2; F.3 fica para a sessão de H.4) | 2026-09-20 | | |
 | G | pendente | | | |
 | H | pendente | | | |
-| J.1 | entregue (PR aberta, não mesclada) | 2026-09-20 | cb00b7d (branch `handoff10-j1`, PR #2) | — |
+| J.1 | entregue e mesclada | 2026-09-20 | df8d403 (squash de `handoff10-j1`, PR #2, mesclada pelo Bruno) | build próprio cancelado (ver nota) |
 
 ## Divergências entre handoff e código real
 
@@ -190,17 +190,22 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
 
 ### Fase J.1 (2026-09-20)
 
-1. **PR aberta, não mesclada — decisão pendente do Bruno.** As 3 tentativas do CI (run
-   [35520521548](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35520521548))
-   falharam só em `SumarioTest.perfSumarioNaNotaDe1946Linhas` (Fase E, fora do escopo de
-   J.1): mediana 7,636 ms, depois 3,198 ms, depois 8,235 ms, contra limite de 3 ms — o
-   mesmo teste tinha medido 2,005 ms no `master` na própria Fase E. Instabilidade do
-   runner, não regressão: J.1 não toca nenhum arquivo `Sumario*`. Todos os outros 330
-   testes passaram nas 3 tentativas. Detalhe em `RESULTADO_10_J1.md`.
-2. **Esta sessão não mesclou a PR nem prosseguiu para J.2.** Por instrução do handoff
-   (seção "Ao terminar J.1"), J.2 exige Opus 5 com esforço máximo e aval do Bruno, além
-   de H.2 entregue e medido — e H ainda está pendente. Prompt pronto salvo em
-   `PROXIMO_PROMPT_J2.md`, mas **não deve ser usado ainda**: falta H (e H.2 em particular).
-3. **Pendências para o Bruno:** (a) decidir o que fazer com a PR #2 — mesclar com a falha
-   documentada, tentar mais uma rodada, ou isolar/afrouxar o limite de 3 ms da Fase E; (b)
-   confirmar que quer seguir a ordem recomendada e fazer F, G, H antes de autorizar J.2.
+1. **CI da PR: 330/331 testes verdes nas 3 tentativas** (run
+   [35520521548](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35520521548)).
+   A única falha, sempre a mesma, foi `SumarioTest.perfSumarioNaNotaDe1946Linhas` (Fase E,
+   fora do escopo de J.1): mediana 7,636 ms, depois 3,198 ms, depois 8,235 ms, contra
+   limite de 3 ms — o mesmo teste tinha medido 2,005 ms no `master` na própria Fase E.
+   Instabilidade do runner, não regressão: J.1 não toca nenhum arquivo `Sumario*`. Detalhe
+   em `RESULTADO_10_J1.md`.
+2. **PR #2 mesclada pelo Bruno (squash, `df8d403`) após revisão desta sessão.** Esta
+   sessão não mesclou por conta própria — o modo automático do Claude Code bloqueia
+   merge de PR sem confirmação explícita do Bruno no chat, mesmo com autorização dada.
+   O build de release próprio do commit de merge foi **cancelado** (run
+   [35522118827](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35522118827)):
+   a sessão da Fase F empurrou `38a27b8` quase em seguida, e o `fork-release.yml` cancela
+   o run anterior do mesmo branch por concorrência. O build de F.1+F.2 que sucedeu já
+   contém o código de J.1, então valida os dois juntos.
+3. **Não prosseguiu para J.2.** Por instrução do handoff (seção "Ao terminar J.1"), J.2
+   exige Opus 5 com esforço máximo e aval do Bruno, além de H.2 entregue e medido — e H
+   ainda está pendente. Prompt pronto salvo em `PROXIMO_PROMPT_J2.md`, mas **não deve ser
+   usado ainda**: falta H (e H.2 em particular).
