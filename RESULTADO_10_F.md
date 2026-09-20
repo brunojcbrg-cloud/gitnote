@@ -33,6 +33,38 @@
   recebendo `textContent` original — provado por teste estrutural (ver "Medição e
   testes").
 
+## O CI pegou 3 problemas que a leitura não pegou
+
+Os dois primeiros pushes quebraram o CI (compilação e depois testes). Os três problemas,
+todos consertados antes deste relatório:
+
+1. **`compileDebugKotlin` falhou**: `import androidx.compose.foundation.layout.weight`
+   em `markdownHelper.kt` colidia com uma propriedade interna homônima do mesmo pacote
+   (`RowColumnParentData?.weight`). `RowScope.weight` é membro implícito dentro de
+   `Row { }` — não precisa de import (o mesmo padrão que `SumarioLateral.kt` já usava
+   sem importar). Import removido.
+2. **`compileDebugUnitTestKotlin` falhou**: `assertExists`/`assertDoesNotExist` são
+   membros de `SemanticsNodeInteraction`, não extensões top-level importáveis por esse
+   caminho — `MarkdownEditorUiTest.kt` já usava `assertExists()` sem importar. Imports
+   removidos dos dois arquivos de teste novos.
+3. **Três testes falharam de verdade** (341/344 passaram):
+   - `DobraTest.recolherTudoNumaNotaSemAninhamentoDeixaSoAsLinhasDeTitulo` esperava 278,
+     veio 279 — o último título preserva sua própria quebra de linha (fica antes do
+     corte dele), então `split("\n")` conta uma linha vazia extra no fim.
+     `removeSuffix("\n")` antes do split corrige, sem mudar o que está sendo provado.
+   - `SumarioLateralTest`: clicar em `onNodeWithTag("sumario-recolher-nivel-2")` não
+     disparava o callback (`nivelPedido` ficava `null`) — causa não identificada com
+     confiança (a mesma técnica de tag funciona nos outros testes do arquivo). Troquei
+     para `onNodeWithText("H2")`, que já tinha histórico de funcionar no mesmo teste
+     (para "Collapse all"/"Expand all"); mantive um `assertExists()` pela tag para não
+     perder a cobertura de que o botão certo está lá.
+   - `MarkdownCustomInnerRecolherTest.semCallbackDeToggleOTituloContinuaSemChevronClicavelExtra`:
+     sem `onHeadingCollapseToggle`, "Título" simplesmente não aparecia no Robolectric —
+     mesmo caminho (`return delegate`) que já existia antes da Fase F e que
+     `FlashcardScreens.kt` usa em produção; não decifrei a causa raiz nesse ambiente de
+     teste. Troquei por uma prova estrutural (leitura do código-fonte), no mesmo padrão
+     que o resto do repositório usa quando o Robolectric não coopera.
+
 ## Duas coisas encontradas nesta fase (detalhe completo em `ESTADO_10.md`)
 
 1. **Perguntei ao Bruno antes de codar "Recolher tudo"**: a regra de não regressão

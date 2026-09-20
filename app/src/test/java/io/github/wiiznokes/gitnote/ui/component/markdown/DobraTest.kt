@@ -111,7 +111,10 @@ class DobraTest {
         val recolhidas = sumario.map { it.offset }.toSet()
 
         val resultado = dobrar(nota, recolhidas)
-        val linhasVisiveis = resultado.visivel.split("\n")
+        // O último título preserva sua própria quebra de linha (fica antes do corte
+        // dele): sobra um "\n" no fim do texto visível, que split() conta como uma
+        // linha extra vazia -- removeSuffix tira só essa, não mexe no conteúdo.
+        val linhasVisiveis = resultado.visivel.removeSuffix("\n").split("\n")
 
         assertEquals(sumario.size, linhasVisiveis.size)
         assertEquals(sumario.map { it.texto }, sumario.indices.map {
