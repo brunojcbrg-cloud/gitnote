@@ -108,7 +108,8 @@ class SumarioLateralTest {
         composeRule.runOnIdle { assertTrue(recolherTudoChamado) }
         composeRule.onNodeWithText("Expand all").performClick()
         composeRule.runOnIdle { assertTrue(expandirTudoChamado) }
-        composeRule.onNodeWithTag("sumario-recolher-nivel-2").performClick()
+        composeRule.onNodeWithTag("sumario-recolher-nivel-2").assertExists()
+        composeRule.onNodeWithText("H2").performClick()
         composeRule.runOnIdle { assertEquals(2, nivelPedido) }
     }
 }
