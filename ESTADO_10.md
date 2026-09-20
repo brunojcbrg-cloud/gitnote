@@ -54,13 +54,11 @@ ruído do runner.
 | Onde | Branch | Fase | Arquivos que ela detém |
 |---|---|---|---|
 | `E:/Projetos/gitnote` | `master` | — | livre (Fase K fechada em 20/09; próxima é a **G**) |
-| `E:/Projetos/gitnote-h2` | — | — | worktree já cumprido (PR #3 mesclada em 17:15); pode ser removido |
-| `E:/Projetos/gitnote-j1` | — | — | worktree já cumprido (PR #2 mesclada); pode ser removido |
 
 **Nenhuma sessão de código aberta.** A próxima é a **Fase G**, na master.
 
-Limpeza pendente (comandos, quando quiser):
-`git worktree remove --force "E:/Projetos/gitnote-h2"` e o mesmo para `gitnote-j1`.
+Os worktrees de H.2 e J.1 já não existem no disco nem em `git worktree list`; as PRs #3 e #2
+estão mescladas. O worktree `gitnote-pos` permanece registrado e não faz parte desta limpeza.
 
 **O handoff 10 não está versionado.** Os handoffs 07, 08 e 09 estão no git; o
 `HANDOFF_10_...md` só existe em disco, em três cópias soltas. Commitá-lo não dispara CI
@@ -325,6 +323,6 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
    o run anterior do mesmo branch por concorrência. O build de F.1+F.2 que sucedeu já
    contém o código de J.1, então valida os dois juntos.
 3. **Não prosseguiu para J.2.** Por instrução do handoff (seção "Ao terminar J.1"), J.2
-   exige Opus 5 com esforço máximo e aval do Bruno, além de H.2 entregue e medido — e H
-   ainda está pendente. Prompt pronto salvo em `PROXIMO_PROMPT_J2.md`, mas **não deve ser
-   usado ainda**: falta H (e H.2 em particular).
+   exige Opus 5 com esforço máximo e aval do Bruno. H.2 foi entregue e medida na release
+   b65; falta H.1 para liberar a Fase J. Prompt pronto salvo em `PROXIMO_PROMPT_J2.md`,
+   mas **não deve ser usado ainda**: falta H.1.
