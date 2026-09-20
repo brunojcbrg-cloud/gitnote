@@ -11,9 +11,11 @@ import androidx.paging.map
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.AppPreferences
+import io.github.wiiznokes.gitnote.data.room.Abertura
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.data.room.NoteFolder
 import io.github.wiiznokes.gitnote.data.room.RepoDatabase
+import io.github.wiiznokes.gitnote.ui.model.SortOrder
 import io.github.wiiznokes.gitnote.helper.NameValidation
 import io.github.wiiznokes.gitnote.manager.StorageManager
 import io.github.wiiznokes.gitnote.ui.model.FileExtension
@@ -26,10 +28,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class GridViewModel : ViewModel() {
+
+    private data class CondicoesDaGrade(
+        val pasta: String,
+        val ordem: SortOrder,
+        val query: String,
+        val teto: Int?,
+    )
 
     companion object {
         private const val TAG = "GridViewModel"
@@ -41,10 +53,17 @@ class GridViewModel : ViewModel() {
     val prefs: AppPreferences = MyApp.appModule.appPreferences
     private val db: RepoDatabase = MyApp.appModule.repoDatabase
     private val dao = db.repoDatabaseDao
+    private val historicoDao = MyApp.appModule.historicoDatabase.dao
     val uiHelper = MyApp.appModule.uiHelper
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
+
+    private val _teto = MutableStateFlow<Int?>(TetoDeNotas.PRIMEIRA_LEVA)
+
+    fun mostrarTodas() {
+        _teto.value = null
+    }
 
     val syncState = storageManager.syncState
 
@@ -59,31 +78,60 @@ class GridViewModel : ViewModel() {
 
 
     private val _currentNoteFolderRelativePath = MutableStateFlow(
-        if (prefs.rememberLastOpenedFolder.getBlocking()) {
-            prefs.lastOpenedFolder.getBlocking()
-        } else {
-            ""
-        }
+        PastaInicial.escolher(
+            rememberLastOpenedFolder = prefs.rememberLastOpenedFolder.getBlocking(),
+            lastOpenedFolder = prefs.lastOpenedFolder.getBlocking(),
+            pastaPadrao = prefs.pastaPadrao.getBlocking(),
+        )
     )
     val currentNoteFolderRelativePath: StateFlow<String>
         get() = _currentNoteFolderRelativePath.asStateFlow()
 
 
-    private val _selectedNotes: MutableStateFlow<List<Note>> = MutableStateFlow(emptyList())
+    private val _selectedNotes: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet())
 
-    val selectedNotes: StateFlow<List<Note>>
+    val selectedNotes: StateFlow<Set<String>>
         get() = _selectedNotes.asStateFlow()
 
 
     init {
         Log.d(TAG, "init")
+
+        val pastaInicial = _currentNoteFolderRelativePath.value
+        if (pastaInicial != "") {
+            viewModelScope.launch {
+                if (!dao.isFolderExist(pastaInicial)) {
+                    Log.d(TAG, "pasta inicial \"$pastaInicial\" nao existe, caindo para a raiz")
+                    _currentNoteFolderRelativePath.emit("")
+                    uiHelper.makeToast(uiHelper.getString(R.string.default_startup_folder_not_found))
+                }
+            }
+        }
     }
 
     suspend fun refreshSelectedNotes() {
-        selectedNotes.value.filter { selectedNote ->
-            dao.isNoteExist(selectedNote.relativePath)
-        }.let { newSelectedNotes ->
+        selectedNotes.value.filter { relativePath ->
+            dao.isNoteExist(relativePath)
+        }.toSet().let { newSelectedNotes ->
             _selectedNotes.emit(newSelectedNotes)
+        }
+    }
+
+    /**
+     * O card/linha da grade so guarda [io.github.wiiznokes.gitnote.ui.model.GridRow]
+     * (sem conteudo, Fase B do handoff 10). Quem precisa da nota inteira — abrir no
+     * editor ou apagar — busca sob demanda aqui.
+     */
+    fun abrirNota(relativePath: String, onNoteLoaded: (Note) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            dao.noteByRelativePath(relativePath)?.let { note ->
+                val agora = System.currentTimeMillis()
+                historicoDao.upsert(Abertura(relativePath, agora))
+                dao.updateLastOpened(relativePath, agora)
+                withContext(Dispatchers.Main) {
+                    onNoteLoaded(note.copy(lastOpenedTimeMillis = agora))
+                }
+            }
         }
     }
 
@@ -114,6 +162,7 @@ class GridViewModel : ViewModel() {
 
     fun openFolder(relativePath: String) {
         viewModelScope.launch {
+            _teto.emit(TetoDeNotas.PRIMEIRA_LEVA)
             _currentNoteFolderRelativePath.emit(relativePath)
             prefs.lastOpenedFolder.update(relativePath)
         }
@@ -147,31 +196,34 @@ class GridViewModel : ViewModel() {
     /**
      * @param add true if the note must be selected, false otherwise
      */
-    fun selectNote(note: Note, add: Boolean) = viewModelScope.launch {
+    fun selectNote(relativePath: String, add: Boolean) = viewModelScope.launch {
         if (add) {
-            selectedNotes.value.plus(note)
+            selectedNotes.value.plus(relativePath)
         } else {
-            selectedNotes.value.minus(note)
+            selectedNotes.value.minus(relativePath)
         }.let {
             _selectedNotes.emit(it)
         }
     }
 
     fun unselectAllNotes() = viewModelScope.launch {
-        _selectedNotes.emit(emptyList())
+        _selectedNotes.emit(emptySet())
     }
 
     fun deleteSelectedNotes() {
         CoroutineScope(Dispatchers.IO).launch {
-            val currentSelectedNotes = selectedNotes.value
+            val currentSelectedPaths = selectedNotes.value
             unselectAllNotes()
-            storageManager.deleteNotes(currentSelectedNotes)
+            val notes = currentSelectedPaths.mapNotNull { dao.noteByRelativePath(it) }
+            storageManager.deleteNotes(notes)
         }
     }
 
-    fun deleteNote(note: Note) {
+    fun deleteNote(relativePath: String) {
         CoroutineScope(Dispatchers.IO).launch {
-            storageManager.deleteNote(note)
+            dao.noteByRelativePath(relativePath)?.let { note ->
+                storageManager.deleteNote(note)
+            }
         }
     }
 
@@ -210,30 +262,47 @@ class GridViewModel : ViewModel() {
         currentNoteFolderRelativePath,
         prefs.sortOrder.getFlow(),
         query,
-    ) { currentNoteFolderRelativePath, sortOrder, query ->
-        Triple(currentNoteFolderRelativePath, sortOrder, query)
-    }.flatMapLatest { triple ->
-        val (currentNoteFolderRelativePath, sortOrder, query) = triple
+        _teto,
+    ) { currentNoteFolderRelativePath, sortOrder, query, teto ->
+        CondicoesDaGrade(currentNoteFolderRelativePath, sortOrder, query, teto)
+    }.flatMapLatest { condicoes ->
 
         Pager(
             config = PagingConfig(pageSize = 50),
             pagingSourceFactory = {
-                if (query.isEmpty()) {
-                    dao.gridNotes(currentNoteFolderRelativePath, sortOrder)
+                if (condicoes.query.isEmpty()) {
+                    dao.gridNotes(
+                        condicoes.pasta,
+                        condicoes.ordem,
+                        TetoDeNotas.paraConsulta(condicoes.query, condicoes.teto),
+                    )
                 } else {
-                    dao.gridNotesWithQuery(currentNoteFolderRelativePath, sortOrder, query)
+                    dao.gridNotesWithQuery(condicoes.pasta, condicoes.ordem, condicoes.query)
                 }
             }
         ).flow.cachedIn(viewModelScope)
     }.combine(selectedNotes) { gridNotes, selectedNotes ->
-        gridNotes.map { gridNote ->
-            gridNote.copy(
-                selected = selectedNotes.contains(gridNote.note)
+        gridNotes.map { gridRow ->
+            gridRow.copy(
+                selected = selectedNotes.contains(gridRow.relativePath)
             )
         }
     }.stateIn(
         CoroutineScope(Dispatchers.IO), SharingStarted.WhileSubscribed(5000), PagingData.empty()
     )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val totalParaMostrarTodas = combine(currentNoteFolderRelativePath, query, _teto) { pasta, busca, teto ->
+        Triple(pasta, busca, teto)
+    }.flatMapLatest { (pasta, busca, teto) ->
+        if (busca.isNotEmpty() || teto == null) {
+            flowOf(null)
+        } else {
+            dao.countNotesInFolder(pasta).map { total ->
+                TetoDeNotas.totalParaRodape(busca, teto, total)
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // todo: use pager
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -79,6 +79,7 @@ fun DrawerScreen(
     openFolder: (String) -> Unit,
     deleteFolder: (NoteFolder) -> Unit,
     createNoteFolder: (relativeParentPath: String, name: String) -> Boolean,
+    pastaPadrao: String = "",
 ) {
 
 
@@ -129,6 +130,33 @@ fun DrawerScreen(
                 .padding(paddingValues = paddingValues),
             state = listState
         ) {
+
+            if (pastaPadrao != "" && currentNoteFolderRelativePath != pastaPadrao) {
+                item(key = "voltar_a_pasta_padrao") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { openFolder(pastaPadrao) }
+                            .padding(LocalSpaces.current.smallPadding),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SimpleIcon(
+                            modifier = Modifier
+                                .size(IconDefaultSize),
+                            imageVector = Icons.Rounded.Home
+                        )
+
+                        SimpleSpacer(width = LocalSpaces.current.smallPadding)
+
+                        Text(
+                            text = stringResource(R.string.back_to_default_folder),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
 
             items(
                 drawerFolders,

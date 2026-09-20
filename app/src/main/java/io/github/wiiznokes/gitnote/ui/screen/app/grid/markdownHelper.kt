@@ -1,17 +1,21 @@
 package io.github.wiiznokes.gitnote.ui.screen.app.grid
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
@@ -20,6 +24,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import com.mikepenz.markdown.compose.MarkdownSuccess
 import com.mikepenz.markdown.compose.components.CurrentComponentsBridge
@@ -58,26 +63,6 @@ import org.intellij.markdown.parser.MarkdownParser
 
 
 @Composable
-fun MarkdownCustom(
-    content: String,
-    onClick: () -> Unit,
-) {
-    CompositionLocalProvider(
-        LocalUriHandler provides object : UriHandler {
-            override fun openUri(uri: String) {
-                onClick()
-            }
-        }
-    ) {
-        MarkdownCustomInner(
-            content = content,
-            modifier = Modifier
-                .verticalScroll(state = rememberScrollState(), enabled = false)
-        )
-    }
-}
-
-@Composable
 fun MarkdownCustomInner(
     content: String,
     colors: MarkdownColors = markdownColor(),
@@ -93,9 +78,13 @@ fun MarkdownCustomInner(
     inlineContent: MarkdownInlineContent = markdownInlineContent(),
     onHeadingPositioned: ((text: String, sourceOffset: Int, coordinates: LayoutCoordinates) -> Unit)? = null,
     onBlockPositioned: ((sourceOffset: Int, coordinates: LayoutCoordinates) -> Unit)? = null,
+    onHeadingCollapseToggle: ((sourceOffset: Int) -> Unit)? = null,
+    isHeadingCollapsed: ((sourceOffset: Int) -> Boolean)? = null,
     components: MarkdownComponents = markdownComponentsWithHeadingPositions(
         onHeadingPositioned,
         onBlockPositioned,
+        onHeadingCollapseToggle,
+        isHeadingCollapsed,
     ),
     animations: MarkdownAnimations = markdownAnimations(),
     referenceLinkHandler: ReferenceLinkHandler = ReferenceLinkHandlerImpl(),
@@ -130,6 +119,8 @@ fun MarkdownCustomInner(
 private fun markdownComponentsWithHeadingPositions(
     onHeadingPositioned: ((String, Int, LayoutCoordinates) -> Unit)?,
     onBlockPositioned: ((Int, LayoutCoordinates) -> Unit)?,
+    onHeadingCollapseToggle: ((Int) -> Unit)? = null,
+    isHeadingCollapsed: ((Int) -> Boolean)? = null,
 ): MarkdownComponents {
     val checkbox: MarkdownComponent = {
         MarkdownCheckBox(
@@ -138,15 +129,17 @@ private fun markdownComponentsWithHeadingPositions(
             it.typography.text,
         )
     }
+    fun heading(delegate: MarkdownComponent) =
+        positionedHeading(delegate, onHeadingPositioned, onHeadingCollapseToggle, isHeadingCollapsed)
     return markdownComponents(
         codeFence = positionedBlock(CurrentComponentsBridge.codeFence, onBlockPositioned),
         codeBlock = positionedBlock(CurrentComponentsBridge.codeBlock, onBlockPositioned),
-        heading1 = positionedHeading(CurrentComponentsBridge.heading1, onHeadingPositioned),
-        heading2 = positionedHeading(CurrentComponentsBridge.heading2, onHeadingPositioned),
-        heading3 = positionedHeading(CurrentComponentsBridge.heading3, onHeadingPositioned),
-        heading4 = positionedHeading(CurrentComponentsBridge.heading4, onHeadingPositioned),
-        heading5 = positionedHeading(CurrentComponentsBridge.heading5, onHeadingPositioned),
-        heading6 = positionedHeading(CurrentComponentsBridge.heading6, onHeadingPositioned),
+        heading1 = heading(CurrentComponentsBridge.heading1),
+        heading2 = heading(CurrentComponentsBridge.heading2),
+        heading3 = heading(CurrentComponentsBridge.heading3),
+        heading4 = heading(CurrentComponentsBridge.heading4),
+        heading5 = heading(CurrentComponentsBridge.heading5),
+        heading6 = heading(CurrentComponentsBridge.heading6),
         blockQuote = positionedBlock(CurrentComponentsBridge.blockQuote, onBlockPositioned),
         paragraph = positionedBlock(CurrentComponentsBridge.paragraph, onBlockPositioned),
         orderedList = positionedBlock(CurrentComponentsBridge.orderedList, onBlockPositioned),
@@ -159,17 +152,39 @@ private fun markdownComponentsWithHeadingPositions(
 private fun positionedHeading(
     delegate: MarkdownComponent,
     onHeadingPositioned: ((String, Int, LayoutCoordinates) -> Unit)?,
+    onHeadingCollapseToggle: ((Int) -> Unit)?,
+    isHeadingCollapsed: ((Int) -> Boolean)?,
 ): MarkdownComponent {
-    val callback = onHeadingPositioned ?: return delegate
+    if (onHeadingPositioned == null && onHeadingCollapseToggle == null) return delegate
     return { model ->
         val text = model.node.findChildOfType(MarkdownTokenTypes.ATX_CONTENT)
             ?.getUnescapedTextInNode(model.content)
+        val offset = model.node.startOffset
         Box(
             modifier = Modifier.onGloballyPositioned { coordinates ->
-                if (text != null) callback(text, model.node.startOffset, coordinates)
+                if (text != null) onHeadingPositioned?.invoke(text, offset, coordinates)
             }
         ) {
-            delegate(model)
+            if (onHeadingCollapseToggle != null) {
+                val recolhido = isHeadingCollapsed?.invoke(offset) == true
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onHeadingCollapseToggle(offset) },
+                ) {
+                    Icon(
+                        imageVector = if (recolhido) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        delegate(model)
+                    }
+                }
+            } else {
+                delegate(model)
+            }
         }
     }
 }

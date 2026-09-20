@@ -224,6 +224,74 @@ class MarkdownLivePreviewTransformationTest {
     }
 
     @Test
+    fun scanCacheReusesTheSameSpanListWhenTheTextDidNotChange() {
+        // Prova por identidade de referencia (nao por tempo, que e ruidoso em CI):
+        // texto igual devolve a MESMA List<MdSpan>; texto diferente devolve outra.
+        val fonteA = "**a**\n_b_\n# c"
+        val fonteAEquivalente = StringBuilder(fonteA).toString() // outra instancia, mesmo conteudo
+        val fonteB = "**a**\n_b_\n# c\n"
+
+        val primeiraVarredura = MarkdownLivePreviewTransformation.scanCachedForTest(fonteA)
+        val segundaVarredura = MarkdownLivePreviewTransformation.scanCachedForTest(fonteAEquivalente)
+        val terceiraVarredura = MarkdownLivePreviewTransformation.scanCachedForTest(fonteB)
+        val quartaVarredura = MarkdownLivePreviewTransformation.scanCachedForTest(fonteA)
+
+        assertTrue(fonteA !== fonteAEquivalente, "o teste exige instancias de String diferentes")
+        assertTrue(
+            primeiraVarredura === segundaVarredura,
+            "texto de conteudo igual deveria reaproveitar a varredura do cache",
+        )
+        assertTrue(
+            terceiraVarredura !== segundaVarredura,
+            "texto diferente deveria invalidar o cache",
+        )
+        assertTrue(
+            quartaVarredura !== terceiraVarredura,
+            "voltar ao texto anterior deveria revarrer (cache tem uma entrada so)",
+        )
+        assertEquals(primeiraVarredura, quartaVarredura)
+    }
+
+    @Test
+    fun scanCacheHelpsOnlyWhenTheTextIsUnchanged() {
+        // H.2: MarkdownScanner.scan(source) e memorizado num cache de uma entrada,
+        // compartilhado entre instancias (MarkDown.kt cria uma
+        // MarkdownLivePreviewTransformation nova a cada mudanca de selecao). Aqui se
+        // mede o efeito nos dois cenarios pedidos, na mesma nota sintetica da regua
+        // de 27,4 ms/tecla (PERF_MARKDOWN_LIVE_PREVIEW).
+        val fonte = largeNoteFixture(lineCount = 1_946, characterCount = 180_046)
+
+        // Pior caso: o texto muda a cada chamada (digitando), o cache nunca acerta.
+        val variantesDeAquecimento = List(3) { indice -> fonte + "x".repeat(indice + 1) }
+        variantesDeAquecimento.forEach { transform(it) }
+        val amostrasTextoMuda = List(5) { indice ->
+            measureTime { transform(fonte + "y".repeat(indice + 100)) }.inWholeMicroseconds / 1_000.0
+        }
+        val medianaTextoMuda = amostrasTextoMuda.sorted()[amostrasTextoMuda.size / 2]
+        println(
+            "PERF_H2_SCAN_CACHE cenario=texto_muda_a_cada_chamada " +
+                "samples_ms=$amostrasTextoMuda median_ms=$medianaTextoMuda",
+        )
+
+        // Caso que o cache resolve: o texto e o mesmo, so a linha ativa (selecao) muda.
+        repeat(2) { transform(fonte, setOf(it)) }
+        val amostrasSoSelecao = List(5) { indice ->
+            measureTime { transform(fonte, setOf(indice)) }.inWholeMicroseconds / 1_000.0
+        }
+        val medianaSoSelecao = amostrasSoSelecao.sorted()[amostrasSoSelecao.size / 2]
+        println(
+            "PERF_H2_SCAN_CACHE cenario=so_selecao_muda " +
+                "samples_ms=$amostrasSoSelecao median_ms=$medianaSoSelecao",
+        )
+
+        // Sem asserção sobre o tempo em si: runner de CI é ruidoso o bastante para
+        // isso flacar (foi o que aconteceu com o teto de 3 ms de SumarioTest na
+        // Fase J.1). Os números vão para o relatório, não para um portão automático.
+        assertEquals(1_946, fonte.count { it == '\n' } + 1)
+        assertEquals(180_046, fonte.length)
+    }
+
+    @Test
     fun aFenceLineKeepsItsOwnTextOnScreen() {
         val source = "``` - lembrar da tabela\nconteudo\n```\ndepois"
         val result = transform(source)

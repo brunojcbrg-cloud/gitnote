@@ -7,6 +7,8 @@
     <string name="za_sort_order">Z-A</string>
     <string name="most_recent_sort_order">Most recent</string>
     <string name="oldest_sort_order">Oldest</string>
+    <string name="last_viewed_sort_order">Last viewed or modified</string>
+    <string name="show_all_notes">Show all (%1$d)</string>
     <string name="new_folder_label">New folder name</string>
     <string name="create_new_folder">Create new folder</string>
     <string name="yes">Yes</string>
@@ -20,6 +22,10 @@
     <string name="sort_order">Sort Order</string>
     <string name="sort_order_folder">Sort Order folder</string>
     <string name="defaultPathForNewNote">Default path for new notes</string>
+    <string name="default_startup_folder">Default folder on startup</string>
+    <string name="default_startup_folder_not_found">Default folder no longer exists, opened the root instead</string>
+    <string name="back_to_default_folder">Back to default folder</string>
+    <string name="clear">Clear</string>
     <string name="minimal_note_width">Minimal width of a note</string>
     <string name="show_long_notes">Show long notes entirely</string>
     <string name="remember_last_opened_folder">Remember last opened folder</string>
@@ -216,4 +222,11 @@
     <string name="configure_table">Configure table</string>
     <string name="continue_action">Continue</string>
     <string name="table_content_loss_confirmation">%1$d non-empty cell(s) will be lost. Continue?</string>
+    <string name="block_screen_capture">Block screenshots and screen recording</string>
+    <string name="block_screen_capture_subtitle">Hide notes in the recent apps preview. Turn off temporarily when you need a screenshot.</string>
+    <string name="storage_config_title">Repository storage</string>
+    <string name="note_outline">Outline</string>
+    <string name="close_outline">Close outline</string>
+    <string name="outline_collapse_all">Collapse all</string>
+    <string name="outline_expand_all">Expand all</string>
 </resources>

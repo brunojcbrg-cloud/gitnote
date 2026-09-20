@@ -4,6 +4,8 @@
     <string name="light_theme">Claro</string>
     <string name="dark_theme">Escuro</string>
     <string name="oldest_sort_order">Mais antigo</string>
+    <string name="last_viewed_sort_order">Última visualização ou modificação</string>
+    <string name="show_all_notes">Mostrar todas (%1$d)</string>
     <string name="new_folder_label">Nome da nova pasta</string>
     <string name="create_new_folder">Criar nova pasta</string>
     <string name="yes">Sim</string>
@@ -16,6 +18,10 @@
     <string name="dynamic_colors">Cores dinâmicas</string>
     <string name="sort_order">Ordem de organização</string>
     <string name="defaultPathForNewNote">Caminho padrão para novas notas</string>
+    <string name="default_startup_folder">Pasta padrão ao iniciar</string>
+    <string name="default_startup_folder_not_found">A pasta padrão não existe mais, a raiz foi aberta no lugar</string>
+    <string name="back_to_default_folder">Voltar à pasta padrão</string>
+    <string name="clear">Limpar</string>
     <string name="minimal_note_width">Largura máxima de uma nota</string>
     <string name="show_long_notes">Mostrar notas longas por completo</string>
     <string name="remember_last_opened_folder">Lembrar última pasta aberta</string>
@@ -187,4 +193,11 @@
     <string name="configure_table">Configurar tabela</string>
     <string name="continue_action">Continuar</string>
     <string name="table_content_loss_confirmation">%1$d célula(s) com conteúdo serão perdidas. Continuar?</string>
+    <string name="block_screen_capture">Bloquear capturas e gravação de tela</string>
+    <string name="block_screen_capture_subtitle">Oculta as notas na tela de apps recentes. Desative temporariamente para fazer uma captura.</string>
+    <string name="storage_config_title">Armazenamento do repositório</string>
+    <string name="note_outline">Sumário</string>
+    <string name="close_outline">Fechar sumário</string>
+    <string name="outline_collapse_all">Recolher tudo</string>
+    <string name="outline_expand_all">Expandir tudo</string>
 </resources>

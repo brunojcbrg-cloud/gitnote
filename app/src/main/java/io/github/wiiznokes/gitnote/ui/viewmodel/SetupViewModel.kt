@@ -255,6 +255,9 @@ class SetupViewModel(val authFlow: SharedFlow<String>) : ViewModel(), SetupViewM
             }
         )
 
+        // The OAuth token is needed only while creating the repository/deploy key.
+        // Keep it through the clone and remove it before leaving setup.
+        prefs.appAuthToken.reset()
         onSuccess()
 
     }

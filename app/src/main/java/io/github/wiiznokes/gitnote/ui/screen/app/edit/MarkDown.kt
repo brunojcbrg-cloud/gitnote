@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -73,6 +74,7 @@ import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.ui.component.markdown.HeadingAnchor
+import io.github.wiiznokes.gitnote.ui.component.markdown.dobrar
 import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
 import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
 import io.github.wiiznokes.gitnote.ui.component.markdown.firstLineAtOrAfter
@@ -84,6 +86,8 @@ import io.github.wiiznokes.gitnote.ui.component.markdown.nearestLineAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
+import io.github.wiiznokes.gitnote.ui.component.markdown.secoesDe
+import io.github.wiiznokes.gitnote.ui.component.markdown.sumarioDe
 import io.github.wiiznokes.gitnote.ui.component.markdown.wikilinkNames
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.MarkdownCustomInner
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
@@ -119,6 +123,8 @@ fun MarkDownContent(
     onOpenNote: (Note, String?) -> Unit = { _, _ -> },
     isReadOnlyModeActive: Boolean,
     textContent: TextFieldValue,
+    sumarioAberto: Boolean = false,
+    onSumarioAbertoChange: (Boolean) -> Unit = {},
 ) {
     val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
     val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
@@ -144,6 +150,15 @@ fun MarkDownContent(
         val renderedContent = remember(textContent.text, existingNames) {
             preprocessWikilinksForReading(textContent.text, existingNames)
         }
+        val itensDeSumario = remember(renderedContent) { sumarioDe(renderedContent) }
+        // Recolhimento é só de exibição: o texto salvo (textContent) nunca muda.
+        var recolhidas by rememberSaveable(vm.previousNote.relativePath) { mutableStateOf(setOf<Int>()) }
+        val textoDobrado = remember(renderedContent, recolhidas) { dobrar(renderedContent, recolhidas) }
+        val conteudoExibido = textoDobrado.visivel
+        var arrastandoSumario by remember { mutableStateOf(false) }
+        val linhaAtual = itensDeSumario.lastOrNull { item ->
+            (headingPositions[item.offset]?.y ?: Int.MAX_VALUE) <= scrollState.value
+        }?.linha ?: 0
         val renderedLineStarts = remember(renderedContent) { lineStartOffsets(renderedContent) }
         val blockCoordinates = remember(renderedContent) {
             mutableMapOf<Int, LayoutCoordinates>()
@@ -161,7 +176,8 @@ fun MarkDownContent(
             }.toMap()
         }
 
-        fun registerBlock(sourceOffset: Int, coordinates: LayoutCoordinates) {
+        fun registerBlock(sourceOffsetVisivel: Int, coordinates: LayoutCoordinates) {
+            val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
             val line = lineOfOffset(renderedLineStarts, sourceOffset)
             blockCoordinates[line] = coordinates
         }
@@ -333,12 +349,13 @@ fun MarkDownContent(
 
                     SelectionContainer {
                         MarkdownCustomInner(
-                            content = renderedContent,
+                            content = conteudoExibido,
                             colors = readingColors,
                             typography = readingTypography,
                             annotator = annotator,
-                            onHeadingPositioned = { text, sourceOffset, coordinates ->
-                                registerBlock(sourceOffset, coordinates)
+                            onHeadingPositioned = { text, sourceOffsetVisivel, coordinates ->
+                                registerBlock(sourceOffsetVisivel, coordinates)
+                                val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
                                 val container = containerCoordinates
                                 if (container != null && coordinates.isAttached) {
                                     val y = container
@@ -352,6 +369,17 @@ fun MarkDownContent(
                                 }
                             },
                             onBlockPositioned = ::registerBlock,
+                            onHeadingCollapseToggle = { sourceOffsetVisivel ->
+                                val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
+                                recolhidas = if (sourceOffset in recolhidas) {
+                                    recolhidas - sourceOffset
+                                } else {
+                                    recolhidas + sourceOffset
+                                }
+                            },
+                            isHeadingCollapsed = { sourceOffsetVisivel ->
+                                textoDobrado.mapa.paraOriginal(sourceOffsetVisivel) in recolhidas
+                            },
                             modifier = Modifier.padding(15.dp),
                         )
                     }
@@ -359,10 +387,58 @@ fun MarkDownContent(
             }
             FastScrollOverlay(
                 scrollState = scrollState,
+                onDraggingChange = { arrastandoSumario = it },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+            if ((sumarioAberto || arrastandoSumario) && itensDeSumario.isNotEmpty()) {
+                SumarioLateral(
+                    itens = itensDeSumario,
+                    linhaAtual = linhaAtual,
+                    onDismiss = { onSumarioAbertoChange(false) },
+                    onItemClick = { item ->
+                        onSumarioAbertoChange(false)
+                        // Se o título estiver escondido dentro de uma seção recolhida, abre
+                        // essa seção primeiro: senão a rolagem some num ponto sem título.
+                        if (recolhidas.isNotEmpty()) {
+                            val secao = secoesDe(renderedContent, itensDeSumario)
+                                .firstOrNull { item.offset in it.inicioCorpo until it.fimCorpo }
+                            if (secao != null && secao.titulo.offset in recolhidas) {
+                                recolhidas = recolhidas - secao.titulo.offset
+                            }
+                        }
+                        coroutineScope.launch {
+                            val proximo = headingPositions[item.offset]?.y
+                                ?: nearestAnchorAtOrBefore(item.linha, measuredBlockPositions())
+                                ?: 0
+                            scrollState.scrollTo(proximo.coerceIn(0, scrollState.maxValue))
+                            // O bloco ainda não medido entra na composição depois da primeira rolagem.
+                            var y = headingPositions[item.offset]?.y
+                            repeat(3) {
+                                if (y == null) {
+                                    withFrameNanos { }
+                                    y = headingPositions[item.offset]?.y
+                                }
+                            }
+                            y?.let { scrollState.animateScrollTo(it.coerceIn(0, scrollState.maxValue)) }
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    onRecolherTudo = {
+                        recolhidas = itensDeSumario.map { it.offset }.toSet()
+                    },
+                    onExpandirTudo = {
+                        recolhidas = emptySet()
+                    },
+                    onRecolherAteNivel = { nivel ->
+                        recolhidas = itensDeSumario.filter { it.nivel == nivel }.map { it.offset }.toSet()
+                    },
+                )
+            }
         }
     } else {
+        val itensDeSumario = remember(textContent.text) { sumarioDe(textContent.text) }
+        var arrastandoSumario by remember { mutableStateOf(false) }
+        var linhaPreview by remember { mutableStateOf<Int?>(null) }
         val pendingEditAnchor = remember { vm.consumeAnchor() }
         LaunchedEffect(pendingEditAnchor) {
             if (pendingEditAnchor != null) {
@@ -421,8 +497,22 @@ fun MarkDownContent(
                 currentLine = cursorLine.coerceAtLeast(0),
                 lineHeight = editLineHeight,
                 onLineRequested = vm::moveCursorToLine,
+                onDraggingChange = { arrastandoSumario = it },
+                onPreviewLineChange = { linhaPreview = it },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+            if ((sumarioAberto || arrastandoSumario) && itensDeSumario.isNotEmpty()) {
+                SumarioLateral(
+                    itens = itensDeSumario,
+                    linhaAtual = linhaPreview ?: cursorLine.coerceAtLeast(0),
+                    onDismiss = { onSumarioAbertoChange(false) },
+                    onItemClick = { item ->
+                        onSumarioAbertoChange(false)
+                        vm.moveCursorToLine(item.linha)
+                    },
+                    modifier = Modifier.align(Alignment.CenterStart),
+                )
+            }
         }
     }
 }
@@ -430,6 +520,7 @@ fun MarkDownContent(
 @Composable
 private fun FastScrollOverlay(
     scrollState: ScrollState,
+    onDraggingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -461,6 +552,7 @@ private fun FastScrollOverlay(
         onDragStart = { y -> scrollToFinger(y) },
         onDrag = { change -> scrollToFinger(change.position.y) },
         onDragFinished = { },
+        onDraggingChange = onDraggingChange,
         gestureKey = listOf(viewportHeight, scrollState.maxValue),
         modifier = modifier,
     )
@@ -479,6 +571,8 @@ internal fun FastScrollLineOverlay(
     currentLine: Int,
     lineHeight: Float,
     onLineRequested: (Int) -> Unit,
+    onDraggingChange: (Boolean) -> Unit = {},
+    onPreviewLineChange: (Int?) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var viewportHeight by remember { mutableIntStateOf(0) }
@@ -512,6 +606,7 @@ internal fun FastScrollLineOverlay(
             val line = lineAt(y)
             if (line != null) {
                 previewLine = line
+                onPreviewLineChange(line)
                 pendingLine = line
                 lastEmitMs = 0L
                 onLineRequested(line)
@@ -521,6 +616,7 @@ internal fun FastScrollLineOverlay(
             val line = lineAt(change.position.y)
             if (line != null) {
                 previewLine = line
+                onPreviewLineChange(line)
                 pendingLine = line
                 // Cada movimento do cursor refaz o live preview da nota inteira
                 // (27 ms numa nota de 1.946 linhas). Sem esta redea o arrasto engasga.
@@ -534,7 +630,9 @@ internal fun FastScrollLineOverlay(
             pendingLine?.let(onLineRequested)
             pendingLine = null
             previewLine = null
+            onPreviewLineChange(null)
         },
+        onDraggingChange = onDraggingChange,
         gestureKey = listOf(viewportHeight, lineCount, visibleLines),
         modifier = modifier,
     )
@@ -552,6 +650,7 @@ private fun FastScrollGutter(
     onDragStart: (Float) -> Unit,
     onDrag: (PointerInputChange) -> Unit,
     onDragFinished: () -> Unit,
+    onDraggingChange: (Boolean) -> Unit = {},
     gestureKey: Any?,
     modifier: Modifier = Modifier,
 ) {
@@ -577,15 +676,18 @@ private fun FastScrollGutter(
                         onDragStart = { offset ->
                             visible = true
                             dragging = true
+                            onDraggingChange(true)
                             onDragStart(offset.y)
                         },
                         onDragEnd = {
                             dragging = false
+                            onDraggingChange(false)
                             hideGeneration++
                             onDragFinished()
                         },
                         onDragCancel = {
                             dragging = false
+                            onDraggingChange(false)
                             hideGeneration++
                             onDragFinished()
                         },

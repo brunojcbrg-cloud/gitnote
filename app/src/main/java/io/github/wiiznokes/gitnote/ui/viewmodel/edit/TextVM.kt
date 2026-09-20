@@ -33,6 +33,17 @@ import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 import kotlin.math.absoluteValue
 
+internal fun TextFieldValue.toEdicaoDeTexto(): EdicaoDeTexto = EdicaoDeTexto(text, selection)
+
+internal fun EdicaoDeTexto.toTextFieldValue(
+    original: TextFieldValue,
+    clearComposition: Boolean = false,
+): TextFieldValue = original.copy(
+    text = texto,
+    selection = selecao,
+    composition = if (clearComposition) null else original.composition,
+)
+
 data class History(
     val index: Int,
     val size: Int,

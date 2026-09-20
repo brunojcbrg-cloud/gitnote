@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
@@ -85,6 +86,7 @@ fun EditScreen(
     }
     var pendingOpenNote by rememberSaveable { mutableStateOf<Note?>(null) }
     var pendingOpenSection by rememberSaveable { mutableStateOf<String?>(null) }
+    var sumarioAberto by rememberSaveable { mutableStateOf(false) }
 
     RequestConfirmationDialog(
         expanded = showShouldQuitDialog,
@@ -109,7 +111,9 @@ fun EditScreen(
     )
 
     BackHandler {
-        if (vm.isPreviousNoteTheSame()) {
+        if (sumarioAberto) {
+            sumarioAberto = false
+        } else if (vm.isPreviousNoteTheSame()) {
             vm.shouldSaveWhenQuitting = false
             onFinished()
         } else {
@@ -191,6 +195,14 @@ fun EditScreen(
                     )
                 },
                 actions = {
+                    if (vm is MarkDownVM) {
+                        IconButton(onClick = { sumarioAberto = !sumarioAberto }) {
+                            SimpleIcon(
+                                imageVector = Icons.AutoMirrored.Filled.List,
+                                contentDescription = stringResource(R.string.note_outline),
+                            )
+                        }
+                    }
                     IconButton(
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -261,7 +273,9 @@ fun EditScreen(
                                 }
                             },
                             isReadOnlyModeActive = isReadOnlyModeActive,
-                            textContent = textContent
+                            textContent = textContent,
+                            sumarioAberto = sumarioAberto,
+                            onSumarioAbertoChange = { sumarioAberto = it },
                         )
                     }
 

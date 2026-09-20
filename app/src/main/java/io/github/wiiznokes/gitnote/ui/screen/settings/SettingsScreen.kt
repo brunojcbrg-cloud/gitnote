@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -161,6 +162,30 @@ fun SettingsScreen(
                 }
             )
 
+            val pastaPadrao by vm.prefs.pastaPadrao.getAsState()
+            val pastaPadraoDialogExpanded = rememberSaveable { mutableStateOf(false) }
+            DefaultSettingsRow(
+                title = stringResource(R.string.default_startup_folder),
+                subTitle = pastaPadrao.ifEmpty { stringResource(id = R.string.none) },
+                onClick = { pastaPadraoDialogExpanded.value = true },
+                endContent = if (pastaPadrao.isNotEmpty()) {
+                    {
+                        Button(
+                            onClick = { vm.update { vm.prefs.pastaPadrao.update("") } }
+                        ) {
+                            Text(stringResource(R.string.clear))
+                        }
+                    }
+                } else null
+            )
+
+            PickFolderDialog(
+                expanded = pastaPadraoDialogExpanded,
+                onSelectedFolder = {
+                    vm.update { vm.prefs.pastaPadrao.update(it) }
+                }
+            )
+
             /*
             DefaultSettingsRow(
                 title = stringResource(R.string.folder_filters),
@@ -182,6 +207,14 @@ fun SettingsScreen(
                 onOptionClick = {
                     vm.update { vm.prefs.defaultExtension.update(it.text) }
                 }
+            )
+
+            val bloquearCapturaDeTela by vm.prefs.bloquearCapturaDeTela.getAsState()
+            ToggleableSettings(
+                title = stringResource(R.string.block_screen_capture),
+                subtitle = stringResource(R.string.block_screen_capture_subtitle),
+                checked = bloquearCapturaDeTela,
+                onCheckedChange = { vm.update { vm.prefs.bloquearCapturaDeTela.update(it) } }
             )
 
             val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
@@ -219,6 +252,12 @@ fun SettingsScreen(
         SettingsSection(
             title = stringResource(R.string.repository)
         ) {
+
+            val storageConfig by vm.prefs.storageConfig.getAsState()
+            DefaultSettingsRow(
+                title = stringResource(R.string.storage_config_title),
+                subTitle = "StorageConfig.${storageConfig.name}"
+            )
 
             val gitAuthorName by vm.prefs.gitAuthorName.getAsState()
             StringSettings(

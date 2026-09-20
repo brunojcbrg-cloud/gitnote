@@ -3,10 +3,12 @@ package io.github.wiiznokes.gitnote
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.olshevski.navigation.reimagined.AnimatedNavHost
@@ -42,12 +44,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
 
+        // Apply before the first frame, including the recents thumbnail.
+        setScreenCaptureBlocked(runBlocking {
+            MyApp.appModule.appPreferences.bloquearCapturaDeTela.get()
+        })
+
         setContent {
 
             val vm: MainViewModel = viewModel()
 
             val theme by vm.prefs.theme.getAsState()
             val dynamicColor by vm.prefs.dynamicColor.getAsState()
+            val bloquearCapturaDeTela by vm.prefs.bloquearCapturaDeTela.getAsState()
+            LaunchedEffect(bloquearCapturaDeTela) {
+                setScreenCaptureBlocked(bloquearCapturaDeTela)
+            }
 
 
             GitNoteTheme(
@@ -122,5 +133,13 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
 
         Log.d(TAG, "onDestroy")
+    }
+
+    private fun setScreenCaptureBlocked(blocked: Boolean) {
+        if (blocked) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
     }
 }
