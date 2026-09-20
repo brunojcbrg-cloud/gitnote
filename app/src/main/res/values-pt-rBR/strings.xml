@@ -4,6 +4,8 @@
     <string name="light_theme">Claro</string>
     <string name="dark_theme">Escuro</string>
     <string name="oldest_sort_order">Mais antigo</string>
+    <string name="last_viewed_sort_order">Última visualização ou modificação</string>
+    <string name="show_all_notes">Mostrar todas (%1$d)</string>
     <string name="new_folder_label">Nome da nova pasta</string>
     <string name="create_new_folder">Criar nova pasta</string>
     <string name="yes">Sim</string>

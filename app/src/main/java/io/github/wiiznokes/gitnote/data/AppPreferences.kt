@@ -231,7 +231,7 @@ class AppPreferences(
 
     val defaultPathForNewNote = stringPreference("defaultPathForNewNote", "")
     val pastaPadrao = stringPreference("pastaPadrao", "")
-    val sortOrder = enumPreference("sortOrder", SortOrder.MostRecent)
+    val sortOrder = enumPreference("sortOrder", SortOrder.UltimaVisualizacao)
     val sortOrderFolder = enumPreference("sortOrderFolder", SortOrder.AZ)
 
     val noteMinWidth = enumPreference("noteMinWidth", NoteMinWidth.Default)

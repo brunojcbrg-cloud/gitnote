@@ -52,6 +52,7 @@ class StorageManager {
 
     val prefs: AppPreferences = MyApp.appModule.appPreferences
     private val db: RepoDatabase = MyApp.appModule.repoDatabase
+    private val historicoDao = MyApp.appModule.historicoDatabase.dao
 
     private val uiHelper = MyApp.appModule.uiHelper
 
@@ -125,6 +126,9 @@ class StorageManager {
     ): Result<Unit> {
 
         val fsCommit = gitManager.lastCommit()
+        // Abre o Room antes de consultar databaseCommit: a migracao destrutiva so
+        // zera essa preferencia quando o banco e efetivamente aberto.
+        db.openHelper.writableDatabase
         val databaseCommit = prefs.databaseCommit.get()
 
         Log.d(TAG, "fsCommit: $fsCommit, databaseCommit: $databaseCommit")
@@ -138,8 +142,9 @@ class StorageManager {
 
         progressCb?.invoke(Progress.Timestamps)
         val timestamps = gitManager.getTimestamps().getOrThrow()
+        val aberturas = historicoDao.todas().associate { it.relativePath to it.abertaEmMillis }
 
-        dao.clearAndInit(repoPath, timestamps, progressCb)
+        dao.clearAndInit(repoPath, timestamps, aberturas, progressCb)
         prefs.databaseCommit.update(fsCommit)
 
         return success(Unit)

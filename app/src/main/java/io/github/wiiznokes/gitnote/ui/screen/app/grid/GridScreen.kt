@@ -29,6 +29,7 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -199,6 +200,7 @@ private fun GridView(
 ) {
     val gridNotes = vm.gridNotes.collectAsLazyPagingItems()
     val query = vm.query.collectAsState()
+    val totalParaMostrarTodas by vm.totalParaMostrarTodas.collectAsState()
 
 
     val isRefreshing by vm.isRefreshing.collectAsStateWithLifecycle()
@@ -235,6 +237,7 @@ private fun GridView(
                     showFullPathOfNotes = showFullPathOfNotes.value,
                     onEditClick = onEditClick,
                     vm = vm,
+                    totalParaMostrarTodas = totalParaMostrarTodas,
                 )
             }
 
@@ -253,6 +256,7 @@ private fun GridView(
                     showFullPathOfNotes = showFullPathOfNotes.value,
                     onEditClick = onEditClick,
                     vm = vm,
+                    totalParaMostrarTodas = totalParaMostrarTodas,
                 )
             }
         }
@@ -282,6 +286,7 @@ private fun GridNotesView(
     showFullPathOfNotes: Boolean,
     onEditClick: (Note, EditType) -> Unit,
     vm: GridViewModel,
+    totalParaMostrarTodas: Int?,
 ) {
 
 
@@ -313,6 +318,14 @@ private fun GridNotesView(
                 showFullNoteHeight = showFullNoteHeight.value,
                 modifier = Modifier.padding(3.dp)
             )
+        }
+
+        if (totalParaMostrarTodas != null) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                Button(onClick = vm::mostrarTodas) {
+                    Text(stringResource(R.string.show_all_notes, totalParaMostrarTodas))
+                }
+            }
         }
 
         item(span = StaggeredGridItemSpan.FullLine) {

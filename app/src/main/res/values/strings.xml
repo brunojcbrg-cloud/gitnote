@@ -7,6 +7,8 @@
     <string name="za_sort_order">Z-A</string>
     <string name="most_recent_sort_order">Most recent</string>
     <string name="oldest_sort_order">Oldest</string>
+    <string name="last_viewed_sort_order">Last viewed or modified</string>
+    <string name="show_all_notes">Show all (%1$d)</string>
     <string name="new_folder_label">New folder name</string>
     <string name="create_new_folder">Create new folder</string>
     <string name="yes">Yes</string>

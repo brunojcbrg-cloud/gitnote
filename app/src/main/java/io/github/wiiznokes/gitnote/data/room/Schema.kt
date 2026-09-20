@@ -75,6 +75,7 @@ data class Note(
     val relativePath: String,
     val content: String,
     val lastModifiedTimeMillis: Long,
+    val lastOpenedTimeMillis: Long,
     val id: Int
 ) : Parcelable, Serializable {
 
@@ -83,12 +84,14 @@ data class Note(
             relativePath: String,
             content: String = "",
             lastModifiedTimeMillis: Long = Instant.now().toEpochMilli(),
+            lastOpenedTimeMillis: Long = lastModifiedTimeMillis,
             id: Int = RepoDatabase.generateUid()
         ): Note {
             return Note(
                 relativePath = removeFirstAndLastSlash(relativePath),
                 content = content,
                 lastModifiedTimeMillis = lastModifiedTimeMillis,
+                lastOpenedTimeMillis = lastOpenedTimeMillis,
                 id = id,
             )
         }

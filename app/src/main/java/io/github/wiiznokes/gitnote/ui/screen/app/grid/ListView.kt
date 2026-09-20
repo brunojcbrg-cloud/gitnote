@@ -15,10 +15,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
 import io.github.wiiznokes.gitnote.data.room.Note
+import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.model.GridRow
 import io.github.wiiznokes.gitnote.ui.viewmodel.GridViewModel
@@ -47,6 +50,7 @@ internal fun NoteListView(
     showFullPathOfNotes: Boolean,
     onEditClick: (Note, EditType) -> Unit,
     vm: GridViewModel,
+    totalParaMostrarTodas: Int?,
 ) {
 
     LazyColumn(
@@ -69,6 +73,14 @@ internal fun NoteListView(
                 selectedNotes = selectedNotes,
                 showFullPathOfNotes = showFullPathOfNotes,
             )
+        }
+
+        if (totalParaMostrarTodas != null) {
+            item {
+                Button(onClick = vm::mostrarTodas) {
+                    Text(stringResource(R.string.show_all_notes, totalParaMostrarTodas))
+                }
+            }
         }
 
         item {

@@ -2,6 +2,7 @@ package io.github.wiiznokes.gitnote
 
 import android.content.Context
 import io.github.wiiznokes.gitnote.data.AppPreferences
+import io.github.wiiznokes.gitnote.data.room.HistoricoDatabase
 import io.github.wiiznokes.gitnote.data.room.RepoDatabase
 import io.github.wiiznokes.gitnote.helper.UiHelper
 import io.github.wiiznokes.gitnote.manager.GitManager
@@ -10,6 +11,7 @@ import io.github.wiiznokes.gitnote.manager.StorageManager
 
 interface AppModule {
     val repoDatabase: RepoDatabase
+    val historicoDatabase: HistoricoDatabase
     val uiHelper: UiHelper
     val storageManager: StorageManager
     val gitManager: GitManager
@@ -24,6 +26,10 @@ class AppModuleImpl(
 
     override val repoDatabase: RepoDatabase by lazy {
         RepoDatabase.buildDatabase(context)
+    }
+
+    override val historicoDatabase: HistoricoDatabase by lazy {
+        HistoricoDatabase.buildDatabase(context)
     }
 
     override val uiHelper: UiHelper by lazy {

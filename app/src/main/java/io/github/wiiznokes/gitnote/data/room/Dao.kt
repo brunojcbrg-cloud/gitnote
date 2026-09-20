@@ -39,7 +39,9 @@ interface RepoDatabaseDao {
     suspend fun clearAndInit(
         rootPath: String,
         timestamps: HashMap<String, Long>,
-        progressCb: ((Progress) -> Unit)? = null
+        aberturas: Map<String, Long>,
+        progressCb: ((Progress) -> Unit)? = null,
+        isSupportedExtension: (String) -> Boolean = ::isExtensionSupportedLib,
     ) {
         Log.d(TAG, "clearAndInit")
         clearDatabase()
@@ -68,7 +70,7 @@ interface RepoDatabaseDao {
 
                 when (nodeFs) {
                     is NodeFs.File -> {
-                        if (!isExtensionSupportedLib(nodeFs.extension.text)) {
+                        if (!isSupportedExtension(nodeFs.extension.text)) {
                             //Log.d(TAG, "skipped ${nodeFs.path} because extension not supported")
                             return@forEachNodeFs
                         }
@@ -83,10 +85,12 @@ interface RepoDatabaseDao {
                         }
 
                         val relativePath = nodeFs.path.substring(startIndex = rootLength)
+                        val modificadaEmMillis = timestamps[relativePath]
+                            ?: nodeFs.lastModifiedTime().toMillis()
                         val note = Note.new(
                             relativePath = relativePath,
-                            lastModifiedTimeMillis = timestamps[relativePath]
-                                ?: nodeFs.lastModifiedTime().toMillis(),
+                            lastModifiedTimeMillis = modificadaEmMillis,
+                            lastOpenedTimeMillis = aberturas[relativePath] ?: modificadaEmMillis,
                             content = nodeFs.readText(),
                         )
 
@@ -153,6 +157,9 @@ interface RepoDatabaseDao {
     @Query("SELECT * FROM Notes WHERE relativePath = :relativePath")
     suspend fun noteByRelativePath(relativePath: String): Note?
 
+    @Query("UPDATE Notes SET lastOpenedTimeMillis = :abertaEmMillis WHERE relativePath = :relativePath")
+    suspend fun updateLastOpened(relativePath: String, abertaEmMillis: Long)
+
     @Query(
         "SELECT * FROM Notes WHERE content LIKE '%' || :tag || '%' " +
             "ORDER BY relativePath COLLATE NOCASE ASC, relativePath ASC",
@@ -164,6 +171,16 @@ interface RepoDatabaseDao {
 
     @RawQuery(observedEntities = [Note::class])
     fun gridNotesRaw(query: SupportSQLiteQuery): PagingSource<Int, GridRow>
+
+    @RawQuery(observedEntities = [Note::class])
+    fun countNotesInFolderRaw(query: SupportSQLiteQuery): Flow<Int>
+
+    fun countNotesInFolder(relativePath: String): Flow<Int> = countNotesInFolderRaw(
+        SimpleSQLiteQuery(
+            "SELECT COUNT(*) FROM Notes WHERE parentPath(relativePath) = ?",
+            arrayOf(relativePath),
+        ),
+    )
 
     @RawQuery(observedEntities = [Note::class])
     suspend fun wikilinkCandidatesRaw(query: SupportSQLiteQuery): List<WikilinkCandidate>
@@ -201,6 +218,7 @@ interface RepoDatabaseDao {
     fun gridNotes(
         currentNoteFolderRelativePath: String,
         sortOrder: SortOrder,
+        teto: Int? = null,
     ): PagingSource<Int, GridRow> {
 
         val (sortColumn, order) = when (sortOrder) {
@@ -208,13 +226,17 @@ interface RepoDatabaseDao {
             SortOrder.ZA -> "relativePath" to "DESC"
             SortOrder.MostRecent -> "lastModifiedTimeMillis" to "DESC"
             SortOrder.Oldest -> "lastModifiedTimeMillis" to "ASC"
+            SortOrder.UltimaVisualizacao -> "MAX(lastOpenedTimeMillis, lastModifiedTimeMillis)" to "DESC"
         }
+
+        val limite = if (teto == null) "" else "LIMIT ${teto.coerceAtLeast(0)}"
 
         val sql = """
             SELECT relativePath, id, lastModifiedTimeMillis, 1 AS isUnique
             FROM Notes
             WHERE parentPath(relativePath) = :currentNoteFolderRelativePath
-            ORDER BY $sortColumn $order
+            ORDER BY $sortColumn $order, relativePath ASC
+            $limite
         """.trimIndent()
 
         val query = SimpleSQLiteQuery(sql, arrayOf(currentNoteFolderRelativePath))
@@ -232,6 +254,7 @@ interface RepoDatabaseDao {
             SortOrder.ZA -> "fileName" to "DESC"
             SortOrder.MostRecent -> "lastModifiedTimeMillis" to "DESC"
             SortOrder.Oldest -> "lastModifiedTimeMillis" to "ASC"
+            SortOrder.UltimaVisualizacao -> "MAX(lastOpenedTimeMillis, lastModifiedTimeMillis)" to "DESC"
         }
 
         fun ftsEscape(query: String): String {
@@ -256,6 +279,7 @@ interface RepoDatabaseDao {
                     Notes.relativePath,
                     Notes.id,
                     Notes.lastModifiedTimeMillis,
+                    Notes.lastOpenedTimeMillis,
                     rank(matchinfo(NotesFts, 'pcx')) AS score,
                     fullName(Notes.relativePath) as fileName
                 FROM Notes
@@ -269,12 +293,13 @@ interface RepoDatabaseDao {
                 relativePath,
                 id,
                 lastModifiedTimeMillis,
+                lastOpenedTimeMillis,
                 CASE
                     WHEN COUNT(*) OVER (PARTITION BY fileName) = 1 THEN 1
                     ELSE 0
                 END AS isUnique
             FROM notes_with_filename
-            ORDER BY score DESC, $sortColumn $order
+            ORDER BY score DESC, $sortColumn $order, relativePath ASC
         """.trimIndent()
 
         val query = SimpleSQLiteQuery(sql, arrayOf(currentNoteFolderRelativePath, ftsEscape(query)))
@@ -297,6 +322,9 @@ interface RepoDatabaseDao {
             SortOrder.ZA -> "folderName" to "DESC"
             SortOrder.MostRecent -> "MAX(n.lastModifiedTimeMillis)" to "DESC"
             SortOrder.Oldest -> "MAX(n.lastModifiedTimeMillis)" to "ASC"
+            SortOrder.UltimaVisualizacao ->
+                "MAX(CASE WHEN n.lastOpenedTimeMillis > n.lastModifiedTimeMillis " +
+                    "THEN n.lastOpenedTimeMillis ELSE n.lastModifiedTimeMillis END)" to "DESC"
         }
 
         val sql = """
