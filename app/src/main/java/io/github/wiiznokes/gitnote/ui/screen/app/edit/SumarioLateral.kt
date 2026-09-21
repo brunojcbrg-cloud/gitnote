@@ -72,7 +72,11 @@ internal fun SumarioLateral(
     // para o ancestral visivel mais proximo, nao some nem volta para o topo.
     val selecionado = visiveis.indexOfLast { it.offset <= offsetAtual }.coerceAtLeast(0)
     val listState = rememberLazyListState()
-    LaunchedEffect(selecionado, visiveis) {
+    // Rolar o painel serve para acompanhar a LEITURA. Recolher um titulo mexe na
+    // lista, nao na leitura: com a lista como chave, cada seta jogava o painel de
+    // volta para o primeiro titulo -- foi o que ele viu em 21/09. Olhando so a
+    // linha atual, o painel fica onde ele deixou.
+    LaunchedEffect(itens, linhaAtual) {
         if (visiveis.isNotEmpty()) listState.scrollToItem(selecionado)
     }
 
@@ -131,7 +135,10 @@ internal fun SumarioLateral(
                         }
                     }
                 }
-                LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxWidth().testTag("sumario-lista"),
+                ) {
                     items(visiveis, key = { it.offset }) { item ->
                         val atual = visiveis.getOrNull(selecionado) == item
                         val cor = if (atual) MaterialTheme.colorScheme.primary

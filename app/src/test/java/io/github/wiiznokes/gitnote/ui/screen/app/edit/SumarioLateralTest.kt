@@ -11,10 +11,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.ui.component.markdown.offsetOfLineStart
 import io.github.wiiznokes.gitnote.ui.component.markdown.sumarioDe
@@ -237,5 +240,37 @@ class SumarioLateralTest {
         }
         composeRule.onNodeWithText("Um.A").performClick()
         composeRule.runOnIdle { assertEquals("Um.A", escolhido) }
+    }
+
+    @Test
+    fun recolherNoPainelNaoJogaAListaDeVoltaParaOComeco() {
+        // Relatado por ele em 21/09, logo depois da b77: recolher um titulo la
+        // embaixo devolvia o painel ao primeiro titulo, e ele tinha de rolar
+        // tudo de novo. A causa era o efeito de rolagem olhar a LISTA; agora
+        // olha so a linha que esta sendo lida, que recolher nao muda.
+        val nota = (0 until 40).joinToString("\n") { "# Pai $it\n## Filho $it" }
+        val itens = sumarioDe(nota)
+        val paiLaEmbaixo = itens.first { it.texto == "Pai 30" }
+        composeRule.setContent {
+            var recolhidos by remember { mutableStateOf(setOf<Int>()) }
+            Box(Modifier.width(320.dp).height(600.dp)) {
+                SumarioLateral(
+                    itens = itens,
+                    linhaAtual = 0,
+                    onItemClick = {},
+                    onDismiss = {},
+                    recolhidosNoSumario = recolhidos,
+                    onRecolherNoSumario = { offset ->
+                        recolhidos = if (offset in recolhidos) recolhidos - offset else recolhidos + offset
+                    },
+                )
+            }
+        }
+        composeRule.onNodeWithTag("sumario-lista").performScrollToNode(hasText("Pai 30"))
+        composeRule.onNodeWithTag("sumario-seta-" + paiLaEmbaixo.offset).performClick()
+        // Recolheu de verdade...
+        composeRule.onNodeWithText("Filho 30").assertDoesNotExist()
+        // ...e o painel continua mostrando onde ele estava.
+        composeRule.onNodeWithText("Pai 30").assertIsDisplayed()
     }
 }
