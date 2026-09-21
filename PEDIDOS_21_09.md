@@ -134,10 +134,11 @@ pronto nos dois clientes.
 
 ## Estado em 21/09, fim do dia
 
-- **App**: release **b79** (`26.08.1.79`), CI verde, publicada a partir de `9fab3c6` —
-  carrega o handoff 11 (sugestão de wikilink, ver `RESULTADO_11_SUGESTAO_DE_WIKILINK.md`),
-  o tamanho da letra e o conserto do rascunho. Depois dela entrou a refação do pedido 1
-  (botões na nota), que ainda não saiu em release.
+- **App**: release **b81** (`26.08.1.81`), CI verde, publicada a partir de `14ddd50`.
+  Três releases saíram em sequência: **b79** (handoff 11 — sugestão de wikilink, ver
+  `RESULTADO_11_SUGESTAO_DE_WIKILINK.md` — mais o tamanho da letra e o conserto do
+  rascunho), **b80** (tamanho da letra refeito com os botões na nota) e **b81** (os
+  botões de recuo). Nada pendente de merge.
 - **Web**: master `001745b`, **163 testes verdes**.
 - **Vault**: `2de3f6e` — pasta de anexos e configuração do Obsidian.
 - **Nada disso foi visto em aparelho ainda.** A b79 carrega, além do que já vinha da b78
