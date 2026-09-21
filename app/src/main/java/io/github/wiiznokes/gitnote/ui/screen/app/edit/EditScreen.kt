@@ -22,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,6 +43,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -429,6 +431,7 @@ fun GenericTextField(
     isReadOnlyModeActive: Boolean = false,
     textContent: TextFieldValue,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    textStyle: TextStyle = LocalTextStyle.current,
 ) {
     TextField(
         modifier = Modifier
@@ -436,6 +439,7 @@ fun GenericTextField(
             .focusRequester(textFocusRequester),
         value = textContent,
         onValueChange = { vm.onValueChange(it) },
+        textStyle = textStyle,
         colors = TextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.background,
             unfocusedContainerColor = MaterialTheme.colorScheme.background,

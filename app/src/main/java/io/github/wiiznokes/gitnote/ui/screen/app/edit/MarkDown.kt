@@ -104,6 +104,7 @@ import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownTypographyThemed
 import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
+import io.github.wiiznokes.gitnote.ui.theme.tipografiaEscalada
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -123,7 +124,7 @@ private const val ANCHOR_SETTLE_FRAMES = 30
 private const val ANCHOR_DEBOUNCE_MS = 120L
 
 /** Altura de linha estimada, em multiplos do tamanho da fonte. */
-private const val EDIT_LINE_HEIGHT_FACTOR = 1.5f
+internal const val EDIT_LINE_HEIGHT_FACTOR = 1.5f
 
 @Composable
 internal fun rememberMarkdownVisualTransformation(
@@ -163,6 +164,11 @@ fun MarkDownContent(
     val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
     val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
     val colors = markdownColorScheme(markdownTheme)
+    val tamanhoDaLetra by vm.prefs.tamanhoDaLetra.getAsState()
+    // Uma escala so para os dois modos. O editor tira dela o `baseFontSize`, de
+    // onde sai tambem a altura de linha do rolador rapido -- e por isso que a
+    // fonte nao pode crescer por fora desta conta.
+    val tipografiaDaNota = tipografiaEscalada(MaterialTheme.typography, tamanhoDaLetra.fator)
 
     if (isReadOnlyModeActive) {
         val scrollState = rememberScrollState()
@@ -452,70 +458,75 @@ fun MarkDownContent(
                     .verticalScroll(scrollState)
             ) {
                 CompositionLocalProvider(LocalUriHandler provides uriHandler) {
-                    val readingColors = if (isMarkdownThemeActive) {
-                        markdownColorsThemed(colors)
-                    } else {
-                        markdownColor()
-                    }
-                    val readingTypography = if (isMarkdownThemeActive) {
-                        markdownTypographyThemed(colors)
-                    } else {
-                        markdownTypography()
-                    }
-                    val annotator = missingWikilinkAnnotator(
-                        warningColor = MaterialTheme.colorScheme.error,
-                        highlightColor = colors.highlight,
-                        highlightBackground = colors.highlightBackground,
-                        highlightRange = destaqueVisivel,
-                    )
-
-                    SelectionContainer {
-                        MarkdownCustomInner(
-                            content = conteudoExibido,
-                            colors = readingColors,
-                            typography = readingTypography,
-                            imageTransformer = transformadorDeImagem,
-                            annotator = annotator,
-                            onHeadingPositioned = { text, sourceOffsetVisivel, coordinates ->
-                                registerBlock(sourceOffsetVisivel, coordinates)
-                                val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
-                                val container = containerCoordinates
-                                if (container != null && coordinates.isAttached) {
-                                    val y = container
-                                        .localPositionOf(coordinates, Offset.Zero)
-                                        .y + scrollState.value
-                                    headingPositions[sourceOffset] = HeadingAnchor(
-                                        text = text,
-                                        y = y.roundToInt(),
-                                        sourceOffset = sourceOffset,
-                                    )
-                                }
-                            },
-                            onBlockPositioned = ::registerBlock,
-                            onHeadingCollapseToggle = { sourceOffsetVisivel ->
-                                val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
-                                ancoraDaDobra = ancoraDoTitulo(
-                                    linha = lineOfOffset(renderedLineStarts, sourceOffset),
-                                    y = measuredBlockPositions()[
-                                        lineOfOffset(renderedLineStarts, sourceOffset)
-                                    ] ?: headingPositions[sourceOffset]?.y,
-                                    rolagem = scrollState.value,
-                                )
-                                recolhidas = if (sourceOffset in recolhidas) {
-                                    recolhidas - sourceOffset
-                                } else {
-                                    recolhidas + sourceOffset
-                                }
-                            },
-                            isHeadingCollapsed = { sourceOffsetVisivel ->
-                                textoDobrado.mapa.paraOriginal(sourceOffsetVisivel) in recolhidas
-                            },
-                            // Sem isto, dobrar um titulo joga o estado para
-                            // `Loading`, o corpo fica vazio por um quadro e o
-                            // ScrollState corta a rolagem para 0.
-                            retainState = true,
-                            modifier = Modifier.padding(15.dp),
+                    // A tipografia escalada entra aqui, e nao dentro de cada
+                    // chamada: assim tanto o caminho tematizado quanto o padrao
+                    // da biblioteca crescem, sem cada um ter a sua propria conta.
+                    MaterialTheme(typography = tipografiaDaNota) {
+                        val readingColors = if (isMarkdownThemeActive) {
+                            markdownColorsThemed(colors)
+                        } else {
+                            markdownColor()
+                        }
+                        val readingTypography = if (isMarkdownThemeActive) {
+                            markdownTypographyThemed(colors)
+                        } else {
+                            markdownTypography()
+                        }
+                        val annotator = missingWikilinkAnnotator(
+                            warningColor = MaterialTheme.colorScheme.error,
+                            highlightColor = colors.highlight,
+                            highlightBackground = colors.highlightBackground,
+                            highlightRange = destaqueVisivel,
                         )
+
+                        SelectionContainer {
+                            MarkdownCustomInner(
+                                content = conteudoExibido,
+                                colors = readingColors,
+                                typography = readingTypography,
+                                imageTransformer = transformadorDeImagem,
+                                annotator = annotator,
+                                onHeadingPositioned = { text, sourceOffsetVisivel, coordinates ->
+                                    registerBlock(sourceOffsetVisivel, coordinates)
+                                    val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
+                                    val container = containerCoordinates
+                                    if (container != null && coordinates.isAttached) {
+                                        val y = container
+                                            .localPositionOf(coordinates, Offset.Zero)
+                                            .y + scrollState.value
+                                        headingPositions[sourceOffset] = HeadingAnchor(
+                                            text = text,
+                                            y = y.roundToInt(),
+                                            sourceOffset = sourceOffset,
+                                        )
+                                    }
+                                },
+                                onBlockPositioned = ::registerBlock,
+                                onHeadingCollapseToggle = { sourceOffsetVisivel ->
+                                    val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
+                                    ancoraDaDobra = ancoraDoTitulo(
+                                        linha = lineOfOffset(renderedLineStarts, sourceOffset),
+                                        y = measuredBlockPositions()[
+                                            lineOfOffset(renderedLineStarts, sourceOffset)
+                                        ] ?: headingPositions[sourceOffset]?.y,
+                                        rolagem = scrollState.value,
+                                    )
+                                    recolhidas = if (sourceOffset in recolhidas) {
+                                        recolhidas - sourceOffset
+                                    } else {
+                                        recolhidas + sourceOffset
+                                    }
+                                },
+                                isHeadingCollapsed = { sourceOffsetVisivel ->
+                                    textoDobrado.mapa.paraOriginal(sourceOffsetVisivel) in recolhidas
+                                },
+                                // Sem isto, dobrar um titulo joga o estado para
+                                // `Loading`, o corpo fica vazio por um quadro e o
+                                // ScrollState corta a rolagem para 0.
+                                retainState = true,
+                                modifier = Modifier.padding(15.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -592,7 +603,11 @@ fun MarkDownContent(
                 textFocusRequester.requestFocus()
             }
         }
-        val baseFontSize = MaterialTheme.typography.bodyLarge.fontSize
+        // O mesmo estilo vai para o campo de texto e para a conta do rolador:
+        // `escalar` mexe em fontSize e lineHeight juntos, entao a razao de 1,5 que
+        // o EDIT_LINE_HEIGHT_FACTOR supoe continua valendo em todos os degraus.
+        val estiloDaEdicao = tipografiaDaNota.bodyLarge
+        val baseFontSize = estiloDaEdicao.fontSize
         var cursorLine by remember { mutableIntStateOf(-1) }
         LaunchedEffect(textContent.text, textContent.selection.start) {
             // A primeira medicao e imediata: trocar de modo depressa nao pode perder o lugar.
@@ -622,7 +637,7 @@ fun MarkDownContent(
                 onFinished = onFinished,
                 textContent = textContent,
                 visualTransformation = visualTransformation,
-                textStyle = MaterialTheme.typography.bodyLarge,
+                textStyle = estiloDaEdicao,
             )
             FastScrollLineOverlay(
                 lineCount = editLineCount,

@@ -302,6 +302,7 @@ class AppPreferences(
     val bloquearCapturaDeTela = booleanPreference("bloquearCapturaDeTela", true)
     val isMarkdownThemeActive = booleanPreference("isMarkdownThemeActive", true)
     val markdownColorTheme = enumPreference("markdownColorTheme", MarkdownTheme.MATERIAL)
+    val tamanhoDaLetra = enumPreference("tamanhoDaLetra", TamanhoDaLetra.Media)
 
 }
 
@@ -309,6 +310,33 @@ class AppPreferences(
 enum class StorageConfig {
     App,
     Device
+}
+
+/**
+ * Tamanho de exibicao do texto das notas, no modo leitura e no editor.
+ *
+ * [fator] multiplica a tipografia inteira -- corpo e titulos juntos -- em vez de
+ * so o corpo: era o corpo que o `scale` de `markdownTypographyThemed` mexia, e
+ * ele deixava os titulos parados. [Media] vale 1, para quem nunca abriu os
+ * Ajustes ver exatamente a tela de antes.
+ */
+enum class TamanhoDaLetra(val fator: Float) {
+    Pequena(0.85f),
+    Media(1.0f),
+    Grande(1.2f),
+    Maior(1.4f),
+    Maxima(1.6f);
+
+    override fun toString(): String {
+        val resource = when (this) {
+            Pequena -> R.string.font_size_small
+            Media -> R.string.font_size_medium
+            Grande -> R.string.font_size_large
+            Maior -> R.string.font_size_larger
+            Maxima -> R.string.font_size_largest
+        }
+        return MyApp.appModule.uiHelper.getString(resource)
+    }
 }
 
 enum class PrazoDaTrava(val milissegundos: Long) {
