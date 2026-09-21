@@ -8,11 +8,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.PortaoDaAbertura
+import io.github.wiiznokes.gitnote.data.platform.NodeFs
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.data.room.WikilinkSuggestionCandidate
 import io.github.wiiznokes.gitnote.ui.component.markdown.listarAnexos
+import io.github.wiiznokes.gitnote.ui.component.markdown.CacheDeSecoesWikilink
+import io.github.wiiznokes.gitnote.ui.component.markdown.ItemDeSumario
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveWikilinkTargets
 import io.github.wiiznokes.gitnote.ui.component.markdown.sugerirNotasParaWikilink
+import io.github.wiiznokes.gitnote.ui.component.markdown.sugerirSecoesParaWikilink
+import io.github.wiiznokes.gitnote.ui.component.markdown.sumarioDe
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolverAnexoNoRepo
 import io.github.wiiznokes.gitnote.ui.component.markdown.offsetOfLineStart
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
@@ -50,8 +55,9 @@ data class EstadoSugestaoWikilink(
     val itens: List<ItemSugestaoWikilink> = emptyList(),
     val selecionado: Int = 0,
     val carregando: Boolean = false,
+    val mensagem: String? = null,
 ) {
-    val visivel: Boolean get() = gatilho != null && (itens.isNotEmpty() || carregando)
+    val visivel: Boolean get() = gatilho != null && (itens.isNotEmpty() || carregando || mensagem != null)
 }
 
 
@@ -79,6 +85,11 @@ class MarkDownVM : TextVM {
     val sugestaoWikilink: StateFlow<EstadoSugestaoWikilink> = _sugestaoWikilink.asStateFlow()
     private var candidatosDeWikilink: List<WikilinkSuggestionCandidate> = emptyList()
     private var caminhosDeWikilink: List<String> = emptyList()
+    private val cacheDeSecoes = CacheDeSecoesWikilink()
+    private val secoesEmCarregamento = mutableSetOf<String>()
+    private var aberturaDasSecoesLocais: Int? = null
+    private var secoesLocais: List<ItemDeSumario> = emptyList()
+    private var secoesLocaisCarregadas = false
 
     init {
         viewModelScope.launch {
@@ -127,15 +138,30 @@ class MarkDownVM : TextVM {
     ) : super(editType, previousNote, name, content)
 
     override fun onValueChange(v: TextFieldValue) {
-        val editado = editMarkdownValue(content.value, v)
+        val anterior = content.value
+        val editado = editMarkdownValue(anterior, v)
         super.onValueChange(editado)
-        atualizarSugestaoWikilink(editado)
+        if (deveAtualizarSugestaoWikilink(
+                anterior = anterior.toEdicaoDeTexto(),
+                atual = editado.toEdicaoDeTexto(),
+                gatilhoAtivo = _sugestaoWikilink.value.gatilho != null,
+            )
+        ) {
+            atualizarSugestaoWikilink(editado)
+        }
     }
 
     private fun atualizarSugestaoWikilink(valor: TextFieldValue) {
         val gatilho = gatilhoSugestaoWikilink(valor.text, valor.selection)
-        if (gatilho == null || gatilho.secao) {
+        if (gatilho == null) {
+            aberturaDasSecoesLocais = null
+            secoesLocais = emptyList()
+            secoesLocaisCarregadas = false
             _sugestaoWikilink.value = EstadoSugestaoWikilink()
+            return
+        }
+        if (gatilho.secao) {
+            atualizarSugestaoDeSecao(valor, gatilho)
             return
         }
         val itens = sugerirNotasParaWikilink(
@@ -144,6 +170,96 @@ class MarkDownVM : TextVM {
             digitado = gatilho.consulta,
         ).map {
             ItemSugestaoWikilink(texto = it.nome, detalhe = it.pasta, caminho = it.caminho)
+        }
+        _sugestaoWikilink.value = EstadoSugestaoWikilink(gatilho = gatilho, itens = itens)
+    }
+
+    private fun atualizarSugestaoDeSecao(
+        valor: TextFieldValue,
+        gatilho: GatilhoSugestaoWikilink,
+    ) {
+        if (gatilho.alvo.isEmpty()) {
+            if (aberturaDasSecoesLocais == gatilho.abertura && secoesLocaisCarregadas) {
+                mostrarSecoes(gatilho, secoesLocais, previousNote.relativePath)
+                return
+            }
+            _sugestaoWikilink.value = EstadoSugestaoWikilink(
+                gatilho = gatilho,
+                carregando = true,
+            )
+            if (aberturaDasSecoesLocais == gatilho.abertura) return
+            aberturaDasSecoesLocais = gatilho.abertura
+            viewModelScope.launch {
+                val cabecalhos = withContext(Dispatchers.Default) {
+                    sumarioDe(valor.text)
+                }
+                if (gatilhoSugestaoWikilink(content.value.text, content.value.selection)?.abertura == gatilho.abertura) {
+                    secoesLocais = cabecalhos
+                    secoesLocaisCarregadas = true
+                    atualizarSugestaoWikilink(content.value)
+                }
+            }
+            return
+        }
+
+        aberturaDasSecoesLocais = null
+        secoesLocais = emptyList()
+        secoesLocaisCarregadas = false
+        val caminho = resolveWikilinkTargets(
+            names = setOf(gatilho.alvo),
+            currentParentPath = previousNote.parentPath(),
+            candidatePaths = caminhosDeWikilink,
+        )[gatilho.alvo]
+        val candidato = candidatosDeWikilink.firstOrNull { it.relativePath == caminho }
+        if (caminho == null || candidato == null) {
+            _sugestaoWikilink.value = EstadoSugestaoWikilink(
+                gatilho = gatilho,
+                mensagem = "Nota não encontrada",
+            )
+            return
+        }
+        val chave = "$caminho:${candidato.lastModifiedTimeMillis}"
+        cacheDeSecoes.pronto(chave)?.let {
+            mostrarSecoes(gatilho, it, caminho)
+            return
+        }
+        _sugestaoWikilink.value = EstadoSugestaoWikilink(gatilho = gatilho, carregando = true)
+        if (!secoesEmCarregamento.add(chave)) return
+        viewModelScope.launch {
+            val cabecalhos = withContext(Dispatchers.IO) {
+                runCatching {
+                    cacheDeSecoes.obter(chave) {
+                        NodeFs.File.fromPath(raizDoRepo, caminho).readText()
+                    }
+                }
+            }
+            secoesEmCarregamento.remove(chave)
+            val atual = gatilhoSugestaoWikilink(content.value.text, content.value.selection)
+            if (atual?.secao == true && atual.alvo == gatilho.alvo) {
+                cabecalhos.fold(
+                    onSuccess = { mostrarSecoes(atual, it, caminho) },
+                    onFailure = {
+                        _sugestaoWikilink.value = EstadoSugestaoWikilink(
+                            gatilho = atual,
+                            mensagem = "Não foi possível carregar as seções",
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    private fun mostrarSecoes(
+        gatilho: GatilhoSugestaoWikilink,
+        cabecalhos: List<ItemDeSumario>,
+        caminho: String,
+    ) {
+        val itens = sugerirSecoesParaWikilink(cabecalhos, gatilho.consulta).map {
+            ItemSugestaoWikilink(
+                texto = it.texto,
+                detalhe = "H${it.nivel}",
+                caminho = caminho,
+            )
         }
         _sugestaoWikilink.value = EstadoSugestaoWikilink(gatilho = gatilho, itens = itens)
     }

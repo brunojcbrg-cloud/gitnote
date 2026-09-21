@@ -82,6 +82,24 @@ fun aplicarSugestaoWikilink(
     )
 }
 
+fun deveAtualizarSugestaoWikilink(
+    anterior: EdicaoDeTexto,
+    atual: EdicaoDeTexto,
+    gatilhoAtivo: Boolean,
+): Boolean {
+    if (gatilhoAtivo) return true
+    if (!atual.selecao.collapsed || atual.texto.length != anterior.texto.length + 1) return false
+    val inserido = atual.selecao.start - 1
+    if (inserido !in atual.texto.indices || atual.texto[inserido] != '[') return false
+    if (!atual.texto.regionMatches(0, anterior.texto, 0, inserido)) return false
+    return atual.texto.regionMatches(
+        inserido + 1,
+        anterior.texto,
+        anterior.selecao.max,
+        anterior.texto.length - anterior.selecao.max,
+    )
+}
+
 private fun isInsideInlineCode(texto: String, inicioDaLinha: Int, offset: Int): Boolean {
     var delimitador = 0
     var indice = inicioDaLinha

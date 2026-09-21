@@ -176,9 +176,18 @@ internal fun WikilinkEditorField(
                             )
                         }
                     }
+                    estado.mensagem?.let { mensagem ->
+                        item {
+                            Text(
+                                text = mensagem,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     itemsIndexed(
                         items = estado.itens,
-                        key = { _, item -> "${item.caminho}|${item.texto}" },
+                        key = { indice, item -> "$indice|${item.caminho}|${item.texto}" },
                     ) { indice, item ->
                         val fundo = if (indice == estado.selecionado) {
                             MaterialTheme.colorScheme.secondaryContainer

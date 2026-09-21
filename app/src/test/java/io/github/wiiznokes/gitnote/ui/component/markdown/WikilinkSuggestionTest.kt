@@ -3,6 +3,7 @@ package io.github.wiiznokes.gitnote.ui.component.markdown
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class WikilinkSuggestionTest {
     private val caminhos = listOf(
@@ -65,5 +66,30 @@ class WikilinkSuggestionTest {
             ),
             repetidas,
         )
+    }
+
+    @Test
+    fun `ordena secoes extraidas pelo sumario sem reescrever a varredura`() {
+        val cabecalhos = sumarioDe("# Anatomia\n## Substância cinzenta\n### Neuroanatomia")
+        val resultado = sugerirSecoesParaWikilink(cabecalhos, "neuro")
+        assertEquals(
+            listOf("Neuroanatomia", "Anatomia", "Substância cinzenta"),
+            resultado.map { it.texto },
+        )
+        assertEquals(listOf(3, 1, 2), resultado.map { it.nivel })
+    }
+
+    @Test
+    fun `cache por versao le uma nota remota uma unica vez`() = runBlocking {
+        val cache = CacheDeSecoesWikilink()
+        var leituras = 0
+        repeat(2) {
+            val itens = cache.obter("Neuro/Medula Espinal.md:123") {
+                leituras++
+                "# Anatomia\n## Substância cinzenta"
+            }
+            assertEquals(2, itens.size)
+        }
+        assertEquals(1, leituras)
     }
 }

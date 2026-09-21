@@ -71,4 +71,21 @@ class WikilinkTriggerTest {
         assertEquals("antes\r\n[[Medula Espinal]]", resultado.texto)
         assertEquals(TextRange(resultado.texto.length), resultado.selecao)
     }
+
+    @Test
+    fun `tecla comum nao entra no caminho da sugestao`() {
+        val anterior = EdicaoDeTexto("texto", TextRange(5))
+        assertEquals(
+            false,
+            deveAtualizarSugestaoWikilink(anterior, EdicaoDeTexto("textox", TextRange(6)), false),
+        )
+        assertEquals(
+            true,
+            deveAtualizarSugestaoWikilink(anterior, EdicaoDeTexto("texto[", TextRange(6)), false),
+        )
+        assertEquals(
+            true,
+            deveAtualizarSugestaoWikilink(anterior, EdicaoDeTexto("textox", TextRange(6)), true),
+        )
+    }
 }

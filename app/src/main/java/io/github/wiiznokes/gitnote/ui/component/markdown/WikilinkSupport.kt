@@ -50,6 +50,17 @@ data class SugestaoDeNotaWikilink(
     val pasta: String,
 )
 
+class CacheDeSecoesWikilink {
+    private val porVersao = mutableMapOf<String, List<ItemDeSumario>>()
+
+    fun pronto(chaveDaVersao: String): List<ItemDeSumario>? = porVersao[chaveDaVersao]
+
+    suspend fun obter(chaveDaVersao: String, carregar: suspend () -> String): List<ItemDeSumario> {
+        porVersao[chaveDaVersao]?.let { return it }
+        return sumarioDe(carregar()).also { porVersao[chaveDaVersao] = it }
+    }
+}
+
 private fun normalizarBusca(value: String): String = Normalizer
     .normalize(value, Normalizer.Form.NFD)
     .replace(Regex("\\p{M}+"), "")
@@ -93,6 +104,18 @@ fun sugerirNotasParaWikilink(
                 .thenBy { it.caminho },
         )
         .toList()
+}
+
+fun sugerirSecoesParaWikilink(
+    cabecalhos: List<ItemDeSumario>,
+    digitado: String,
+): List<ItemDeSumario> {
+    val busca = normalizarBusca(digitado.trim())
+    return cabecalhos.sortedWith(
+        compareBy<ItemDeSumario> { faixaDaSugestao(it.texto, busca) }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.texto }
+            .thenBy { it.offset },
+    )
 }
 
 fun normalizeSectionHeading(value: String): String = value
