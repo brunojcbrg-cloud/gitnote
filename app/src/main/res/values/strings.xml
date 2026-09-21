@@ -235,4 +235,27 @@
     <string name="previous_occurrence">Previous occurrence</string>
     <string name="next_occurrence">Next occurrence</string>
     <string name="close_search">Close search</string>
+    <string name="lock_toggle_title">Startup lock</string>
+    <string name="lock_toggle_subtitle">Protects the credentials; notes stay in plain text on disk and their lock is interface only.</string>
+    <string name="lock_toggle_unavailable">Protection off: set a screen lock on the device.</string>
+    <string name="lock_relock_title">Re-lock when returning from the background</string>
+    <string name="lock_delay_immediate">Immediate</string>
+    <string name="lock_delay_one_minute">1 minute</string>
+    <string name="lock_delay_five_minutes">5 minutes</string>
+    <string name="lock_prompt_title">Unlock GitNote</string>
+    <string name="lock_prompt_subtitle">Confirm with biometrics or the device lock</string>
+    <string name="lock_screen_title">GitNote locked</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_try_again">Try again</string>
+    <string name="lock_reconfigure">Reconfigure repository</string>
+    <string name="lock_reconfigure_title">Reconfigure credentials?</string>
+    <string name="lock_reconfigure_text">The old credentials will be deleted. The local clone is kept; check on another device that your edits were synchronised before continuing.</string>
+    <string name="lock_reconfigure_confirm">Delete credentials and reconfigure</string>
+    <string name="lock_unavailable">Protection unavailable: set a screen lock on the device.</string>
+    <string name="lock_no_crypto">Authentication returned no cryptographic key; try again.</string>
+    <string name="lock_key_unavailable">The credentials key is unavailable. Reconfigure the repository to continue.</string>
+    <string name="lock_auth_failed">Authentication not completed: %1$s</string>
+    <string name="lock_auth_start_failed">Could not start the authentication. Try again.</string>
+    <string name="lock_no_screen_lock">Without a screen lock the encrypted credentials cannot be opened. Reconfigure the device or the repository.</string>
+    <string name="lock_reconfigure_failed">Could not reconfigure the credentials.</string>
 </resources>

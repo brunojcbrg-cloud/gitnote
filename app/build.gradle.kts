@@ -171,6 +171,7 @@ dependencies {
     implementation(libs.lifecycle.runtime.ktx)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.activity.compose)
+    implementation(libs.biometric)
     implementation(libs.datastore.preferences)
 
     val composeBom = platform(libs.compose.bom)

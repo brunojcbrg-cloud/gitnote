@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -25,7 +26,9 @@ import androidx.lifecycle.viewModelScope
 import dev.olshevski.navigation.reimagined.NavController
 import dev.olshevski.navigation.reimagined.navigate
 import io.github.wiiznokes.gitnote.BuildConfig
+import io.github.wiiznokes.gitnote.MainActivity
 import io.github.wiiznokes.gitnote.R
+import io.github.wiiznokes.gitnote.data.PrazoDaTrava
 import io.github.wiiznokes.gitnote.ui.component.AppPage
 import io.github.wiiznokes.gitnote.ui.component.DefaultSettingsRow
 import io.github.wiiznokes.gitnote.ui.component.MultipleChoiceSettings
@@ -252,6 +255,34 @@ fun SettingsScreen(
         SettingsSection(
             title = stringResource(R.string.repository)
         ) {
+
+            val activity = LocalContext.current as? MainActivity
+            val travaDeAbertura by vm.prefs.travaDeAbertura.getAsState()
+            ToggleableSettings(
+                title = stringResource(R.string.lock_toggle_title),
+                subtitle = stringResource(
+                    if (vm.prefs.protecaoDoCofreDisponivel) R.string.lock_toggle_subtitle
+                    else R.string.lock_toggle_unavailable
+                ),
+                checked = travaDeAbertura,
+                onCheckedChange = { ligar ->
+                    if (!ligar) vm.update { vm.prefs.travaDeAbertura.update(false) }
+                    else if (vm.prefs.protecaoDoCofreDisponivel) {
+                        activity?.confirmarTrava { confirmado ->
+                            if (confirmado) vm.update { vm.prefs.travaDeAbertura.update(true) }
+                        }
+                    }
+                }
+            )
+            if (travaDeAbertura) {
+                val prazo by vm.prefs.prazoDaTrava.getAsState()
+                MultipleChoiceSettings(
+                    title = stringResource(R.string.lock_relock_title),
+                    subtitle = prazo.toString(),
+                    options = PrazoDaTrava.entries,
+                    onOptionClick = { vm.update { vm.prefs.prazoDaTrava.update(it) } }
+                )
+            }
 
             val storageConfig by vm.prefs.storageConfig.getAsState()
             DefaultSettingsRow(

@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wiiznokes.gitnote.MyApp
+import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.manager.PreferencesManager
 import io.github.wiiznokes.gitnote.provider.ProviderType
 import io.github.wiiznokes.gitnote.provider.UserInfo
@@ -40,6 +41,8 @@ class AppPreferences(
     }
 
     val protecaoDoCofreDisponivel: Boolean get() = protecaoDisponivel
+
+    suspend fun temEnvelope(): Boolean = dataStore.data.first()[MigracaoDeCredenciais.envelope] != null
 
     val cofreAberto: Boolean get() = !protecaoDisponivel || cofre.aberto
 
@@ -80,6 +83,23 @@ class AppPreferences(
     }
 
     fun bloquearCofre() = cofre.bloquear()
+
+    /** Explicit recovery only: keep the clone on disk, discard inaccessible credentials. */
+    suspend fun reconfigurarCredenciais() {
+        cofre.bloquear()
+        dataStore.edit {
+            for (key in listOf(
+                MigracaoDeCredenciais.privateKeyAntiga, MigracaoDeCredenciais.passphraseAntiga,
+                MigracaoDeCredenciais.senhaAntiga, MigracaoDeCredenciais.tokenAntigo,
+                MigracaoDeCredenciais.privateKeyCifrada, MigracaoDeCredenciais.passphraseCifrada,
+                MigracaoDeCredenciais.senhaCifrada, MigracaoDeCredenciais.tokenCifrado,
+                MigracaoDeCredenciais.envelope
+            )) it.remove(key)
+            it.remove(MigracaoDeCredenciais.concluida)
+        }
+        mestra.apagar()
+        closeRepo()
+    }
 
     val quantidadeCredenciaisMigradas = intPreference("quantidadeCredenciaisMigradas", 0)
     val chavesCredenciaisMigradas = stringPreference("chavesCredenciaisMigradas", "")
@@ -277,6 +297,8 @@ class AppPreferences(
     }
 
     val isReadOnlyModeActive = booleanPreference("isReadOnlyModeActive", false)
+    val travaDeAbertura = booleanPreference("travaDeAbertura", false)
+    val prazoDaTrava = enumPreference("prazoDaTrava", PrazoDaTrava.Imediato)
     val bloquearCapturaDeTela = booleanPreference("bloquearCapturaDeTela", true)
     val isMarkdownThemeActive = booleanPreference("isMarkdownThemeActive", true)
     val markdownColorTheme = enumPreference("markdownColorTheme", MarkdownTheme.MATERIAL)
@@ -287,4 +309,19 @@ class AppPreferences(
 enum class StorageConfig {
     App,
     Device
+}
+
+enum class PrazoDaTrava(val milissegundos: Long) {
+    Imediato(0),
+    UmMinuto(60_000),
+    CincoMinutos(300_000);
+
+    override fun toString(): String {
+        val resource = when (this) {
+            Imediato -> R.string.lock_delay_immediate
+            UmMinuto -> R.string.lock_delay_one_minute
+            CincoMinutos -> R.string.lock_delay_five_minutes
+        }
+        return MyApp.appModule.uiHelper.getString(resource)
+    }
 }
