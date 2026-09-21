@@ -100,7 +100,8 @@ fun sugerirNotasParaWikilink(
         .sortedWith(
             compareBy<SugestaoDeNotaWikilink> { faixaDaSugestao(it.nome, busca) }
                 .thenBy { if (it.pasta == pastaAtual) 0 else 1 }
-                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.nome }
+                .thenBy { normalizarBusca(it.nome) }
+                .thenBy { it.nome }
                 .thenBy { it.caminho },
         )
         .toList()
@@ -113,7 +114,8 @@ fun sugerirSecoesParaWikilink(
     val busca = normalizarBusca(digitado.trim())
     return cabecalhos.sortedWith(
         compareBy<ItemDeSumario> { faixaDaSugestao(it.texto, busca) }
-            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.texto }
+            .thenBy { normalizarBusca(it.texto) }
+            .thenBy { it.texto }
             .thenBy { it.offset },
     )
 }
