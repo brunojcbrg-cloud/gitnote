@@ -9,8 +9,10 @@ import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.PortaoDaAbertura
 import io.github.wiiznokes.gitnote.data.room.Note
+import io.github.wiiznokes.gitnote.data.room.WikilinkSuggestionCandidate
 import io.github.wiiznokes.gitnote.ui.component.markdown.listarAnexos
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveWikilinkTargets
+import io.github.wiiznokes.gitnote.ui.component.markdown.sugerirNotasParaWikilink
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolverAnexoNoRepo
 import io.github.wiiznokes.gitnote.ui.component.markdown.offsetOfLineStart
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
@@ -37,6 +39,21 @@ internal fun editMarkdownValue(previous: TextFieldValue, value: TextFieldValue):
     return edited.toTextFieldValue(value, clearComposition = continuedLine)
 }
 
+data class ItemSugestaoWikilink(
+    val texto: String,
+    val detalhe: String,
+    val caminho: String,
+)
+
+data class EstadoSugestaoWikilink(
+    val gatilho: GatilhoSugestaoWikilink? = null,
+    val itens: List<ItemSugestaoWikilink> = emptyList(),
+    val selecionado: Int = 0,
+    val carregando: Boolean = false,
+) {
+    val visivel: Boolean get() = gatilho != null && (itens.isNotEmpty() || carregando)
+}
+
 
 class MarkDownVM : TextVM {
 
@@ -57,6 +74,21 @@ class MarkDownVM : TextVM {
     private val linhaParaGravar = MutableStateFlow<Int?>(null)
 
     private val _posicaoTardia = MutableStateFlow<Int?>(null)
+
+    private val _sugestaoWikilink = MutableStateFlow(EstadoSugestaoWikilink())
+    val sugestaoWikilink: StateFlow<EstadoSugestaoWikilink> = _sugestaoWikilink.asStateFlow()
+    private var candidatosDeWikilink: List<WikilinkSuggestionCandidate> = emptyList()
+    private var caminhosDeWikilink: List<String> = emptyList()
+
+    init {
+        viewModelScope.launch {
+            candidatosDeWikilink = withContext(Dispatchers.IO) {
+                dao.wikilinkSuggestionCandidates()
+            }
+            caminhosDeWikilink = candidatosDeWikilink.map { it.relativePath }
+            atualizarSugestaoWikilink(content.value)
+        }
+    }
 
     /**
      * Posicao que chegou tarde demais para a primeira composicao.
@@ -95,7 +127,46 @@ class MarkDownVM : TextVM {
     ) : super(editType, previousNote, name, content)
 
     override fun onValueChange(v: TextFieldValue) {
-        super.onValueChange(editMarkdownValue(content.value, v))
+        val editado = editMarkdownValue(content.value, v)
+        super.onValueChange(editado)
+        atualizarSugestaoWikilink(editado)
+    }
+
+    private fun atualizarSugestaoWikilink(valor: TextFieldValue) {
+        val gatilho = gatilhoSugestaoWikilink(valor.text, valor.selection)
+        if (gatilho == null || gatilho.secao) {
+            _sugestaoWikilink.value = EstadoSugestaoWikilink()
+            return
+        }
+        val itens = sugerirNotasParaWikilink(
+            caminhos = caminhosDeWikilink,
+            caminhoAtual = previousNote.relativePath,
+            digitado = gatilho.consulta,
+        ).map {
+            ItemSugestaoWikilink(texto = it.nome, detalhe = it.pasta, caminho = it.caminho)
+        }
+        _sugestaoWikilink.value = EstadoSugestaoWikilink(gatilho = gatilho, itens = itens)
+    }
+
+    fun fecharSugestaoWikilink() {
+        _sugestaoWikilink.value = EstadoSugestaoWikilink()
+    }
+
+    fun moverSelecaoWikilink(delta: Int) {
+        val estado = _sugestaoWikilink.value
+        if (!estado.visivel || estado.itens.isEmpty()) return
+        val proximo = (estado.selecionado + delta).mod(estado.itens.size)
+        _sugestaoWikilink.value = estado.copy(selecionado = proximo)
+    }
+
+    fun aceitarSugestaoWikilink(indice: Int = _sugestaoWikilink.value.selecionado) {
+        val estado = _sugestaoWikilink.value
+        val gatilho = estado.gatilho ?: return
+        val item = estado.itens.getOrNull(indice) ?: return
+        val original = content.value
+        val editado = aplicarSugestaoWikilink(original.toEdicaoDeTexto(), gatilho, item.texto)
+        super.onValueChange(editado.toTextFieldValue(original, clearComposition = true))
+        fecharSugestaoWikilink()
     }
 
     private fun applyEdit(transform: (EdicaoDeTexto) -> EdicaoDeTexto) {

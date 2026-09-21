@@ -57,4 +57,18 @@ class WikilinkTriggerTest {
         assertNull(gatilho("`[[medu`", cursor = 7))
         assertEquals("medu", gatilho("`codigo` [[medu")?.consulta)
     }
+
+    @Test
+    fun `aceite troca so o trecho digitado e fecha com texto do contrato`() {
+        val texto = "antes\r\n[[medu"
+        val gatilho = requireNotNull(gatilho(texto))
+        val resultado = aplicarSugestaoWikilink(
+            EdicaoDeTexto(texto, TextRange(texto.length)),
+            gatilho,
+            "Medula Espinal",
+        )
+
+        assertEquals("antes\r\n[[Medula Espinal]]", resultado.texto)
+        assertEquals(TextRange(resultado.texto.length), resultado.selecao)
+    }
 }

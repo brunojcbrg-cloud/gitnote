@@ -616,12 +616,13 @@ fun MarkDownContent(
             baseFontSize.toPx() * EDIT_LINE_HEIGHT_FACTOR
         }
         Box(modifier = Modifier.fillMaxSize()) {
-            GenericTextField(
+            WikilinkEditorField(
                 vm = vm,
                 textFocusRequester = textFocusRequester,
                 onFinished = onFinished,
                 textContent = textContent,
                 visualTransformation = visualTransformation,
+                textStyle = MaterialTheme.typography.bodyLarge,
             )
             FastScrollLineOverlay(
                 lineCount = editLineCount,

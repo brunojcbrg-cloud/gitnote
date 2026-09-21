@@ -18,6 +18,11 @@ class MarkdownLivePreviewTransformation(
     private val baseFontSize: TextUnit,
 ) : VisualTransformation {
 
+    private var ultimoMapeamento: OffsetMapping = OffsetMapping.Identity
+
+    /** Mapeamento que o proprio TextField acabou de usar para desenhar o cursor. */
+    fun originalParaTransformado(offset: Int): Int = ultimoMapeamento.originalToTransformed(offset)
+
     companion object {
         // Cache de uma entrada no companion: mudancas de texto e trocas da linha ativa
         // ainda criam instancias novas. Nesses casos, o mesmo texto reusa a varredura.
@@ -150,12 +155,14 @@ class MarkdownLivePreviewTransformation(
             if (de < ate) transformed.addStyle(estilo, de, ate)
         }
 
+        val mapeamento = ArrayOffsetMapping(
+            originalToTransformed = originalToTransformed,
+            transformedToOriginal = transformedToOriginal,
+        )
+        ultimoMapeamento = mapeamento
         return TransformedText(
             text = transformed.toAnnotatedString(),
-            offsetMapping = ArrayOffsetMapping(
-                originalToTransformed = originalToTransformed,
-                transformedToOriginal = transformedToOriginal,
-            ),
+            offsetMapping = mapeamento,
         )
     }
 

@@ -66,6 +66,22 @@ fun gatilhoSugestaoWikilink(texto: String, selecao: TextRange): GatilhoSugestaoW
     }
 }
 
+fun aplicarSugestaoWikilink(
+    edicao: EdicaoDeTexto,
+    gatilho: GatilhoSugestaoWikilink,
+    textoAceito: String,
+): EdicaoDeTexto {
+    if (!edicao.selecao.collapsed || edicao.selecao.start != gatilho.cursor) return edicao
+    if (gatilho.inicioSubstituicao !in 0..gatilho.cursor || gatilho.cursor > edicao.texto.length) {
+        return edicao
+    }
+    val insercao = "$textoAceito]]"
+    return edicao.copy(
+        texto = edicao.texto.replaceRange(gatilho.inicioSubstituicao, gatilho.cursor, insercao),
+        selecao = TextRange(gatilho.inicioSubstituicao + insercao.length),
+    )
+}
+
 private fun isInsideInlineCode(texto: String, inicioDaLinha: Int, offset: Int): Boolean {
     var delimitador = 0
     var indice = inicioDaLinha

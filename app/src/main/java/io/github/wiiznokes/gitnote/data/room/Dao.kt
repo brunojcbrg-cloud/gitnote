@@ -32,6 +32,11 @@ data class WikilinkCandidate(
     val relativePath: String,
 )
 
+data class WikilinkSuggestionCandidate(
+    val relativePath: String,
+    val lastModifiedTimeMillis: Long,
+)
+
 @Dao
 interface RepoDatabaseDao {
 
@@ -211,6 +216,16 @@ interface RepoDatabaseDao {
             }
             .distinctBy { it.relativePath }
     }
+
+    /** Metadados leves, carregados uma vez ao abrir o editor; nunca traz `content`. */
+    @Query(
+        """
+        SELECT relativePath, lastModifiedTimeMillis FROM Notes
+        WHERE relativePath LIKE '%.md'
+        ORDER BY relativePath COLLATE NOCASE ASC, relativePath ASC
+        """,
+    )
+    suspend fun wikilinkSuggestionCandidates(): List<WikilinkSuggestionCandidate>
 
     /**
      * Listagem da grade: a pasta aberta **e as descendentes** (Fase K.2 do handoff 10).

@@ -138,7 +138,9 @@ fun EditScreen(
     )
 
     BackHandler {
-        if (buscaAberta) {
+        if (vm is MarkDownVM && vm.sugestaoWikilink.value.visivel) {
+            vm.fecharSugestaoWikilink()
+        } else if (buscaAberta) {
             buscaAberta = false
         } else if (sumarioAberto) {
             sumarioAberto = false
@@ -198,7 +200,9 @@ fun EditScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            if (vm.isPreviousNoteTheSame()) {
+                            if (vm is MarkDownVM && vm.sugestaoWikilink.value.visivel) {
+                                vm.fecharSugestaoWikilink()
+                            } else if (vm.isPreviousNoteTheSame()) {
                                 vm.shouldSaveWhenQuitting = false
                                 onFinished()
                             } else {
