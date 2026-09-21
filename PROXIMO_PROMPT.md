@@ -1,60 +1,47 @@
-Leia E:\Projetos\gitnote\ESTADO_10.md e E:\Projetos\gitnote\RESULTADO_10_H.md antes de
-qualquer coisa. Leia o HANDOFF_10_DESEMPENHO_E_NAVEGACAO.md se for escrever código.
+Leia E:\Projetos\gitnote\ESTADO_10.md antes de qualquer coisa. Leia o
+HANDOFF_10_DESEMPENHO_E_NAVEGACAO.md se for escrever codigo.
 
-ONDE O HANDOFF 10 PAROU (20/09/2026)
-A lista de fases acabou: A, B, C, D, E, F, K, G, H (H.1, H.2, H.3, H.5) e J.1 estao
-entregues. A ultima release e a b71. Sobraram quatro coisas, e TODAS dependem de uma
-escolha do Bruno. Nao escolha por ele e nao comece nenhuma sem ele dizer qual.
+ONDE TUDO PAROU (20/09/2026, fim do dia)
+- Handoff 10 cumprido: A, B, C, D, E, F, K, G, H (H.1, H.2, H.3, H.5) e J.1.
+- Trabalho de seguranca fechado e publicado: release b73, quatro jobs verdes.
+  A arvore do repositorio esta limpa.
+- I.0 decidido e feito no vault: pasta 06_Conhecimento/_anexos/ versionada, com
+  as 21 imagens que eram anexo de nota, e o Obsidian configurado para colar la.
+- Fase I na web entregue: notas-web commit 2191b7f, 143 testes verdes.
 
-PASSO 0 - O UNICO PENDENTE MECANICO
-A branch `handoff10-h3-textfield` tem um commit a frente da master: `bc7b550`, o teste
-Robolectric que mede o custo do cursor no `TextField` real. E teste puro, nao muda
-producao, e as duas rodadas do CI passaram com 382 testes. Integrar a master publica a
-release seguinte. PERGUNTE ao Bruno antes de mesclar; se ele autorizar, faca
-fast-forward na master, empurre e leia o job "Unit tests + APK".
+TRES FRENTES ABERTAS. Pergunte ao Bruno qual, execute SO uma.
 
-AS QUATRO ESCOLHAS (pergunte qual, execute so uma)
+1. FASE I NO APP ANDROID - destravada, e o contrato ja existe na web.
+   Prompt pronto: E:\Projetos\gitnote\PROXIMO_PROMPT_I_APP.md
+   E a unica frente em que ele ainda ve o problema na tela: as imagens ja estao
+   no git e ja aparecem na web, mas o app segue com NoOpImageTransformerImpl.
 
-1. FASE J.2 - o caminho tecnico que a Fase H apontou.
-   A H.3 provou que o custo por tecla nao cai trocando a chave do `remember`:
-   `CoreTextField` refaz `filter()` porque a selecao faz parte de `TextFieldValue`.
-   Quem resolve isso e a migracao para `TextFieldState`. O pre-requisito (H.1 + H.2)
-   esta cumprido. O prompt pronto esta em E:\Projetos\gitnote\PROXIMO_PROMPT_J2.md e
-   EXIGE Opus 5 com esforco maximo e o aval explicito dele. Nao rode com outro modelo.
+2. FASE J.2 - o conserto do custo por tecla no editor.
+   Prompt pronto: E:\Projetos\gitnote\PROXIMO_PROMPT_J2.md
+   EXIGE Opus 5 com esforco maximo e o aval explicito dele. A Fase H provou que
+   trocar a chave do remember nao resolve; quem resolve e a migracao para
+   TextFieldState.
 
-2. PARTE V - renomear `06_Conhecimento` para `NOTAS`.
-   Sem impedimento tecnico desde a Fase C. O app Android nao hardcoda o nome; quem tem
-   o nome cravado e o projeto notas-web (`src/github.ts:5`), e as 961+ ocorrencias no
-   vault sao, na maioria, registro historico que NAO pode ser reescrito. So comeca com
-   ele dizendo que quer agora.
+3. PARTE V - renomear 06_Conhecimento para NOTAS.
+   Sem impedimento tecnico desde a Fase C. O app nao hardcoda o nome; quem tem o
+   nome cravado e o notas-web (src/github.ts:5) e, agora, a pasta de anexos
+   (06_Conhecimento/_anexos), que muda de caminho junto.
 
-3. FASE I - imagens nas notas.
-   Travada no I.0: o Bruno precisa decidir a pasta de anexos e a excecao no `.gitignore`
-   do vault (hoje o `.gitignore` exclui todas as imagens, e ha 0 rastreadas). Pendente
-   tambem o I.7: renderizar ou nao imagem remota `![](https://...)`. Sem essas duas
-   respostas, a fase inteira fica bloqueada.
+F.3 (recolher no modo de edicao) e H.4 (edicao por secao) continuam depois da J.
 
-4. F.3 / H.4 - recolher titulos no modo de edicao e edicao por secao.
-   F.3 foi adiada de proposito para a sessao de H.4, e H.4 caiu para ultimo recurso:
-   so se reavalia depois de J.3. Ou seja, esta opcao normalmente vem DEPOIS da 1.
-
-REGRAS QUE VALEM EM QUALQUER UMA DELAS
-- Nao compile localmente. Nao instale JDK, SDK nem Gradle: nao ha SDK Android nesta
-  maquina. Quem compila e o GitHub Actions, que dispara sozinho no push da master.
-- Ha trabalho de seguranca nao commitado na arvore (`PortaoDeSeguranca.kt`,
-  `PortaoDeSegurancaTest.kt` e 8 arquivos modificados). Nao commite, nao reverta e nao
-  encoste neles. Se um arquivo seu coincidir, isole suas linhas como a Fase C fez.
-- Teste de UI e Robolectric, nunca aparelho. Nenhum teste consegue construir
-  `GridViewModel`/`MarkDownVM` reais (`GitManager` carrega `git_wrapper`): extraia funcao
-  pura e teste ela, mais teste estrutural que le o codigo-fonte.
-- Ao compor markdown em teste, use `CompositionLocalProvider(LocalInspectionMode provides
-  true)`; em conteiner que rola, `performScrollTo()` antes do clique; banco em memoria com
-  `allowMainThreadQueries()`. Quando a rodada falhar, baixe o artefato
-  `gh run download <id> -n test-report-<n>` - e ele que traz a excecao completa.
-- Strings novas vao em `values/strings.xml` E em `values-pt-rBR/strings.xml`.
-- Nao trate mediana isolada como prova: o runner do CI e ruidoso e ja enganou duas fases.
-  Prova boa aqui e contagem de chamadas ou identidade de referencia, nao tempo.
+REGRAS QUE VALEM EM QUALQUER UMA
+- Nao compile localmente. Nao instale JDK, SDK nem Gradle. Quem compila e o
+  GitHub Actions no push da master; leia o job "Unit tests + APK".
+- Teste de UI e Robolectric. Ao compor markdown em teste, use
+  CompositionLocalProvider(LocalInspectionMode provides true); em conteiner que
+  rola, performScrollTo() antes do clique; banco em memoria com
+  allowMainThreadQueries().
+- Quando a rodada falhar, baixe gh run download <id> -n test-report-<n>.
+- Strings novas vao em values/strings.xml E em values-pt-rBR/strings.xml.
+- Nao trate mediana isolada como prova: o runner e ruidoso e ja enganou duas
+  fases. Prova boa aqui e contagem de chamadas ou identidade de referencia.
+- Se medir algo diferente do que o handoff afirma, PARE, registre em
+  ESTADO_10.md e pergunte. A Fase H ja derrubou uma premissa dele.
 
 AO TERMINAR
-Escreva `RESULTADO_10_<FASE>.md`, atualize `ESTADO_10.md` (tabela + divergencias) e
-regrave este arquivo com o prompt da sessao seguinte. Depois pare.
+Escreva RESULTADO_10_<FASE>.md, atualize ESTADO_10.md e regrave este arquivo.

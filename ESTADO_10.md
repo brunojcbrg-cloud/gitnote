@@ -81,11 +81,30 @@ arquivo — deixa a linha pronta no fim do seu `RESULTADO_10_*.md`. Quem está n
 aqui normalmente, mas **preserva as linhas das outras fases**.
 
 **Pendências que não são fase e dependem só do Bruno:**
+- ~~**I.0**~~ — **decidido e feito em 20/09**: pasta `06_Conhecimento/_anexos/`, exceção no
+  `.gitignore` do vault e `attachmentFolderPath` no Obsidian. 21 imagens movidas e
+  versionadas (commit `2de3f6e` de `vault-conhecimento`). Eram 0 rastreadas para 405 no
+  disco — a causa real de imagem não aparecer no celular.
+- ~~**I.7**~~ — **decidido em 20/09: imagem remota NÃO renderiza**, fica como texto.
+- **Fase I no app** — destravada, prompt em `PROXIMO_PROMPT_I_APP.md`. A web já foi feita
+  (commit `2191b7f` de `notas-web`, 143 testes verdes) e define o contrato.
 - **F.3** (recolher no modo de edição) — adiado por decisão do handoff para a sessão de H.4.
-- **I.0** — pasta de anexos e exceção no `.gitignore` do vault. Bloqueia a Fase I inteira.
-- **I.7** — renderizar ou não imagem remota (`![](https://…)`).
 - **Parte V** — a renomeação `06_Conhecimento` → `NOTAS`. Sem impedimento técnico desde a Fase C.
+- **Teto de 10 na grade** — fica **fixo**, como o handoff propôs; vira ajuste só se ele pedir.
 - **J.2** — exige Opus 5 com esforço máximo e aval dele; prompt pronto em `PROXIMO_PROMPT_J2.md`.
+
+**Trabalho de segurança: fechado em 20/09.** Estava na árvore sem commit desde antes da
+Fase A. Foi terminado (as ~20 mensagens cravadas em português viraram recurso, em
+`values/` e `values-pt-rBR/`; o rótulo do `PrazoDaTrava` virou recurso no padrão de
+`Theme`/`SortOrder`; teste novo trava o nome das constantes, que é o que o
+`EnumPreference` grava) e publicado no commit `1a0425a`, **release b73**, com os quatro
+jobs verdes — inclusive a varredura `mobsfscan` nova. **A árvore do repositório está
+limpa pela primeira vez em todo o handoff 10.**
+
+**Efeito visível da b73, para conferir no aparelho:** com bloqueio de tela configurado, o
+app passa a pedir biometria na abertura — é assim que o cofre de credenciais é aberto. O
+interruptor "Trava de abertura" nos Ajustes controla o *retravamento* ao voltar do segundo
+plano (imediato, 1 min ou 5 min), não esse desbloqueio inicial.
 
 ## Divergências entre handoff e código real
 
