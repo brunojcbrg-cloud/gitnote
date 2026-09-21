@@ -328,6 +328,16 @@ class MarkDownVM : TextVM {
         applyEdit { onTaskList(it) }
     }
 
+    /** O que a tecla Tab faz no teclado do computador: aninha o item de lista. */
+    fun onAumentarRecuo() {
+        applyEdit { onAumentarRecuo(it) }
+    }
+
+    /** O Shift+Tab: devolve o item um nivel. */
+    fun onDiminuirRecuo() {
+        applyEdit { onDiminuirRecuo(it) }
+    }
+
     fun onTableInsert(columns: Int, bodyRows: Int) {
         val original = content.value
         val edited = insertTable(original.toEdicaoDeTexto(), columns, bodyRows)

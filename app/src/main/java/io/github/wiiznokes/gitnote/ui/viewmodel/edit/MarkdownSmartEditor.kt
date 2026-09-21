@@ -822,3 +822,54 @@ fun onTaskList(v: EdicaoDeTexto): EdicaoDeTexto {
         }
     )
 }
+
+/**
+ * O recuo de um nivel e uma **tabulacao**, e nao espacos.
+ *
+ * Medido no vault em 21/09/2026: 1.489 itens de lista aninhados usam tabulacao
+ * contra 515 com espacos. E tambem o que a tecla Tab do Obsidian insere. Recuar
+ * com espacos aqui faria a mesma nota ser aninhada de um jeito no celular e de
+ * outro no computador.
+ */
+const val RECUO_DE_UM_NIVEL = "\t"
+
+/** Quantos espacos valem um nivel, para desrecuar o que veio escrito com espaco. */
+private const val ESPACOS_POR_NIVEL = 4
+
+/**
+ * So item de lista recua.
+ *
+ * Linha comum recuada vira **bloco de codigo** no markdown -- quatro espacos ou
+ * uma tabulacao no comeco e a sintaxe de codigo indentado. Entao o botao nao
+ * mexe em paragrafo: silenciosamente transformar o texto do Bruno em codigo
+ * seria pior que nao fazer nada. Citacao (`>`) tambem fica de fora pelo mesmo
+ * motivo: `\t> x` nao e citacao aninhada, e codigo.
+ */
+private fun ehItemDeListaRecuavel(linha: String): Boolean {
+    val info = ListItemInfo.parseSafely(linha) ?: return false
+    return info.listType != ListType.Quote
+}
+
+private fun semUmNivelDeRecuo(linha: String): String {
+    if (linha.startsWith(RECUO_DE_UM_NIVEL)) return linha.removePrefix(RECUO_DE_UM_NIVEL)
+    val espacos = linha.takeWhile { it == ' ' }.length.coerceAtMost(ESPACOS_POR_NIVEL)
+    return linha.substring(espacos)
+}
+
+/** Tab: aninha o item de lista um nivel. Vale para todas as linhas da selecao. */
+fun onAumentarRecuo(v: EdicaoDeTexto): EdicaoDeTexto = multiLinePrefixModifier(
+    v = v,
+    f1 = { false },
+    f2 = { linha, _ ->
+        if (ehItemDeListaRecuavel(linha)) RECUO_DE_UM_NIVEL + linha else linha
+    },
+)
+
+/** Shift+Tab: devolve o item um nivel. Sem recuo, a linha fica como esta. */
+fun onDiminuirRecuo(v: EdicaoDeTexto): EdicaoDeTexto = multiLinePrefixModifier(
+    v = v,
+    f1 = { false },
+    f2 = { linha, _ ->
+        if (ehItemDeListaRecuavel(linha)) semUmNivelDeRecuo(linha) else linha
+    },
+)

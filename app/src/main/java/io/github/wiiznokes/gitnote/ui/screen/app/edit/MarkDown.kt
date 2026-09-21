@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatIndentDecrease
+import androidx.compose.material.icons.automirrored.filled.FormatIndentIncrease
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
@@ -959,6 +961,18 @@ fun TextFormatRow(
             onClick = { vm.onTaskList() },
             imageVector = Icons.Default.Checklist,
             contentDescription = "checklist"
+        )
+
+        // O Tab e o Shift+Tab do teclado, que o celular nao tem.
+        SmallButton(
+            onClick = { vm.onDiminuirRecuo() },
+            imageVector = Icons.AutoMirrored.Filled.FormatIndentDecrease,
+            contentDescription = stringResource(R.string.outdent_list_item),
+        )
+        SmallButton(
+            onClick = { vm.onAumentarRecuo() },
+            imageVector = Icons.AutoMirrored.Filled.FormatIndentIncrease,
+            contentDescription = stringResource(R.string.indent_list_item),
         )
 
         TableActionButton(

@@ -262,4 +262,6 @@
     <string name="lock_reconfigure_failed">Could not reconfigure the credentials.</string>
     <string name="font_size_decrease">Decrease note text size</string>
     <string name="font_size_increase">Increase note text size</string>
+    <string name="indent_list_item">Indent list item</string>
+    <string name="outdent_list_item">Outdent list item</string>
 </resources>

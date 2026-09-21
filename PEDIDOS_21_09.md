@@ -1,6 +1,6 @@
 # Pedidos do Bruno em 21/09/2026
 
-Cinco coisas, fora das fases do handoff 10. **Quatro e meia entregues** (o pedido 4
+Seis coisas, fora das fases do handoff 10. **Cinco e meia entregues** (o pedido 4
 saiu na web e falta no app).
 
 | # | Pedido | Status |
@@ -10,6 +10,7 @@ saiu na web e falta no app).
 | 3 | Recolher títulos no painel do sumário (mostrar ou não os subtópicos) | **entregue** — b77 |
 | 4 | Colar imagem com Ctrl+V direto no editor da web e no celular | **web entregue** (`001745b`); **app aberto** |
 | 5 | Sair do app durante a edição perdia tudo o que tinha sido digitado | **entregue** — `9fab3c6`, na b79; falta ver em aparelho |
+| 6 | Faltava o Tab: recuar um item de lista para virar subtópico | **entregue** — botões na barra de formatação; falta ver em aparelho |
 
 Entregues no commit `25f63b2` (+ `ca4…` de conserto do teste), release **b77
 (26.08.1.77)**, [run 35552142059](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35552142059):
@@ -185,3 +186,29 @@ Provas: `RascunhoSobreviveAoSegundoPlanoTest` (4 testes estruturais, no molde de
 `RecolhimentoNaoAlteraTextoSalvoTest`, porque `TextVM` não instancia em JVM e
 ciclo de vida do Compose não roda em teste de unidade). Suíte inteira: **494
 testes, 0 falhas**.
+
+---
+
+## 6. Faltava o Tab: recuar um item para virar subtópico
+
+Pedido: *"no app não tem nenhum botão ou controle que me permita dar o espaço
+semelhante ao dado com a tecla Tab, que faz uma linha ser organizada em tópico."*
+
+Dois botões novos na barra de formatação, ao lado dos de lista: recuar e voltar
+— o Tab e o Shift+Tab que o teclado do celular não tem.
+
+**O recuo é uma tabulação, e isso foi medido, não escolhido por gosto.** No vault,
+1.489 itens de lista aninhados usam tabulação contra 515 com espaços, e é o que a
+tecla Tab do Obsidian insere. Recuar com espaços faria a mesma nota aninhar de um
+jeito no celular e de outro no computador.
+
+**Só item de lista recua.** Parágrafo recuado vira **bloco de código** no markdown
+— quatro espaços ou uma tabulação no começo é a sintaxe de código indentado —, e
+transformar o texto em código silenciosamente seria pior que não fazer nada. Pelo
+mesmo motivo a citação (`>`) fica de fora: `\t> x` não é citação aninhada, é código.
+Numa seleção de várias linhas, os itens andam e o que não é item fica parado.
+
+Voltar (o Shift+Tab) também desfaz recuo escrito com espaço, porque o vault tem
+515 itens assim e eles precisam ser editáveis pelo botão.
+
+**507 testes verdes** (11 novos, e estes são de lógica pura: entra texto, sai texto).

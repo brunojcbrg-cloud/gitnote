@@ -233,4 +233,6 @@
     <string name="lock_reconfigure_failed">Não foi possível reconfigurar as credenciais.</string>
     <string name="font_size_decrease">Diminuir a letra das notas</string>
     <string name="font_size_increase">Aumentar a letra das notas</string>
+    <string name="indent_list_item">Recuar o item da lista</string>
+    <string name="outdent_list_item">Voltar o item da lista</string>
 </resources>
