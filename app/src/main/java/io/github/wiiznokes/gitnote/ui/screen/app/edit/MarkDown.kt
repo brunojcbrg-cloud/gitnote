@@ -72,6 +72,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.TextUnit
 import com.mikepenz.markdown.m3.markdownColor
+import com.mikepenz.markdown.model.ImageTransformer
+import com.mikepenz.markdown.model.NoOpImageTransformerImpl
 import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
@@ -87,6 +89,8 @@ import io.github.wiiznokes.gitnote.ui.component.markdown.nearestAnchorAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.nearestLineAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
+import io.github.wiiznokes.gitnote.ui.component.markdown.TransformadorDeImagemDaNota
+import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessarImagens
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
 import io.github.wiiznokes.gitnote.ui.component.markdown.secoesDe
@@ -174,9 +178,34 @@ fun MarkDownContent(
         val existingNames = resolvedTargets
             ?.filterValues { it != null }
             ?.keys
-        val renderedContent = remember(textContent.text, existingNames) {
-            preprocessWikilinksForReading(textContent.text, existingNames)
+        // A listagem de anexos so vai ao disco quando a nota cita alguma imagem.
+        val podeTerImagem = remember(textContent.text) { textContent.text.contains("![") }
+        // Nulo enquanto a listagem nao chega: assim o embed nao aparece cru por um
+        // quadro para so depois virar imagem.
+        var anexos by remember(vm.previousNote.relativePath) {
+            mutableStateOf<List<String>?>(null)
         }
+        LaunchedEffect(podeTerImagem, vm.previousNote.relativePath) {
+            if (podeTerImagem) anexos = vm.anexosDisponiveis()
+        }
+        val renderedContent = remember(textContent.text, existingNames, anexos) {
+            val comWikilinks = preprocessWikilinksForReading(textContent.text, existingNames)
+            val listaDeAnexos = anexos
+            if (!podeTerImagem || listaDeAnexos == null) {
+                comWikilinks
+            } else {
+                preprocessarImagens(comWikilinks) { vm.resolverAnexo(it, listaDeAnexos) }
+            }
+        }
+        // Nota sem imagem nao paga a leitura da raiz do repositorio.
+        val transformadorDeImagem: ImageTransformer =
+            remember(podeTerImagem, vm.previousNote.relativePath) {
+                if (podeTerImagem) {
+                    TransformadorDeImagemDaNota(vm.raizDoRepo)
+                } else {
+                    NoOpImageTransformerImpl()
+                }
+            }
         LaunchedEffect(renderedContent, termoBusca) {
             if (termoBusca.isEmpty()) {
                 onResultadosBusca(emptyList())
@@ -415,6 +444,7 @@ fun MarkDownContent(
                             content = conteudoExibido,
                             colors = readingColors,
                             typography = readingTypography,
+                            imageTransformer = transformadorDeImagem,
                             annotator = annotator,
                             onHeadingPositioned = { text, sourceOffsetVisivel, coordinates ->
                                 registerBlock(sourceOffsetVisivel, coordinates)

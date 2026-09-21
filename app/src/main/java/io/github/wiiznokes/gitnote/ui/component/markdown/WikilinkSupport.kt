@@ -264,7 +264,7 @@ private fun wikilinkUri(
     return "$WIKILINK_SCHEME://$host?$query"
 }
 
-private fun queryValue(query: String?, key: String): String? {
+internal fun queryValue(query: String?, key: String): String? {
     val encoded = query
         ?.split('&')
         ?.firstNotNullOfOrNull { part ->
@@ -281,10 +281,10 @@ private fun queryValue(query: String?, key: String): String? {
     }.getOrNull()
 }
 
-private fun encodeQueryValue(value: String): String =
+internal fun encodeQueryValue(value: String): String =
     URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
 
-private fun escapeMarkdownLinkText(value: String): String = buildString(value.length) {
+internal fun escapeMarkdownLinkText(value: String): String = buildString(value.length) {
     value.forEach { character ->
         if (character == '\\' || character == '[' || character == ']') append('\\')
         append(character)

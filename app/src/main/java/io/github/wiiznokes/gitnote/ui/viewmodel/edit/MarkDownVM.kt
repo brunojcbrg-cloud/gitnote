@@ -9,11 +9,14 @@ import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.PortaoDaAbertura
 import io.github.wiiznokes.gitnote.data.room.Note
+import io.github.wiiznokes.gitnote.ui.component.markdown.listarAnexos
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveWikilinkTargets
+import io.github.wiiznokes.gitnote.ui.component.markdown.resolverAnexoNoRepo
 import io.github.wiiznokes.gitnote.ui.component.markdown.offsetOfLineStart
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.viewmodel.viewModelFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "MarkDownVM"
 private const val ESPERA_GRAVACAO_MS = 400L
@@ -146,6 +150,19 @@ class MarkDownVM : TextVM {
         val result = resizeTableAt(original.toEdicaoDeTexto(), columns, bodyRows) ?: return
         super.onValueChange(result.value.toTextFieldValue(original, clearComposition = true))
     }
+
+    /**
+     * Raiz do repositorio, lida uma vez. A leitura bloqueante ja e o padrao da
+     * casa (`PosicoesDeLeitura`, `SetupNav`): a tela precisa dela na composicao.
+     */
+    val raizDoRepo: String by lazy { prefs.repoPathSafely() }
+
+    /** Anexos publicados, para resolver `![[nome.png]]` pelo nome (Fase I.2). */
+    suspend fun anexosDisponiveis(): List<String> =
+        withContext(Dispatchers.IO) { listarAnexos(raizDoRepo) }
+
+    fun resolverAnexo(alvo: String, anexos: List<String>): String? =
+        resolverAnexoNoRepo(raizDoRepo, anexos, alvo)
 
     suspend fun resolveWikilinks(names: Set<String>): Map<String, String?> {
         val candidates = dao.wikilinkCandidates(names)
