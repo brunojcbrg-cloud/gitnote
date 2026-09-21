@@ -131,10 +131,12 @@ class SumarioLateralTest {
     fun aSetaDoPainelEscondeEDevolveOsSubtitulos() {
         // Pedido do Bruno em 21/09: recolher o titulo NO SUMARIO, para os
         // subtopicos aparecerem ou nao. E so da lista -- nao mexe na nota.
-        val nota = "# Um
-## Um.A
-## Um.B
-# Dois"
+        val nota = """
+            # Um
+            ## Um.A
+            ## Um.B
+            # Dois
+        """.trimIndent()
         val itens = sumarioDe(nota)
         val offsetDoUm = itens.first { it.texto == "Um" }.offset
         composeRule.setContent {
@@ -165,9 +167,11 @@ class SumarioLateralTest {
 
     @Test
     fun tituloSemSubtituloNaoGanhaSeta() {
-        val nota = "# Um
-## Um.A
-# Dois"
+        val nota = """
+            # Um
+            ## Um.A
+            # Dois
+        """.trimIndent()
         val itens = sumarioDe(nota)
         val offsetDoDois = itens.first { it.texto == "Dois" }.offset
         composeRule.setContent {
@@ -189,9 +193,11 @@ class SumarioLateralTest {
     fun semOCallbackOPainelContinuaComoEraAntes() {
         // Nao-regressao: quem chama sem recolhimento de painel nao ganha seta
         // nenhuma e continua vendo a lista inteira.
-        val nota = "# Um
-## Um.A
-# Dois"
+        val nota = """
+            # Um
+            ## Um.A
+            # Dois
+        """.trimIndent()
         val itens = sumarioDe(nota)
         composeRule.setContent {
             Box(Modifier.width(320.dp).height(600.dp)) {
@@ -210,9 +216,11 @@ class SumarioLateralTest {
 
     @Test
     fun cliqueNoTextoContinuaNavegandoComASetaPresente() {
-        val nota = "# Um
-## Um.A
-# Dois"
+        val nota = """
+            # Um
+            ## Um.A
+            # Dois
+        """.trimIndent()
         val itens = sumarioDe(nota)
         var escolhido: String? = null
         composeRule.setContent {
