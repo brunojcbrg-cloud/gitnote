@@ -1,7 +1,9 @@
 # ESTADO_10 — controle de fases do HANDOFF_10
 
 Ordem: A, B, C, D, E, F, **K**, G, H, J.1 — **lista cumprida em 20/09/2026**
-(I e Parte V bloqueadas em decisão do Bruno; J.2+ exige aval dele e outro modelo — fora desta lista)
+(J.2+ exige aval dele e outro modelo — fora desta lista).
+**I.2 no app entregue em 21/09** (b75): imagem da nota renderiza no modo leitura.
+Parte V continua parada só por decisão dele.
 
 ~~**A Fase K entrou em 20/09** e tem prioridade sobre G e H~~ — **entregue em 20/09**
 (`382aaf7`, release b67). A regressão da Fase B está consertada: pasta que só tem subpastas
@@ -31,6 +33,7 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | H.4 | pendente; fora desta sessão | | | |
 | H.5 | implementada e testada | 2026-09-20 | b422ccf | b71 (26.08.1.71) |
 | J.1 | entregue e mesclada | 2026-09-20 | df8d403 (squash de `handoff10-j1`, PR #2, mesclada pelo Bruno) | build próprio cancelado (ver nota) |
+| I.2 (app, leitura) | entregue; **falta ver em aparelho** | 2026-09-21 | d2be3ac | b75 (26.08.1.75) |
 
 ### Números medidos na H.2 (e a ressalva que vale para a H.3)
 
@@ -86,8 +89,11 @@ aqui normalmente, mas **preserva as linhas das outras fases**.
   versionadas (commit `2de3f6e` de `vault-conhecimento`). Eram 0 rastreadas para 405 no
   disco — a causa real de imagem não aparecer no celular.
 - ~~**I.7**~~ — **decidido em 20/09: imagem remota NÃO renderiza**, fica como texto.
-- **Fase I no app** — destravada, prompt em `PROXIMO_PROMPT_I_APP.md`. A web já foi feita
-  (commit `2191b7f` de `notas-web`, 143 testes verdes) e define o contrato.
+- ~~**Fase I no app**~~ — **I.2 entregue em 21/09** (`d2be3ac`, release b75, 448 testes
+  verdes na primeira rodada). Imagem aparece no modo leitura; `PROXIMO_PROMPT_I_APP.md`
+  está consumido. Detalhe em `RESULTADO_10_I_APP.md`. **Falta o único teste que este
+  computador não faz: abrir a nota no aparelho.** I.3 (colar/galeria) e I.6
+  (redimensionar) continuam abertas; modo de edição depende da Fase J.
 - **F.3** (recolher no modo de edição) — adiado por decisão do handoff para a sessão de H.4.
 - **Parte V** — a renomeação `06_Conhecimento` → `NOTAS`. Sem impedimento técnico desde a Fase C.
 - **Teto de 10 na grade** — fica **fixo**, como o handoff propôs; vira ajuste só se ele pedir.
@@ -415,3 +421,32 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
    `perfWholeTextFieldMovingCursorWithinOneLine`. As mudanças locais de segurança ficaram
    fora de todos os commits. **Único pendente mecânico:** integrar `bc7b550` à master —
    é teste puro, e o merge publica a release seguinte.
+
+### Fase I.2 no app (2026-09-21) — imagem no modo leitura
+
+**Divergências entre o handoff e o código real, medidas nesta sessão:**
+
+1. **`multiplatform-markdown-renderer-android` não é um módulo de imagem.** O
+   handoff mandava conferir se havia artefato pronto antes de somar dependência.
+   Conferido na tag `v0.43.0`: os módulos são `-m2`, `-m3`, `-coil2`, `-coil3` e
+   `-code`; o `-android` é só a variante Android do módulo base (publicação KMP).
+   Pronto para imagem só existe via **Coil**. O transformador à mão ficou em 176
+   linhas e **nenhuma dependência nova entrou**.
+2. **`MarkdownScanner` recusa `![[` de propósito** (`MarkdownScanner.kt:196-198`,
+   a guarda do `!` na abertura do wikilink). Por isso o embed entrou por varredura
+   própria em `Anexos.kt`, e não por um `MdKind` novo: o scanner é o mesmo do modo
+   de edição, onde o custo por tecla foi medido na Fase H.
+3. **Copiar o embed cru não entrega a decisão I.7.** `![alt](https://…)` cru vira
+   nó de imagem no parser GFM; o transformador recusa e o trecho **some da tela**.
+   Por isso o que não converte sai **escapado** — imagem remota, anexo que não
+   resolveu e embed de nota (`![[Outra Nota]]`).
+4. **`![alt|496](caminho.png)`, da tabela I.1, não existe em nenhum cliente.** Nem
+   na web (o rótulo inteiro falha no teste de largura e vira alt) nem agora no app,
+   que copiou o comportamento da web de propósito. Consertar só no app seria a
+   regressão que a fase veio impedir — é decisão do Bruno mexer nos dois.
+5. **O app resolve caminho completo fora da pasta de anexos; a web não.**
+   Superconjunto, não contradição: o texto gravado na nota é o mesmo nos três.
+
+**O que esta sessão não mediu:** `PERF_IMAGEM` (nota com 10 imagens) e a
+decodificação real — nenhum teste desenha um PNG de verdade. O teste do
+`.gitignore` pertence a I.3, que grava arquivo. E **nada foi visto em aparelho**.
