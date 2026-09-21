@@ -38,6 +38,11 @@ class AndroidChaveMestra : ChaveMestra {
         autenticado = cipher
     }
 
+    fun apagar() {
+        autenticado = null
+        KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(ALIAS)
+    }
+
     override fun abrir(envelope: ByteArray): ByteArray {
         val cipher = consumir()
         require(envelope.size >= 28)

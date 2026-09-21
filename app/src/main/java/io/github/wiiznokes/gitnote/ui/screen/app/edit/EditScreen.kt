@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -45,17 +46,23 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
+import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.manager.ExtensionType
 import io.github.wiiznokes.gitnote.manager.extensionType
 import io.github.wiiznokes.gitnote.ui.component.RequestConfirmationDialog
 import io.github.wiiznokes.gitnote.ui.component.SimpleIcon
+import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
+import io.github.wiiznokes.gitnote.ui.destination.resolveEditNote
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.TextVM
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.newEditViewModel
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.newMarkDownVM
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 
 private const val TAG = "EditScreen"
@@ -68,13 +75,29 @@ fun EditScreen(
     onFinished: () -> Unit,
     onOpenNote: (Note, String?) -> Unit = { _, _ -> },
 ) {
-
+    var openedNote by remember(editParams) { mutableStateOf<Note?>(null) }
+    LaunchedEffect(editParams) {
+        val note = withContext(Dispatchers.IO) {
+            resolveEditNote(editParams) { relativePath ->
+                MyApp.appModule.repoDatabase.repoDatabaseDao.noteByRelativePath(relativePath)
+            }
+        }
+        if (note == null) {
+            val path = (editParams as EditParams.Idle).relativePath
+            val uiHelper = MyApp.appModule.uiHelper
+            uiHelper.makeToast(uiHelper.getString(R.string.error_wikilink_not_found, path))
+            onFinished()
+        } else {
+            openedNote = note
+        }
+    }
+    val note = openedNote ?: return
 
     val extension = editParams.fileExtension()
 
     val vm = when (extensionType(extension.text)) {
-        ExtensionType.Text -> newEditViewModel(editParams)
-        ExtensionType.Markdown -> newMarkDownVM(editParams)
+        ExtensionType.Text -> newEditViewModel(editParams, note)
+        ExtensionType.Markdown -> newMarkDownVM(editParams, note)
         null -> throw Exception("file extension not supported, but present in the database?? $extension")
     }
 
@@ -87,6 +110,10 @@ fun EditScreen(
     var pendingOpenNote by rememberSaveable { mutableStateOf<Note?>(null) }
     var pendingOpenSection by rememberSaveable { mutableStateOf<String?>(null) }
     var sumarioAberto by rememberSaveable { mutableStateOf(false) }
+    var buscaAberta by rememberSaveable { mutableStateOf(false) }
+    var termoBusca by rememberSaveable { mutableStateOf("") }
+    var indiceBusca by rememberSaveable { mutableStateOf(0) }
+    var resultadosBusca by remember { mutableStateOf<List<IntRange>>(emptyList()) }
 
     RequestConfirmationDialog(
         expanded = showShouldQuitDialog,
@@ -111,7 +138,9 @@ fun EditScreen(
     )
 
     BackHandler {
-        if (sumarioAberto) {
+        if (buscaAberta) {
+            buscaAberta = false
+        } else if (sumarioAberto) {
             sumarioAberto = false
         } else if (vm.isPreviousNoteTheSame()) {
             vm.shouldSaveWhenQuitting = false
@@ -138,11 +167,30 @@ fun EditScreen(
     val isReadOnlyModeActive =
         !vm.shouldForceNotReadOnlyMode.value && vm.prefs.isReadOnlyModeActive.getAsState().value
 
+    val leituraMarkdown = vm is MarkDownVM && isReadOnlyModeActive
+    val textoBusca = vm.content.value.text
+    LaunchedEffect(buscaAberta, termoBusca, textoBusca, leituraMarkdown) {
+        if (!buscaAberta || termoBusca.isEmpty() || leituraMarkdown) {
+            resultadosBusca = emptyList()
+        } else {
+            delay(150)
+            resultadosBusca = withContext(Dispatchers.Default) {
+                ocorrencias(textoBusca, termoBusca)
+            }
+            indiceBusca = indiceBusca.coerceIn(0, (resultadosBusca.size - 1).coerceAtLeast(0))
+        }
+    }
+    LaunchedEffect(resultadosBusca, indiceBusca, leituraMarkdown, buscaAberta) {
+        if (buscaAberta && !leituraMarkdown) {
+            resultadosBusca.getOrNull(indiceBusca)?.let(vm::selecionarOcorrencia)
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             val backgroundColor = MaterialTheme.colorScheme.surfaceColorAtElevation(15.dp)
-
+            Column {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = backgroundColor
@@ -195,6 +243,15 @@ fun EditScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = {
+                        buscaAberta = !buscaAberta
+                        if (buscaAberta) sumarioAberto = false
+                    }) {
+                        SimpleIcon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = stringResource(R.string.search_in_note),
+                        )
+                    }
                     if (vm is MarkDownVM) {
                         IconButton(onClick = { sumarioAberto = !sumarioAberto }) {
                             SimpleIcon(
@@ -222,6 +279,30 @@ fun EditScreen(
                     }
                 }
             )
+            if (buscaAberta) {
+                BuscaNaNotaBarra(
+                    termo = termoBusca,
+                    indice = indiceBusca,
+                    total = resultadosBusca.size,
+                    onTermoChange = {
+                        termoBusca = it
+                        indiceBusca = 0
+                        resultadosBusca = emptyList()
+                    },
+                    onAnterior = {
+                        if (resultadosBusca.isNotEmpty()) {
+                            indiceBusca = (indiceBusca - 1 + resultadosBusca.size) % resultadosBusca.size
+                        }
+                    },
+                    onProximo = {
+                        if (resultadosBusca.isNotEmpty()) {
+                            indiceBusca = (indiceBusca + 1) % resultadosBusca.size
+                        }
+                    },
+                    onFechar = { buscaAberta = false },
+                )
+            }
+            }
         },
         floatingActionButton = {
             // bug: https://issuetracker.google.com/issues/224005027
@@ -276,6 +357,12 @@ fun EditScreen(
                             textContent = textContent,
                             sumarioAberto = sumarioAberto,
                             onSumarioAbertoChange = { sumarioAberto = it },
+                            termoBusca = if (buscaAberta && leituraMarkdown) termoBusca else "",
+                            ocorrenciaBusca = resultadosBusca.getOrNull(indiceBusca),
+                            onResultadosBusca = { encontrados ->
+                                resultadosBusca = encontrados
+                                indiceBusca = indiceBusca.coerceIn(0, (encontrados.size - 1).coerceAtLeast(0))
+                            },
                         )
                     }
 

@@ -69,6 +69,54 @@ class GridRowTest {
         assertEquals("Introducao a micro.md", linha.fullName())
     }
 
+    /**
+     * Fase K.2: a listagem voltou a ser recursiva, entao o titulo do card passa a ser o
+     * caminho a partir da pasta aberta. Nota solta na propria pasta continua so com o
+     * nome; nota de descendente diz de qual subpasta veio. Sem isso, duas notas de mesmo
+     * nome em subpastas diferentes ficariam identicas na tela — e o desambiguador antigo
+     * (funcao de janela sobre o conjunto inteiro) nao pode voltar.
+     */
+    @Test
+    fun tituloMostraOCaminhoAPartirDaPastaAberta() {
+        fun linha(caminho: String) = GridRow(
+            relativePath = caminho,
+            id = 1,
+            lastModifiedTimeMillis = 0,
+            isUnique = true,
+        )
+
+        // nota solta na propria pasta: so o nome
+        assertEquals(
+            "Aula 01",
+            linha("06_Conhecimento/Medicina/Aula 01.md").tituloRelativoA("06_Conhecimento/Medicina"),
+        )
+
+        // nota de uma descendente: diz de onde veio
+        assertEquals(
+            "Microbiologia/Aula 01",
+            linha("06_Conhecimento/Medicina/Microbiologia/Aula 01.md")
+                .tituloRelativoA("06_Conhecimento/Medicina"),
+        )
+
+        // na raiz, o caminho inteiro sem extensao
+        assertEquals(
+            "A/B/nota",
+            linha("A/B/nota.md").tituloRelativoA(""),
+        )
+    }
+
+    @Test
+    fun tituloNaoEngoleLetraDeArquivoSemExtensao() {
+        val semPonto = GridRow(
+            relativePath = "A/LEIAME",
+            id = 1,
+            lastModifiedTimeMillis = 0,
+            isUnique = true,
+        )
+
+        assertEquals("LEIAME", semPonto.tituloRelativoA("A"))
+    }
+
     @Test
     fun extensaoDesconhecidaViraOther() {
         val linha = GridRow(

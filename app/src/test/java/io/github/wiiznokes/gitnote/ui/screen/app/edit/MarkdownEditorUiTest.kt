@@ -11,7 +11,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.TextField
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -22,7 +25,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -33,7 +39,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import io.github.wiiznokes.gitnote.ui.theme.MarkdownTheme
+import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.editMarkdownValue
+import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
+import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
+import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.insertTable
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.toEdicaoDeTexto
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.toTextFieldValue
@@ -53,6 +65,204 @@ import kotlin.test.assertTrue
 class MarkdownEditorUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun cursorOnSameLineKeepsThePreviewTransformationInstance() {
+        val source = "**primeira**\n_segunda_"
+        var selection by mutableStateOf(TextRange(3))
+        var current: androidx.compose.ui.text.input.VisualTransformation? = null
+        var reconstructions = 0
+        var filterInvocations = 0
+
+        composeRule.setContent {
+            MaterialTheme {
+                val transformation = rememberMarkdownVisualTransformation(
+                    text = source,
+                    selection = selection,
+                    colors = markdownColorScheme(MarkdownTheme.MATERIAL),
+                    isMarkdownThemeActive = true,
+                    baseFontSize = 16.sp,
+                )
+                val observedTransformation = remember(transformation) {
+                    object : androidx.compose.ui.text.input.VisualTransformation {
+                        override fun filter(text: AnnotatedString): androidx.compose.ui.text.input.TransformedText {
+                            filterInvocations++
+                            return transformation.filter(text)
+                        }
+                    }
+                }
+                TextField(
+                    value = TextFieldValue(source, selection = selection),
+                    onValueChange = { selection = it.selection },
+                    visualTransformation = observedTransformation,
+                    modifier = Modifier.size(300.dp),
+                )
+                SideEffect {
+                    if (current !== transformation) {
+                        current = transformation
+                        reconstructions++
+                    }
+                }
+            }
+        }
+
+        composeRule.runOnIdle { assertEquals(1, reconstructions) }
+        val first = current
+        val firstFilterCount = filterInvocations
+        composeRule.runOnIdle { selection = TextRange(4) }
+        composeRule.runOnIdle {
+            assertEquals(1, reconstructions, "cursor na mesma linha nao reconstrui")
+            assertTrue(first === current)
+            println("PERF_LIVE_PREVIEW_FILTER_CALLS same_line_before=$firstFilterCount same_line_after=$filterInvocations")
+            assertEquals("**primeira**\nsegunda", current!!.filter(AnnotatedString(source)).text.text)
+        }
+
+        composeRule.runOnIdle { selection = TextRange(source.indexOf("segunda") + 1) }
+        composeRule.runOnIdle {
+            assertEquals(2, reconstructions, "outra linha deve atualizar o preview")
+            assertEquals("primeira\n_segunda_", current!!.filter(AnnotatedString(source)).text.text)
+        }
+    }
+
+    @Test
+    fun perfWholeTextFieldMovingCursorWithinOneLine() {
+        val source = largeNoteFixture(lineCount = 1_946, characterCount = 180_046)
+        var selection by mutableStateOf(TextRange(1))
+        var previousSelectionKey by mutableStateOf(true)
+        var filterCalls = 0
+        var filterNanos = 0L
+        var transformationChanges = 0
+        var lastTransformation: VisualTransformation? = null
+
+        composeRule.setContent {
+            MaterialTheme {
+                val colors = markdownColorScheme(MarkdownTheme.MATERIAL)
+                val transformation = if (previousSelectionKey) {
+                    remember(source, selection, colors) {
+                        MarkdownLivePreviewTransformation(
+                            colors, activeMarkdownLines(source, selection.start, selection.end), 16.sp,
+                        )
+                    }
+                } else {
+                    rememberMarkdownVisualTransformation(
+                        text = source,
+                        selection = selection,
+                        colors = colors,
+                        isMarkdownThemeActive = true,
+                        baseFontSize = 16.sp,
+                    )
+                }
+                val observedTransformation = remember(transformation) {
+                    object : VisualTransformation {
+                        override fun filter(text: AnnotatedString): TransformedText {
+                            val started = System.nanoTime()
+                            try {
+                                return transformation.filter(text)
+                            } finally {
+                                filterNanos += System.nanoTime() - started
+                                filterCalls++
+                            }
+                        }
+                    }
+                }
+                TextField(
+                    value = TextFieldValue(source, selection = selection),
+                    onValueChange = { selection = it.selection },
+                    visualTransformation = observedTransformation,
+                    modifier = Modifier.size(300.dp),
+                )
+                SideEffect {
+                    if (lastTransformation !== transformation) {
+                        lastTransformation = transformation
+                        transformationChanges++
+                    }
+                }
+            }
+        }
+
+        fun measureScenario(label: String): Pair<List<Int>, Int> {
+            val calls = mutableListOf<Int>()
+            val totalMs = mutableListOf<Double>()
+            val filterMs = mutableListOf<Double>()
+            val changesBefore = transformationChanges
+            for (position in 2..8) {
+                val callsBefore = filterCalls
+                val filterBefore = filterNanos
+                val started = System.nanoTime()
+                composeRule.runOnIdle { selection = TextRange(position) }
+                composeRule.waitForIdle()
+                if (position >= 4) {
+                    calls += filterCalls - callsBefore
+                    totalMs += (System.nanoTime() - started) / 1_000_000.0
+                    filterMs += (filterNanos - filterBefore) / 1_000_000.0
+                }
+            }
+            println(
+                "PERF_TEXTFIELD_CURSOR scenario=$label lines=1946 chars=180046 " +
+                    "total_ms=$totalMs median_total_ms=${totalMs.sorted()[2]} " +
+                    "filter_ms=$filterMs median_filter_ms=${filterMs.sorted()[2]} " +
+                    "filter_calls=$calls transformation_changes=${transformationChanges - changesBefore}",
+            )
+            return calls to (transformationChanges - changesBefore)
+        }
+
+        val (beforeCalls, beforeChanges) = measureScenario("before_h1")
+        composeRule.runOnIdle {
+            previousSelectionKey = false
+            selection = TextRange(1)
+        }
+        composeRule.waitForIdle()
+        val (afterCalls, afterChanges) = measureScenario("after_h1")
+
+        assertEquals(1_946, source.count { it == '\n' } + 1)
+        assertEquals(180_046, source.length)
+        assertEquals(7, beforeChanges, "a chave antiga recria a transformacao a cada movimento")
+        assertEquals(0, afterChanges, "a chave H.1 mantem a instancia na mesma linha")
+        assertTrue(beforeCalls.all { it > 0 }, "o TextField deve exercer a transformacao antiga")
+        // Quantas vezes o Compose chama filter() com a mesma instancia e um diagnostico,
+        // nao um contrato estavel da biblioteca. O numero fica no log, sem assercao.
+        assertEquals(5, afterCalls.size)
+    }
+
+    @Test
+    fun buscarEAvancarTresVezesSelecionaAQuartaOcorrenciaNoTextField() {
+        val fonte = "alfa alfa alfa alfa alfa"
+        var observado = TextFieldValue(fonte)
+        composeRule.setContent {
+            var valor by remember { mutableStateOf(observado) }
+            var termo by remember { mutableStateOf("") }
+            var indice by remember { mutableStateOf(0) }
+            val encontrados = remember(termo) { ocorrencias(fonte, termo) }
+            observado = valor
+            LaunchedEffect(encontrados) {
+                encontrados.firstOrNull()?.let { valor = valor.copy(selection = TextRange(it.first, it.last + 1)) }
+            }
+            Column {
+                BuscaNaNotaBarra(
+                    termo = termo,
+                    indice = indice,
+                    total = encontrados.size,
+                    onTermoChange = { termo = it; indice = 0 },
+                    onAnterior = {},
+                    onProximo = {
+                        indice = (indice + 1) % encontrados.size
+                        val alvo = encontrados[indice]
+                        valor = valor.copy(selection = TextRange(alvo.first, alvo.last + 1))
+                    },
+                    onFechar = {},
+                )
+                TextField(value = valor, onValueChange = { valor = it }, modifier = Modifier.testTag("editor-busca"))
+            }
+        }
+
+        composeRule.onNodeWithTag("note-search-field").performTextInput("alfa")
+        composeRule.waitForIdle()
+        repeat(3) { composeRule.onNodeWithText("›").performClick() }
+        composeRule.runOnIdle {
+            val inicio = fonte.lastIndexOf("alfa", startIndex = fonte.length - 6)
+            assertEquals(TextRange(inicio, inicio + 4), observado.selection)
+        }
+    }
 
     @Test
     fun enterThroughRealTextFieldContinuesAList() {
@@ -224,5 +434,27 @@ class MarkdownEditorUiTest {
         composeRule.waitForIdle()
 
         assertEquals(null, requested, "a nota cabe na tela e mesmo assim moveu o cursor")
+    }
+
+    private fun largeNoteFixture(lineCount: Int, characterCount: Int): String {
+        val lines = MutableList(lineCount) { index ->
+            when (index % 5) {
+                0 -> "# Secao $index com **enfase** e [[Nota|alias]]"
+                1 -> "- [ ] item $index com ==destaque== e texto"
+                2 -> "> citacao $index com _italico_ e `codigo`"
+                3 -> "Paragrafo $index com [link](https://example.com)"
+                else -> "1. item numerado $index com ~~riscado~~"
+            }
+        }
+        var missing = characterCount - lines.sumOf { it.length } - (lineCount - 1)
+        require(missing >= 0)
+        lines.indices.forEach { index ->
+            val remainingLines = lineCount - index
+            val padding = missing / remainingLines
+            lines[index] += "x".repeat(padding)
+            missing -= padding
+        }
+        check(missing == 0)
+        return lines.joinToString("\n")
     }
 }

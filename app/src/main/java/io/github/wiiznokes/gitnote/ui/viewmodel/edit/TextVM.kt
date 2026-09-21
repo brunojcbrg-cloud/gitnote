@@ -59,6 +59,13 @@ class EditException(
 
 private const val TAG = "TextVM"
 
+internal const val MAX_HISTORY_STEPS = 100
+
+internal fun <T> MutableList<T>.keepNewestHistorySteps(limit: Int) {
+    require(limit > 0)
+    if (size > limit) subList(0, size - limit).clear()
+}
+
 open class TextVM() : ViewModel() {
 
     lateinit var editType: EditType
@@ -238,6 +245,7 @@ open class TextVM() : ViewModel() {
         }
 
         cleanHistory()
+        history.keepNewestHistorySteps(MAX_HISTORY_STEPS)
 
         viewModelScope.launch {
             _historyManager.emit(
@@ -247,6 +255,10 @@ open class TextVM() : ViewModel() {
                 )
             )
         }
+    }
+
+    fun selecionarOcorrencia(ocorrencia: IntRange) {
+        updateSelection(TextRange(ocorrencia.first, ocorrencia.last + 1))
     }
 
     protected fun updateSelection(selection: TextRange) {
@@ -464,12 +476,12 @@ open class TextVM() : ViewModel() {
 
 
 @Composable
-fun newEditViewModel(editParams: EditParams): TextVM {
+fun newEditViewModel(editParams: EditParams, note: Note): TextVM {
 
     return when (editParams) {
         is EditParams.Idle -> viewModel<TextVM>(
             factory = viewModelFactory {
-                TextVM(editParams.editType, editParams.note)
+                TextVM(editParams.editType, note)
             }
         )
 

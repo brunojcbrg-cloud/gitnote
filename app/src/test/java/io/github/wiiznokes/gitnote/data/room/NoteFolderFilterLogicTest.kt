@@ -10,17 +10,17 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Fase B do handoff 10 troca o filtro de pasta de `gridNotes` de prefixo
- * (`relativePath LIKE :path || '%'`) para exato (`parentPath(relativePath) = :path`).
- * `parentPath(relativePath)` (a funcao SQLite customizada, `ParentPath` em Dao.kt) e
- * `Note.parentPath()` (Schema.kt) fazem exatamente a mesma conta
- * (`substringBeforeLast("/", missingDelimiterValue = "")`) — nao da para rodar a
- * consulta SQL de verdade neste CI (ver ESTADO_10.md, divergencia da Fase B:
- * `parentPath`/`fullName` so carregam via `RequerySQLiteOpenHelperFactory`, que nao
- * roda na JVM de teste). Este teste exercita a MESMA logica de particionamento de
- * caminho contra a arvore sintetica do criterio de aceitacao da Fase B
- * (raiz com 3, `A/` com 5, `A/B/` com 7, `A2/` com 2), usando `Note.parentPath()`
- * como substituto fiel da funcao SQL.
+ * Particionamento de caminho por pasta **exata** — a conta que a funcao SQLite
+ * customizada `parentPath` faz e que `Note.parentPath()` (Schema.kt) repete
+ * (`substringBeforeLast("/", missingDelimiterValue = "")`).
+ *
+ * Ela entrou na Fase B como filtro de `gridNotes`. Desde a **Fase K.2** a listagem da
+ * grade voltou a ser recursiva (ver `GradeSqlTest`, que a executa de verdade), e quem
+ * continua usando `parentPath` sao `drawerFolders` e `noteFolders`, a listagem de
+ * **subpastas diretas** — inclusive as pastas que a Fase K.1 passou a mostrar na grade.
+ * Essa parte continua sem poder rodar no CI (`parentPath`/`fullName` so carregam via
+ * `RequerySQLiteOpenHelperFactory`; ver ESTADO_10.md), entao a logica e exercitada aqui
+ * contra a arvore sintetica da Fase B (raiz com 3, `A/` com 5, `A/B/` com 7, `A2/` com 2).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
@@ -34,13 +34,14 @@ class NoteFolderFilterLogicTest {
         return raiz + pastaA + pastaAB + pastaA2
     }
 
+    /** Filhos diretos da raiz — nao e mais o que a grade mostra, e sim como a gaveta parte a arvore. */
     @Test
     fun abrirRaizDevolveSoAsNotasSoltasDaRaiz() {
         val notas = arvoreSintetica()
 
         val naRaiz = notas.filter { it.parentPath() == "" }
 
-        assertEquals(3, naRaiz.size, "esperava so as 3 notas soltas na raiz, nao as 17")
+        assertEquals(3, naRaiz.size, "filhos diretos da raiz sao 3; o vault inteiro tem 17")
     }
 
     @Test
@@ -49,7 +50,7 @@ class NoteFolderFilterLogicTest {
 
         val emA = notas.filter { it.parentPath() == "A" }
 
-        assertEquals(5, emA.size, "esperava 5 (filhos diretos de A), nao 12 (A + A/B)")
+        assertEquals(5, emA.size, "filhos diretos de A sao 5; A + A/B (o que a grade lista desde a K.2) sao 12")
         assertTrue(emA.all { it.relativePath.startsWith("A/") && !it.relativePath.startsWith("A/B/") })
     }
 

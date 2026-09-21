@@ -230,12 +230,12 @@ class MarkDownVM : TextVM {
 
 
 @Composable
-fun newMarkDownVM(editParams: EditParams): MarkDownVM {
+fun newMarkDownVM(editParams: EditParams, note: Note): MarkDownVM {
 
     return when (editParams) {
         is EditParams.Idle -> viewModel<MarkDownVM>(
             factory = viewModelFactory {
-                MarkDownVM(editParams.editType, editParams.note, editParams.section)
+                MarkDownVM(editParams.editType, note, editParams.section)
             }
         )
 

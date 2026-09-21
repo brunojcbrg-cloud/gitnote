@@ -1,49 +1,60 @@
-Leia E:\Projetos\gitnote\HANDOFF_10_DESEMPENHO_E_NAVEGACAO.md inteiro antes de
-escrever qualquer código, com atenção especial à seção 0 (regras do repositório).
+Leia E:\Projetos\gitnote\ESTADO_10.md e E:\Projetos\gitnote\RESULTADO_10_H.md antes de
+qualquer coisa. Leia o HANDOFF_10_DESEMPENHO_E_NAVEGACAO.md se for escrever código.
 
-QUAL FASE É A MINHA
-Leia E:\Projetos\gitnote\ESTADO_10.md. Se não existir, crie-o com esta ordem de
-fases, todas "pendente":
-  A, B, C, D, E, F, G, H, J.1
-(as fases I e Parte V estão bloqueadas em decisões do Bruno; J.2 em diante exige
-aval dele e outro modelo — não entram nesta lista)
-Execute A PRIMEIRA FASE PENDENTE e SOMENTE ela. Não comece a seguinte de jeito
-nenhum, nem que sobre tempo ou contexto.
+ONDE O HANDOFF 10 PAROU (20/09/2026)
+A lista de fases acabou: A, B, C, D, E, F, K, G, H (H.1, H.2, H.3, H.5) e J.1 estao
+entregues. A ultima release e a b71. Sobraram quatro coisas, e TODAS dependem de uma
+escolha do Bruno. Nao escolha por ele e nao comece nenhuma sem ele dizer qual.
 
-O QUE FAZER NESTA FASE
-1. Releia a seção da fase no handoff e implemente só o que está nela.
-2. Escreva os testes que o critério de aceitação daquela fase exige, incluindo os
-   testes PERF_ quando pedidos, com medição antes e depois.
-3. Commite apenas os arquivos que você tocou, com mensagem começando por
-   "handoff 10 <fase>:".
-4. Empurre para a master e LEIA o log do job "Unit tests + APK" no GitHub Actions.
-5. Se algum teste ficar vermelho, conserte antes de encerrar. Não encerre com o CI
-   vermelho e não desabilite teste para passar.
-6. Escreva E:\Projetos\gitnote\RESULTADO_10_<FASE>.md no formato do fim do handoff:
-   o que mudou, os números PERF_ antes e depois, os testes escritos e o que cada um
-   prova, o que não foi feito e por quê, e o número da release gerada pelo CI.
-7. Atualize ESTADO_10.md: marque a fase como entregue, com a data, o commit e a
-   release; e anote qualquer divergência entre o handoff e o código real.
+PASSO 0 - O UNICO PENDENTE MECANICO
+A branch `handoff10-h3-textfield` tem um commit a frente da master: `bc7b550`, o teste
+Robolectric que mede o custo do cursor no `TextField` real. E teste puro, nao muda
+producao, e as duas rodadas do CI passaram com 382 testes. Integrar a master publica a
+release seguinte. PERGUNTE ao Bruno antes de mesclar; se ele autorizar, faca
+fast-forward na master, empurre e leia o job "Unit tests + APK".
 
-REGRAS DO REPOSITÓRIO QUE SÃO ERRADAS COM FREQUÊNCIA
-- Não compile localmente. Não instale JDK, SDK nem Gradle: não há SDK Android nesta
-  máquina. Quem compila é o GitHub Actions, que dispara sozinho no push da master.
-- Há trabalho de segurança não commitado na árvore (PortaoDeSeguranca.kt e outros
-  7 arquivos modificados). Não commite, não reverta e não encoste neles.
-- Teste de UI é Robolectric, nunca aparelho. Teste de custo por tecla segue o padrão
-  de MarkdownTablePerfTest.kt.
-- Fora da Fase J, não encoste na arquitetura do editor.
+AS QUATRO ESCOLHAS (pergunte qual, execute so uma)
 
-SE ALGO DIVERGIR DO HANDOFF
-O handoff foi escrito por leitura do código, não por execução. Se você medir algo
-diferente do que ele afirma, PARE, registre em ESTADO_10.md e me pergunte. Não
-"corrija" o handoff por conta própria nem siga adiante com a premissa mudada.
+1. FASE J.2 - o caminho tecnico que a Fase H apontou.
+   A H.3 provou que o custo por tecla nao cai trocando a chave do `remember`:
+   `CoreTextField` refaz `filter()` porque a selecao faz parte de `TextFieldValue`.
+   Quem resolve isso e a migracao para `TextFieldState`. O pre-requisito (H.1 + H.2)
+   esta cumprido. O prompt pronto esta em E:\Projetos\gitnote\PROXIMO_PROMPT_J2.md e
+   EXIGE Opus 5 com esforco maximo e o aval explicito dele. Nao rode com outro modelo.
 
-COMO ENCERRAR (obrigatório)
-Ao terminar, faça as duas coisas:
-1. Grave E:\Projetos\gitnote\PROXIMO_PROMPT.md com o prompt da próxima sessão — que
-   é ESTE MESMO TEXTO, sem alteração, já que ele descobre a fase pelo ESTADO_10.md.
-2. Imprima na conversa, num bloco de código, esse prompt pronto para eu copiar, e
-   acima dele um resumo de 5 linhas: fase entregue, testes escritos, números
-   medidos, release do CI, e o que ficou pendente para eu decidir.
-Depois disso, pare. Não comece a próxima fase.
+2. PARTE V - renomear `06_Conhecimento` para `NOTAS`.
+   Sem impedimento tecnico desde a Fase C. O app Android nao hardcoda o nome; quem tem
+   o nome cravado e o projeto notas-web (`src/github.ts:5`), e as 961+ ocorrencias no
+   vault sao, na maioria, registro historico que NAO pode ser reescrito. So comeca com
+   ele dizendo que quer agora.
+
+3. FASE I - imagens nas notas.
+   Travada no I.0: o Bruno precisa decidir a pasta de anexos e a excecao no `.gitignore`
+   do vault (hoje o `.gitignore` exclui todas as imagens, e ha 0 rastreadas). Pendente
+   tambem o I.7: renderizar ou nao imagem remota `![](https://...)`. Sem essas duas
+   respostas, a fase inteira fica bloqueada.
+
+4. F.3 / H.4 - recolher titulos no modo de edicao e edicao por secao.
+   F.3 foi adiada de proposito para a sessao de H.4, e H.4 caiu para ultimo recurso:
+   so se reavalia depois de J.3. Ou seja, esta opcao normalmente vem DEPOIS da 1.
+
+REGRAS QUE VALEM EM QUALQUER UMA DELAS
+- Nao compile localmente. Nao instale JDK, SDK nem Gradle: nao ha SDK Android nesta
+  maquina. Quem compila e o GitHub Actions, que dispara sozinho no push da master.
+- Ha trabalho de seguranca nao commitado na arvore (`PortaoDeSeguranca.kt`,
+  `PortaoDeSegurancaTest.kt` e 8 arquivos modificados). Nao commite, nao reverta e nao
+  encoste neles. Se um arquivo seu coincidir, isole suas linhas como a Fase C fez.
+- Teste de UI e Robolectric, nunca aparelho. Nenhum teste consegue construir
+  `GridViewModel`/`MarkDownVM` reais (`GitManager` carrega `git_wrapper`): extraia funcao
+  pura e teste ela, mais teste estrutural que le o codigo-fonte.
+- Ao compor markdown em teste, use `CompositionLocalProvider(LocalInspectionMode provides
+  true)`; em conteiner que rola, `performScrollTo()` antes do clique; banco em memoria com
+  `allowMainThreadQueries()`. Quando a rodada falhar, baixe o artefato
+  `gh run download <id> -n test-report-<n>` - e ele que traz a excecao completa.
+- Strings novas vao em `values/strings.xml` E em `values-pt-rBR/strings.xml`.
+- Nao trate mediana isolada como prova: o runner do CI e ruidoso e ja enganou duas fases.
+  Prova boa aqui e contagem de chamadas ou identidade de referencia, nao tempo.
+
+AO TERMINAR
+Escreva `RESULTADO_10_<FASE>.md`, atualize `ESTADO_10.md` (tabela + divergencias) e
+regrave este arquivo com o prompt da sessao seguinte. Depois pare.

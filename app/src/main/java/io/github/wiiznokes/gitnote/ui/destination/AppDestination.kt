@@ -48,15 +48,26 @@ sealed class EditParams : Parcelable {
     ) : EditParams()
 
     data class Idle(
-        val note: Note,
+        val relativePath: String,
         val editType: EditType,
         val section: String? = null,
     ) : EditParams()
 
     fun fileExtension(): FileExtension {
         return when (this) {
-            is Idle -> this.note.fileExtension()
+            is Idle -> FileExtension.match(this.relativePath.substringAfterLast('.', missingDelimiterValue = ""))
             is Saved -> this.note.fileExtension()
         }
     }
+}
+
+internal suspend fun resolveEditNote(
+    params: EditParams,
+    noteByRelativePath: suspend (String) -> Note?,
+): Note? = when (params) {
+    is EditParams.Idle -> when (params.editType) {
+        EditType.Create -> Note.new(relativePath = params.relativePath)
+        EditType.Update -> noteByRelativePath(params.relativePath)
+    }
+    is EditParams.Saved -> params.note
 }

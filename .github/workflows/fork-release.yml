@@ -45,6 +45,33 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Static Kotlin source scan. Findings are a baseline in this first round.
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install mobsfscan
+        run: python -m pip install mobsfscan==1.0.0
+      - name: Scan Kotlin source
+        run: mobsfscan --sarif --no-fail -o mobsfscan.sarif app/src/main/java
+      - name: Preserve baseline report
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobsfscan-${{ github.run_number }}
+          path: mobsfscan.sarif
+          if-no-files-found: error
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: mobsfscan.sarif
+
   # ---------------------------------------------------------------- testes Rust
   rust-tests:
     name: Rust tests
