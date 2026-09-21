@@ -463,7 +463,19 @@ open class TextVM() : ViewModel() {
         previousNote.nameWithoutExtension() == NameValidation.removeEndingWhiteSpace(name.value.text)
                 && previousNote.content == content.value.text
 
-    override fun onCleared() {
+    /**
+     * Grava (ou apaga) o rascunho da edicao em curso.
+     *
+     * Precisa ser chamado tambem quando o app vai para segundo plano, e nao so
+     * em [onCleared]: se o sistema mata o processo enquanto o usuario esta em
+     * outro aplicativo, [onCleared] nunca roda e o que foi digitado morre com o
+     * processo. `ON_STOP` e o ultimo instante garantido pelo Android.
+     *
+     * A condicao e a mesma dos dois casos: so ha rascunho se o usuario nao
+     * descartou de proposito ([shouldSaveWhenQuitting]) e se o texto na tela
+     * difere do que esta em disco.
+     */
+    fun guardarRascunho() {
         NoteSaver.save(
             shouldSave = shouldSaveWhenQuitting && !isPreviousNoteTheSame(),
             name = name.value.text,
@@ -471,6 +483,10 @@ open class TextVM() : ViewModel() {
             previousNote = previousNote,
             editType = editType
         )
+    }
+
+    override fun onCleared() {
+        guardarRascunho()
     }
 }
 

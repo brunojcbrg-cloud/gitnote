@@ -32,6 +32,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.data.room.Note
@@ -101,6 +105,19 @@ fun EditScreen(
         ExtensionType.Text -> newEditViewModel(editParams, note)
         ExtensionType.Markdown -> newMarkDownVM(editParams, note)
         null -> throw Exception("file extension not supported, but present in the database?? $extension")
+    }
+
+    // O rascunho tem de estar em disco ANTES de o app ir para segundo plano.
+    // `onCleared` do ViewModel nao serve sozinho: quando o sistema mata o
+    // processo enquanto o usuario esta em outro aplicativo, ele nunca roda, e o
+    // que foi digitado se perde. `ON_STOP` e o ultimo instante garantido.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, vm) {
+        val observador = LifecycleEventObserver { _, evento ->
+            if (evento == Lifecycle.Event.ON_STOP) vm.guardarRascunho()
+        }
+        lifecycleOwner.lifecycle.addObserver(observador)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observador) }
     }
 
     val showShouldQuitDialog = rememberSaveable {

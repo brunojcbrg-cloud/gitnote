@@ -1,14 +1,15 @@
 # Pedidos do Bruno em 21/09/2026
 
-Quatro coisas, fora das fases do handoff 10. **Duas e meia entregues** (o pedido 4
-saiu na web e falta no app), uma aberta.
+Cinco coisas, fora das fases do handoff 10. **Quatro e meia entregues** (o pedido 4
+saiu na web e falta no app).
 
 | # | Pedido | Status |
 |---|---|---|
-| 1 | Mudar o tamanho da letra das notas e títulos, no modo leitura **e** no editor | **aberto** |
+| 1 | Mudar o tamanho da letra das notas e títulos, no modo leitura **e** no editor | **entregue** — `f3dc4b6`, 490 testes verdes; falta ver em aparelho |
 | 2 | Expandir tópico recolhido voltava para o início da nota | **entregue** — b77, com o painel acertado na b78 |
 | 3 | Recolher títulos no painel do sumário (mostrar ou não os subtópicos) | **entregue** — b77 |
 | 4 | Colar imagem com Ctrl+V direto no editor da web e no celular | **web entregue** (`001745b`); **app aberto** |
+| 5 | Sair do app durante a edição perdia tudo o que tinha sido digitado | **entregue** — 494 testes verdes; falta ver em aparelho |
 
 Entregues no commit `25f63b2` (+ `ca4…` de conserto do teste), release **b77
 (26.08.1.77)**, [run 35552142059](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35552142059):
@@ -60,9 +61,21 @@ Fase I.2). A b77 carrega as duas coisas.
 
 ---
 
-## 1. Tamanho da letra (aberto)
+## 1. Tamanho da letra — entregue em `f3dc4b6`
 
-O encanamento já existe e está quase todo pronto:
+Preferência `TamanhoDaLetra` com cinco degraus (0,85 / 1,0 / 1,2 / 1,4 / 1,6),
+controle nos Ajustes e strings nos dois idiomas. A escala é aplicada na
+**tipografia inteira** (`tipografiaEscalada`), não só no corpo: os seis níveis de
+título saíam de `MaterialTheme.typography` sem escala nenhuma, e o pedido fala de
+notas **e** títulos. Com isso os dois caminhos crescem juntos — o renderizador do
+modo leitura e o `TextField` do editor.
+
+A armadilha registrada abaixo está coberta e trancada por teste: o `baseFontSize`
+da prévia ao vivo e da altura de linha do rolador rápido sai da mesma tipografia
+escalada, então o dedo e a tela não se separam em nenhum degrau. **490 testes
+verdes, 0 falhas** (6 novos). Não empurrado, não visto em aparelho.
+
+O encanamento que já existia, e que foi aproveitado:
 
 - Leitura: `markdownTypographyThemed(colors, scale)` em `markdownHelper.kt` já
   recebe um `scale` e hoje é chamada sem ele (`1f`).
@@ -70,11 +83,12 @@ O encanamento já existe e está quase todo pronto:
   `MaterialTheme.typography.bodyLarge.fontSize` e o repassa à prévia ao vivo e
   ao cálculo de altura de linha do rolador rápido.
 
-Falta: uma preferência (`AppPreferences`, no padrão de `Theme`/`SortOrder`), o
-controle nos Ajustes (ou um gesto de pinça), e passar o fator aos dois caminhos.
-Cuidado medido: `EDIT_LINE_HEIGHT_FACTOR` e o `FastScrollLineOverlay` dependem
-de `baseFontSize` — mudar a fonte sem mexer neles desalinha o rolador.
-Strings novas em `values/` **e** `values-pt-rBR/`.
+O cuidado que guiou o desenho, e que continua valendo para quem mexer aqui:
+`EDIT_LINE_HEIGHT_FACTOR` e o `FastScrollLineOverlay` dependem de `baseFontSize`
+— mudar a fonte sem mexer neles desalinha o rolador.
+
+Ficou de fora, por não ter sido pedido: o gesto de pinça. O controle é a lista
+de cinco degraus nos Ajustes.
 
 ## 4. Colar imagem — web entregue, app aberto
 
@@ -109,3 +123,46 @@ pronto nos dois clientes.
 - **Vault**: `2de3f6e` — pasta de anexos e configuração do Obsidian.
 - **Nada disso foi visto em aparelho ainda.** A b78 carrega imagem no modo leitura
   (I.2), a âncora da dobra e o recolhimento do sumário.
+
+---
+
+## 5. Sair do app durante a edição perdia o que foi digitado
+
+Relato: *"quando estou editando uma nota pelo celular e preciso ir para outro
+programa, como a Internet para pesquisar, quando volto pro app a nota fechou,
+voltou para a pasta padrão e tudo o que digitei se perdeu."*
+
+**O mecanismo de rascunho já existia e nunca era acionado no momento certo.** O
+`NoteSaver` grava nome, conteúdo, nota anterior e tipo de edição em arquivo, e o
+`AppScreen` sabe ressuscitar a edição a partir dele: se `isEditUnsaved()` é
+verdadeiro, a pilha inicial nasce com `Grid` + `Edit(EditParams.Saved(...))`.
+Só que a gravação acontecia **exclusivamente** em `TextVM.onCleared()` — e
+`onCleared` não roda quando o sistema mata o processo com o app em segundo plano.
+Ou seja: o seguro existia e só era acionado no caso em que não era preciso.
+
+Conserto: a gravação virou `TextVM.guardarRascunho()`, chamada de dois lugares —
+o `onCleared` de sempre e, agora, `Lifecycle.Event.ON_STOP` na tela de edição,
+que é o último instante que o Android garante antes de tirar o app da frente.
+A condição de gravar **não** mudou: continua `shouldSaveWhenQuitting &&
+!isPreviousNoteTheSame()`, então sair pelo diálogo "sair sem salvar" segue
+descartando, e nada é gravado quando o texto na tela é igual ao do disco.
+
+Efeito colateral bom: mesmo quando o processo **não** morre, voltar ao app
+reabre a nota com o texto, porque o rascunho já está em disco quando a árvore é
+remontada.
+
+**A outra metade, que não mexi:** a nota fechar e a lista voltar para a pasta
+padrão não é falta de memória do Android — é o portão de segurança.
+`MainActivity.onStart` faz `aberto = false` **em toda volta ao app**, antes da
+leitura assíncrona da preferência ("Hide the navigation before asynchronous
+preference reads can show a frame of notes"), e isso desmonta a árvore inteira
+do app: o `rememberSaveable` da pilha de navegação morre junto e ela renasce na
+`Home`. Acontece **mesmo com a trava desligada**, que é o padrão
+(`travaDeAbertura = false`). Resolver isso é não esconder quando a trava está
+comprovadamente desligada — mas mexe no gate de segurança e precisa de aparelho
+para conferir, então fica como decisão separada.
+
+Provas: `RascunhoSobreviveAoSegundoPlanoTest` (4 testes estruturais, no molde de
+`RecolhimentoNaoAlteraTextoSalvoTest`, porque `TextVM` não instancia em JVM e
+ciclo de vida do Compose não roda em teste de unidade). Suíte inteira: **494
+testes, 0 falhas**.
