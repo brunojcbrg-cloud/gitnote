@@ -1,16 +1,17 @@
 # ESTADO_10 — controle de fases do HANDOFF_10
 
-Ordem: A, B, C, D, E, F, **K**, G, H, J.1
+Ordem: A, B, C, D, E, F, **K**, G, H, J.1 — **lista cumprida em 20/09/2026**
 (I e Parte V bloqueadas em decisão do Bruno; J.2+ exige aval dele e outro modelo — fora desta lista)
 
 ~~**A Fase K entrou em 20/09** e tem prioridade sobre G e H~~ — **entregue em 20/09**
 (`382aaf7`, release b67). A regressão da Fase B está consertada: pasta que só tem subpastas
 volta a mostrar as subpastas na grade, e a leva de 10 voltou a ser recursiva. Detalhe em
 `RESULTADO_10_K.md`. A Fase G também foi entregue em 20/09 (`0112399`, release b68).
-**H.1 e H.5 foram implementadas em 20/09/2026 e passaram no CI b71; H.3 está pausada
-por divergência medida no `TextField` (ver abaixo).** H.2 já foi entregue e medida.
-Antes de prosseguir para J.2 ou encerrar H, é necessária decisão do Bruno sobre essa
-divergência.
+**H.1 e H.5 foram implementadas em 20/09/2026 e passaram no CI b71; H.3 foi medida
+em duas rodadas do CI com o `TextField` real (ver `RESULTADO_10_H.md`).** H.2 já foi
+entregue e medida. H.1 evita uma chamada ao filtro por movimento, mas o ganho de
+tempo não foi estável e duas chamadas ainda refazem a prévia. J.2 requer o aval
+específico do Bruno; H.4 permanece fora de escopo.
 
 Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 
@@ -24,9 +25,9 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | F | entregue (F.1+F.2; F.3 adiada para H.4) | 2026-09-20 | 829456a | b64 (26.08.1.64) |
 | K | entregue | 2026-09-20 | 382aaf7 | b67 (26.08.1.67) |
 | G | entregue | 2026-09-20 | 0112399 | b68 (26.08.1.68) |
-| H.1 | implementada; efeito real no `filter()` sob revisão | 2026-09-20 | b422ccf; observação f4b78a2 | b71 (26.08.1.71) |
+| H.1 | implementada; poupa uma chamada a `filter()` por movimento | 2026-09-20 | b422ccf; medição bc7b550 | b71; CI da branch H.3 |
 | H.2 | entregue e mesclada | 2026-09-20 | 3591284 (squash de `handoff10-h2`, PR #3) | b65 (26.08.1.65) |
-| H.3 | pausada: premissa do `filter()` divergiu | 2026-09-20 | 1cfa111; b422ccf; f4b78a2 | b69–b71 |
+| H.3 | medida; meta de poucos ms não comprovada | 2026-09-20 | 1cfa111; b422ccf; f4b78a2; bc7b550 | b69–b71; CI 35545589749 e 35546014682 |
 | H.4 | pendente; fora desta sessão | | | |
 | H.5 | implementada e testada | 2026-09-20 | b422ccf | b71 (26.08.1.71) |
 | J.1 | entregue e mesclada | 2026-09-20 | df8d403 (squash de `handoff10-j1`, PR #2, mesclada pelo Bruno) | build próprio cancelado (ver nota) |
@@ -59,10 +60,14 @@ ruído do runner.
 
 | Onde | Branch | Fase | Arquivos que ela detém |
 |---|---|---|---|
-| `E:/Projetos/gitnote` | `master` | — | livre (H.3 pausada à espera da decisão do Bruno) |
+| `E:/Projetos/gitnote` | `handoff10-h3-textfield` | — | **sessão encerrada**; não retém arquivo |
 
-**Nenhuma sessão de código aberta.** A implementação H.1/H.5 está na master verde;
-H.3 aguarda a decisão do Bruno registrada na divergência abaixo.
+**Nenhuma sessão de código aberta.** H.1 e H.5 estão na master verde (b71). A medição
+H.3 vive na branch `handoff10-h3-textfield` (`bc7b550`, teste puro), com duas rodadas
+verdes do CI, e **ainda não foi integrada à master** — é o único passo mecânico pendente
+do handoff 10. A sessão que fez a medição parou no limite de uso logo depois de gravar
+`RESULTADO_10_H.md`; o encerramento (este texto, o commit do relatório e o
+`PROXIMO_PROMPT.md`) foi feito por outra sessão em 20/09.
 
 Os worktrees de H.2 e J.1 já não existem no disco nem em `git worktree list`; as PRs #3 e #2
 estão mescladas. O worktree `gitnote-pos` permanece registrado e não faz parte desta limpeza.
@@ -350,7 +355,7 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
    `TextField` e confirmou a seleção depois de três toques em ›; a ligação de produção
    a `updateSelection` foi revisada no código. Detalhes em `RESULTADO_10_G.md`.
 
-### Fase H.1/H.3/H.5 (2026-09-20) — pausada para decisão do Bruno
+### Fase H.1/H.3/H.5 (2026-09-20) — concluída; a premissa do handoff caiu
 
 1. **H.1 implementada; premissa de custo divergiu.** `MarkDown.kt` agora calcula
    `activeMarkdownLines` antes do `remember` e usa o conjunto como chave no lugar da
@@ -358,32 +363,36 @@ por instrução explícita desta rodada — não é dívida técnica, é escopo 
    passou: a instância permanece a mesma ao mover o cursor na linha e muda ao trocar
    de linha, com os marcadores visíveis corretos. O cache de `MarkdownScanner.scan`
    da H.2 permaneceu intacto.
-2. **H.3 não pode ser concluída com a medição atual.** Na mesma nota sintética de
-   1.946 linhas / 180.046 caracteres e com nove amostras, o CI b69 mediu a
-   reconstrução anterior em 10,744–12,383 ms (mediana 10,850 ms). No run b70, a
-   simulação do caminho anterior ficou em 21,398–33,858 ms (mediana 24,768 ms), e o
-   cálculo da nova chave em 0,426–1,639 ms (mediana 1,587 ms). No run b71, os
-   intervalos foram 11,118–24,961 ms (mediana 19,245 ms) e 1,577–2,687 ms
-   (mediana 1,624 ms). Os intervalos dentro de cada run não se sobrepõem, mas a
-   dispersão entre runs é grande. **O ponto decisivo:** o mesmo teste de UI com um
-   `TextField` real contou chamadas a `VisualTransformation.filter()` de **3 antes
-   para 5 depois** de um movimento do cursor dentro da mesma linha, apesar da mesma
-   instância. Portanto, os números de 1–2 ms representam somente o cálculo da chave;
-   não provam que o custo real do preview caiu. Isto contraria a premissa do handoff
-   de que trocar a chave deixaria de reconstruir a transformação completa na seleção.
-   A sessão parou aqui, sem iniciar H.4, J.2 ou qualquer outra fase. Bruno precisa
-   decidir se quer uma medição H.3 do `TextField` completo e diagnóstico da chamada
-   residual a `filter()`, ou se aceita H.1 como redução de alocação da instância e
-   deixa o custo do filtro para a Fase J.
+2. **H.3 concluída, e a premissa do handoff caiu.** Trocar a chave do `remember`
+   **não** faz o `filter()` parar de rodar: `CoreTextField` memoriza o texto transformado
+   com `remember(value, visualTransformation)`, e a seleção faz parte de `TextFieldValue`
+   — mover o cursor invalida essa memória mesmo com instância estável de
+   `VisualTransformation` ([fonte no AndroidX](https://android.googlesource.com/platform/frameworks/support/+/efd9d4d75aff064f86067880c346ec965e4dfa3f/compose/foundation/foundation/src/commonMain/kotlin/androidx/compose/foundation/text/CoreTextField.kt#243)).
+   A medição definitiva compôs o `TextField` Material 3 real na nota sintética de 1.946
+   linhas / 180.046 caracteres, com 2 movimentos de aquecimento e 5 amostras por cenário,
+   em duas rodadas do CI ([35545589749](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35545589749)
+   e [35546014682](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35546014682)):
+   H.1 leva de **3 para 2** chamadas a `filter()` por movimento e de **7/7 para 0/7**
+   instâncias recriadas, mas o tempo total **não caiu de forma estável** — mediana
+   56,5 → 58,3 ms na primeira rodada e 64,8 → 24,4 ms na segunda. Tabela completa em
+   `RESULTADO_10_H.md`.
+   **Armadilha a não repetir:** os 1–2 ms do microbenchmark anterior mediam só o cálculo
+   da chave, não a latência do editor; o comentário do teste foi corrigido em `bc7b550`.
+   **Consequência:** H.1 vale como redução de reconstruções e como o pré-requisito
+   cumprido da Fase J, **não** como conserto do custo por tecla. Quem resolve as duas
+   chamadas residuais é a Fase J; H.4 só volta à mesa depois de J.3.
 3. **H.5 implementada e verde.** `TextVM.history` mantém no máximo 100 entradas,
    descartando as mais antigas. `EditParams.Idle` leva `relativePath` em vez de `Note`;
    o editor busca notas existentes por `dao.noteByRelativePath` ao abrir. Criação
    reconstrói a nota vazia pelo caminho; `EditParams.Saved` preserva nome, conteúdo
    não gravado e nota anterior. Os testes de descarte, recuperação por DAO real,
    round-trip Parcelable e estado Idle menor que 1 KB passaram.
-4. **CI verde até a parada:** commits `1cfa111`, `b422ccf`, `f4b78a2`; run final
-   [35544952882](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35544952882),
+4. **CI verde nas duas frentes.** Master: `1cfa111`, `b422ccf`, `f4b78a2`, `8288a50`;
+   run [35544952882](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35544952882),
    job **Unit tests + APK** verde, **381 testes `PASSED`**, APK e release
-   **b71 (26.08.1.71)**. As mudanças locais de segurança ficaram fora dos commits.
-   `RESULTADO_10_H.md` e o prompt seguinte aguardam a decisão, porque H.3 não foi
-   concluída.
+   **b71 (26.08.1.71)** — H.1 e H.5 já estão no aparelho. Branch
+   `handoff10-h3-textfield` (`bc7b550`, só o teste da medição): duas rodadas verdes do
+   workflow CI, **382 testes `PASSED`**, inclusive
+   `perfWholeTextFieldMovingCursorWithinOneLine`. As mudanças locais de segurança ficaram
+   fora de todos os commits. **Único pendente mecânico:** integrar `bc7b550` à master —
+   é teste puro, e o merge publica a release seguinte.
