@@ -10,7 +10,86 @@ import kotlin.math.min
 
 data class EdicaoDeTexto(val texto: String, val selecao: TextRange)
 
+data class GatilhoSugestaoWikilink(
+    val abertura: Int,
+    val inicioSubstituicao: Int,
+    val cursor: Int,
+    val alvo: String,
+    val consulta: String,
+    val secao: Boolean,
+)
+
 private const val TAG = "markdownSmartEditor"
+
+/**
+ * Detecta apenas o `[[` aberto na linha do cursor. A tecla comum sai depois de
+ * olhar essa linha; a varredura de cerca de código só roda quando há gatilho.
+ */
+fun gatilhoSugestaoWikilink(texto: String, selecao: TextRange): GatilhoSugestaoWikilink? {
+    if (!selecao.collapsed) return null
+    val cursor = selecao.start.coerceIn(0, texto.length)
+    val inicioDaLinha = if (cursor == 0) {
+        0
+    } else {
+        texto.lastIndexOf('\n', startIndex = cursor - 1).let { if (it < 0) 0 else it + 1 }
+    }
+    val antesDoCursor = texto.substring(inicioDaLinha, cursor)
+    val aberturaNaLinha = antesDoCursor.lastIndexOf("[[")
+    if (aberturaNaLinha < 0) return null
+    val abertura = inicioDaLinha + aberturaNaLinha
+    if (abertura > 0 && texto[abertura - 1] == '!') return null
+
+    val digitado = texto.substring(abertura + 2, cursor)
+    if ("]]" in digitado || '[' in digitado || ']' in digitado || '|' in digitado) return null
+    if (isInsideFencedCodeBlock(texto, abertura)) return null
+    if (isInsideInlineCode(texto, inicioDaLinha, abertura)) return null
+
+    val separador = digitado.indexOf('#')
+    return if (separador < 0) {
+        GatilhoSugestaoWikilink(
+            abertura = abertura,
+            inicioSubstituicao = abertura + 2,
+            cursor = cursor,
+            alvo = digitado,
+            consulta = digitado,
+            secao = false,
+        )
+    } else {
+        GatilhoSugestaoWikilink(
+            abertura = abertura,
+            inicioSubstituicao = abertura + 2 + separador + 1,
+            cursor = cursor,
+            alvo = digitado.substring(0, separador).trim(),
+            consulta = digitado.substring(separador + 1),
+            secao = true,
+        )
+    }
+}
+
+private fun isInsideInlineCode(texto: String, inicioDaLinha: Int, offset: Int): Boolean {
+    var delimitador = 0
+    var indice = inicioDaLinha
+    while (indice < offset) {
+        if (texto[indice] == '\\') {
+            indice += 2
+            continue
+        }
+        if (texto[indice] != '`') {
+            indice++
+            continue
+        }
+        var fim = indice + 1
+        while (fim < offset && texto[fim] == '`') fim++
+        val tamanho = fim - indice
+        delimitador = when {
+            delimitador == 0 -> tamanho
+            delimitador == tamanho -> 0
+            else -> delimitador
+        }
+        indice = fim
+    }
+    return delimitador > 0
+}
 
 fun markdownSmartEditor(
     prev: EdicaoDeTexto,
