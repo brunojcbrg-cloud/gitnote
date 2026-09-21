@@ -101,7 +101,10 @@ pronto nos dois clientes.
 
 ## Estado em 21/09, fim do dia
 
-- **App**: master `2921ea4`, release **b78**, CI verde. Nada pendente de merge.
+- **App**: master `1a343f1`, **10 commits à frente do `origin` e não empurrados** — é o
+  handoff 11 (sugestão de wikilink), certificado em JVM com 484 testes verdes e pendente
+  de duas provas em aparelho; ver `RESULTADO_11_SUGESTAO_DE_WIKILINK.md`. A última release
+  publicada continua sendo a **b78** (`2921ea4`), CI verde.
 - **Web**: master `001745b`, **163 testes verdes**.
 - **Vault**: `2de3f6e` — pasta de anexos e configuração do Obsidian.
 - **Nada disso foi visto em aparelho ainda.** A b78 carrega imagem no modo leitura
