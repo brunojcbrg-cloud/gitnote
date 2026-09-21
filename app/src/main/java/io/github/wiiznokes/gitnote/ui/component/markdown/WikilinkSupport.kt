@@ -21,6 +21,7 @@ import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.text.Normalizer
 import java.util.Locale
 
 private const val WIKILINK_SCHEME = "gitnote"
@@ -42,6 +43,57 @@ data class HeadingAnchor(
     val y: Int,
     val sourceOffset: Int = 0,
 )
+
+data class SugestaoDeNotaWikilink(
+    val nome: String,
+    val caminho: String,
+    val pasta: String,
+)
+
+private fun normalizarBusca(value: String): String = Normalizer
+    .normalize(value, Normalizer.Form.NFD)
+    .replace(Regex("\\p{M}+"), "")
+    .lowercase(Locale.ROOT)
+
+private fun faixaDaSugestao(nome: String, busca: String): Int {
+    if (busca.isEmpty()) return 0
+    val normalizado = normalizarBusca(nome)
+    return when {
+        normalizado.startsWith(busca) -> 0
+        normalizado.contains(busca) -> 1
+        else -> 2
+    }
+}
+
+/**
+ * Fonte pura do popup. A pasta apenas desambigua a tela: o texto aceito continua
+ * sendo o nome, sem caminho e sem `.md`, igual ao resolvedor e ao Obsidian.
+ */
+fun sugerirNotasParaWikilink(
+    caminhos: List<String>,
+    caminhoAtual: String,
+    digitado: String,
+): List<SugestaoDeNotaWikilink> {
+    val busca = normalizarBusca(digitado.trim())
+    val pastaAtual = caminhoAtual.substringBeforeLast('/', missingDelimiterValue = "")
+    return caminhos.asSequence()
+        .mapNotNull { caminho ->
+            val arquivo = caminho.substringAfterLast('/')
+            if (!arquivo.endsWith(".md", ignoreCase = true)) return@mapNotNull null
+            SugestaoDeNotaWikilink(
+                nome = arquivo.dropLast(3),
+                caminho = caminho,
+                pasta = caminho.substringBeforeLast('/', missingDelimiterValue = ""),
+            )
+        }
+        .sortedWith(
+            compareBy<SugestaoDeNotaWikilink> { faixaDaSugestao(it.nome, busca) }
+                .thenBy { if (it.pasta == pastaAtual) 0 else 1 }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.nome }
+                .thenBy { it.caminho },
+        )
+        .toList()
+}
 
 fun normalizeSectionHeading(value: String): String = value
     .trim()
