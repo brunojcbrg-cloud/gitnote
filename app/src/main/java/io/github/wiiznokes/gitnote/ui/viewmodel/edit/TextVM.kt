@@ -331,6 +331,29 @@ open class TextVM() : ViewModel() {
     private val uiHelper: UiHelper = MyApp.appModule.uiHelper
     val prefs = MyApp.appModule.appPreferences
 
+    /**
+     * A gravacao em disco e disparada em outra thread e o botao volta antes dela
+     * terminar. Ate o arquivo estar escrito, o rascunho **continua valendo**: se a
+     * escrita falhar, ou o processo morrer no meio, a nota reabre com o texto.
+     *
+     * Era aqui que o pior defeito morava. O botao de salvar dava a edicao por
+     * salva, o rascunho era apagado e, se a escrita falhasse depois, o texto nao
+     * existia mais em lugar nenhum.
+     */
+    @Volatile
+    private var escritaConfirmada = true
+
+    private fun confirmarEscrita() {
+        escritaConfirmada = true
+        NoteSaver.save(
+            shouldSave = false,
+            name = name.value.text,
+            content = content.value.text,
+            previousNote = previousNote,
+            editType = editType,
+        )
+    }
+
     fun save(onSuccess: () -> Unit = {}) {
 
         if (isPreviousNoteTheSame()) {
@@ -338,6 +361,8 @@ open class TextVM() : ViewModel() {
             onSuccess()
             return
         }
+
+        escritaConfirmada = false
 
         when (editType) {
             EditType.Create -> create(
@@ -418,9 +443,11 @@ open class TextVM() : ViewModel() {
                 previous = previousNote
             ).onFailure {
                 uiHelper.makeToast(it.message)
+                // Rascunho preservado de proposito: a escrita nao aconteceu.
                 return@launch
             }
 
+            confirmarEscrita()
         }
         return success(newNote)
     }
@@ -464,8 +491,11 @@ open class TextVM() : ViewModel() {
         CoroutineScope(Dispatchers.IO).launch {
             storageManager.createNote(note).onFailure {
                 uiHelper.makeToast(it.message)
+                // Rascunho preservado de proposito: a escrita nao aconteceu.
                 return@launch
             }
+
+            confirmarEscrita()
         }
 
         return success(note)
@@ -489,7 +519,8 @@ open class TextVM() : ViewModel() {
      */
     fun guardarRascunho() {
         NoteSaver.save(
-            shouldSave = shouldSaveWhenQuitting && !isPreviousNoteTheSame(),
+            shouldSave = shouldSaveWhenQuitting &&
+                (!isPreviousNoteTheSame() || !escritaConfirmada),
             name = name.value.text,
             content = content.value.text,
             previousNote = previousNote,

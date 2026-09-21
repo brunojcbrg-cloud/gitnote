@@ -213,3 +213,45 @@ Voltar (o Shift+Tab) também desfaz recuo escrito com espaço, porque o vault te
 515 itens assim e eles precisam ser editáveis pelo botão.
 
 **507 testes verdes** (11 novos, e estes são de lógica pura: entra texto, sai texto).
+
+### 5.1 — o botão de salvar apagava o texto (achado com a b81 no aparelho)
+
+Relato do Bruno depois de usar a b81: *"escrevi na nota e saí e voltei várias
+vezes, o rascunho ficou. Mas quando cliquei no botão ✓ para salvar, voltou para a
+pasta raiz e apagou o que eu escrevi e não salvou nada."*
+
+**Duas coisas somadas, e a segunda é grave.**
+
+**A pasta raiz** é a pilha de navegação que o rascunho reconstrói. `AppScreen`
+monta `Home` → `Grid` → `Edit(Saved)`, e esse `Grid` não tem pasta: é a raiz. Ao
+sair da nota, o "voltar" cai ali em vez de na pasta onde ele estava. É feio, mas
+não perde nada.
+
+**O texto sumir é `applyNoteUpdate`, e o defeito é anterior a tudo isto.** A
+gravação era, nesta ordem: **apagar** o arquivo antigo, **criar** o novo, **escrever**
+o texto. Falhar no `create` apaga a nota; falhar no `write` deixa um arquivo
+**vazio** — que é exatamente "apagou o que eu escrevi". Pior: quando o caminho não
+muda, que é o caso de todo salvamento comum, não havia razão nenhuma para apagar
+antes; bastava sobrescrever.
+
+O que tornou isso fatal agora foi o rascunho: `save()` dá a edição por salva e
+navega **antes** de a escrita acontecer (`CoroutineScope(Dispatchers.IO).launch`,
+com o comentário "best effort" no próprio código), e o `onCleared` em seguida
+apagava o rascunho. Ou seja, a última cópia do texto era destruída antes de a
+primeira existir.
+
+Conserto em duas metades:
+
+1. **Escrever antes de apagar.** Sobrescreve o arquivo quando o caminho não muda;
+   quando muda (renomear/mover), grava o novo e só então remove o antigo.
+2. **O rascunho só é apagado quando a escrita confirma.** `escritaConfirmada` fica
+   falso do clique até `updateNote`/`createNote` devolverem sucesso. Se a escrita
+   falhar, ou o processo morrer no meio, a nota reabre com o texto.
+
+**509 testes verdes.** Duas travas antigas deste mesmo arquivo apontaram a mudança
+e foram atualizadas — a intenção delas (descarte explícito manda; `NoteSaver` não
+pode ser chamado de qualquer lugar) continua trancada.
+
+**O que ainda não está explicado:** *por que* a escrita falhou no aparelho dele.
+Com o conserto, a mesma falha passa a ser recuperável e o app mostra o erro em vez
+de engolir — o texto da mensagem é o que falta para nomear a causa.

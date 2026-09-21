@@ -226,27 +226,24 @@ class StorageManager {
             }
         }
 
-        previousFile.delete().exceptionOrNull()?.let { error ->
-            if (!previousFile.exist()) {
-                Log.w(TAG, "Previous note file is already absent; continuing: ${previousFile.path}")
-            } else {
-                val message = uiHelper.getString(
-                    R.string.error_delete_file,
-                    previousFile.path,
-                    error.message,
-                )
+        // Escrever ANTES de apagar.
+        //
+        // A ordem anterior era apagar o arquivo antigo, criar o novo e so entao
+        // escrever o texto. Isso abria uma janela em que a nota nao existia em lugar
+        // nenhum: falhar no `create` apagava a nota, e falhar no `write` deixava um
+        // arquivo vazio -- ou seja, o modo de falha deste caminho era perder o texto.
+        // Quando o caminho nao muda (o caso comum: editar e salvar), nem ha o que
+        // apagar; basta sobrescrever.
+        val newFile = new.toFileFs(rootPath)
+        val mesmoArquivo = newFile.path == previousFile.path
+
+        if (!newFile.exist()) {
+            newFile.create().onFailure { error ->
+                val message = uiHelper.getString(R.string.error_create_file, error.message)
                 Log.e(TAG, message)
                 uiHelper.makeToast(message)
                 return failure(error)
             }
-        }
-
-        val newFile = new.toFileFs(rootPath)
-        newFile.create().onFailure { error ->
-            val message = uiHelper.getString(R.string.error_create_file, error.message)
-            Log.e(TAG, message)
-            uiHelper.makeToast(message)
-            return failure(error)
         }
 
         newFile.write(new.content).onFailure { error ->
@@ -254,6 +251,25 @@ class StorageManager {
             Log.e(TAG, message)
             uiHelper.makeToast(message)
             return failure(error)
+        }
+
+        // So agora, com o texto ja em disco, o arquivo velho pode sair -- e so quando
+        // a nota mudou de caminho (renomear ou mover).
+        if (!mesmoArquivo) {
+            previousFile.delete().exceptionOrNull()?.let { error ->
+                if (!previousFile.exist()) {
+                    Log.w(TAG, "Previous note file is already absent; continuing: ${previousFile.path}")
+                } else {
+                    val message = uiHelper.getString(
+                        R.string.error_delete_file,
+                        previousFile.path,
+                        error.message,
+                    )
+                    Log.e(TAG, message)
+                    uiHelper.makeToast(message)
+                    return failure(error)
+                }
+            }
         }
 
         dao.removeNote(previous)
