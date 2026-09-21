@@ -89,6 +89,15 @@ fun MarkdownCustomInner(
     animations: MarkdownAnimations = markdownAnimations(),
     referenceLinkHandler: ReferenceLinkHandler = ReferenceLinkHandlerImpl(),
     lookupLinks: Boolean = true,
+    /**
+     * Segura o conteudo ja desenhado enquanto o texto novo e reparseado.
+     *
+     * Com o padrao `false`, trocar o texto joga o estado para `Loading`, que
+     * desenha um `Box` vazio: por um quadro a altura rolavel cai para zero e o
+     * `ScrollState` corta a posicao para 0. Era isso que mandava a nota de volta
+     * ao inicio quando um titulo recolhido era expandido.
+     */
+    retainState: Boolean = false,
     loading: @Composable (modifier: Modifier) -> Unit = { Box(modifier) },
     success: @Composable (state: State.Success, components: MarkdownComponents, modifier: Modifier) -> Unit = { state, components, modifier ->
         MarkdownSuccess(state = state, components = components, modifier = modifier)
@@ -111,6 +120,7 @@ fun MarkdownCustomInner(
     animations = animations,
     referenceLinkHandler = referenceLinkHandler,
     lookupLinks = lookupLinks,
+    retainState = retainState,
     loading = loading,
     success = success,
     error = error,

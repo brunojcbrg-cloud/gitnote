@@ -63,3 +63,49 @@ fun firstLineAtOrAfter(position: Int, anchors: Map<Int, Int>): Int? {
         ?.key
         ?: anchors.maxByOrNull { (_, anchorPosition) -> anchorPosition }?.key
 }
+
+/**
+ * Onde o título clicado estava na tela no instante em que ele mandou dobrar.
+ *
+ * Guardar a posição na TELA, e não a rolagem, é o que faz o título ficar parado:
+ * depois da dobra o conteúdo acima dele pode ter outro tamanho, então a rolagem
+ * antiga apontaria para outro lugar.
+ */
+data class AncoraDaDobra(val linha: Int, val deslocamentoNaTela: Int)
+
+/** Nulo quando o título ainda não foi medido -- aí não há para onde voltar. */
+fun ancoraDoTitulo(linha: Int, y: Int?, rolagem: Int): AncoraDaDobra? =
+    if (y == null) null else AncoraDaDobra(linha, y - rolagem)
+
+/** A rolagem que devolve o título ao mesmo ponto da tela depois da dobra. */
+fun rolagemQueMantemOTitulo(ancora: AncoraDaDobra, yDepois: Int, rolagemMaxima: Int): Int =
+    (yDepois - ancora.deslocamentoNaTela).coerceIn(0, rolagemMaxima.coerceAtLeast(0))
+
+/**
+ * Espera o título voltar a ser medido depois da dobra e devolve a rolagem.
+ *
+ * Fica fora do composable para poder ser testado: nenhum teste consegue
+ * construir o `MarkDownVM` de verdade (`GitManager` carrega `git_wrapper`).
+ *
+ * Devolve `false` quando o título não apareceu dentro de [quadros] quadros --
+ * e, nesse caso, **não rola para lugar nenhum**. Rolar para zero por não ter
+ * achado o título é exatamente o defeito que isto conserta.
+ */
+suspend fun devolverPosicaoDepoisDaDobra(
+    ancora: AncoraDaDobra,
+    quadros: Int,
+    esperarQuadro: suspend () -> Unit,
+    posicaoDoTitulo: () -> Int?,
+    rolagemMaxima: () -> Int,
+    rolarPara: suspend (Int) -> Unit,
+): Boolean {
+    repeat(quadros) {
+        esperarQuadro()
+        val y = posicaoDoTitulo()
+        if (y != null) {
+            rolarPara(rolagemQueMantemOTitulo(ancora, y, rolagemMaxima()))
+            return true
+        }
+    }
+    return false
+}

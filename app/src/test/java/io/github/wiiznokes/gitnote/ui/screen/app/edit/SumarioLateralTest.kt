@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -121,5 +125,109 @@ class SumarioLateralTest {
         // mesma: o callback de verdade tem de ser chamado com o nível 2.
         composeRule.onNodeWithTag("sumario-recolher-nivel-2").performScrollTo().performClick()
         composeRule.runOnIdle { assertEquals(2, nivelPedido) }
+    }
+
+    @Test
+    fun aSetaDoPainelEscondeEDevolveOsSubtitulos() {
+        // Pedido do Bruno em 21/09: recolher o titulo NO SUMARIO, para os
+        // subtopicos aparecerem ou nao. E so da lista -- nao mexe na nota.
+        val nota = "# Um
+## Um.A
+## Um.B
+# Dois"
+        val itens = sumarioDe(nota)
+        val offsetDoUm = itens.first { it.texto == "Um" }.offset
+        composeRule.setContent {
+            var recolhidos by remember { mutableStateOf(setOf<Int>()) }
+            Box(Modifier.width(320.dp).height(600.dp)) {
+                SumarioLateral(
+                    itens = itens,
+                    linhaAtual = 0,
+                    onItemClick = {},
+                    onDismiss = {},
+                    recolhidosNoSumario = recolhidos,
+                    onRecolherNoSumario = { offset ->
+                        recolhidos = if (offset in recolhidos) recolhidos - offset else recolhidos + offset
+                    },
+                )
+            }
+        }
+        composeRule.onNodeWithText("Um.A").assertExists()
+        composeRule.onNodeWithTag("sumario-seta-" + offsetDoUm).performClick()
+        composeRule.onNodeWithText("Um.A").assertDoesNotExist()
+        composeRule.onNodeWithText("Um.B").assertDoesNotExist()
+        // O titulo recolhido e o irmao dele continuam na lista.
+        composeRule.onNodeWithText("Um").assertExists()
+        composeRule.onNodeWithText("Dois").assertExists()
+        composeRule.onNodeWithTag("sumario-seta-" + offsetDoUm).performClick()
+        composeRule.onNodeWithText("Um.A").assertExists()
+    }
+
+    @Test
+    fun tituloSemSubtituloNaoGanhaSeta() {
+        val nota = "# Um
+## Um.A
+# Dois"
+        val itens = sumarioDe(nota)
+        val offsetDoDois = itens.first { it.texto == "Dois" }.offset
+        composeRule.setContent {
+            Box(Modifier.width(320.dp).height(600.dp)) {
+                SumarioLateral(
+                    itens = itens,
+                    linhaAtual = 0,
+                    onItemClick = {},
+                    onDismiss = {},
+                    recolhidosNoSumario = emptySet(),
+                    onRecolherNoSumario = {},
+                )
+            }
+        }
+        composeRule.onNodeWithTag("sumario-seta-" + offsetDoDois).assertDoesNotExist()
+    }
+
+    @Test
+    fun semOCallbackOPainelContinuaComoEraAntes() {
+        // Nao-regressao: quem chama sem recolhimento de painel nao ganha seta
+        // nenhuma e continua vendo a lista inteira.
+        val nota = "# Um
+## Um.A
+# Dois"
+        val itens = sumarioDe(nota)
+        composeRule.setContent {
+            Box(Modifier.width(320.dp).height(600.dp)) {
+                SumarioLateral(
+                    itens = itens,
+                    linhaAtual = 0,
+                    onItemClick = {},
+                    onDismiss = {},
+                    recolhidosNoSumario = setOf(itens.first().offset),
+                )
+            }
+        }
+        composeRule.onNodeWithText("Um.A").assertExists()
+        composeRule.onNodeWithTag("sumario-seta-" + itens.first().offset).assertDoesNotExist()
+    }
+
+    @Test
+    fun cliqueNoTextoContinuaNavegandoComASetaPresente() {
+        val nota = "# Um
+## Um.A
+# Dois"
+        val itens = sumarioDe(nota)
+        var escolhido: String? = null
+        composeRule.setContent {
+            Box(Modifier.width(320.dp).height(600.dp)) {
+                SumarioLateral(
+                    itens = itens,
+                    linhaAtual = 0,
+                    onItemClick = { escolhido = it.texto },
+                    onDismiss = {},
+                    recolhidosNoSumario = emptySet(),
+                    onRecolherNoSumario = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText("Um.A").performClick()
+        composeRule.runOnIdle { assertEquals("Um.A", escolhido) }
     }
 }

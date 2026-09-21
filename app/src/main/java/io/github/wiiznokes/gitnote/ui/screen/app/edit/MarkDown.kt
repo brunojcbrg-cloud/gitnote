@@ -77,7 +77,10 @@ import com.mikepenz.markdown.model.NoOpImageTransformerImpl
 import com.mikepenz.markdown.m3.markdownTypography
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.room.Note
+import io.github.wiiznokes.gitnote.ui.component.markdown.AncoraDaDobra
 import io.github.wiiznokes.gitnote.ui.component.markdown.HeadingAnchor
+import io.github.wiiznokes.gitnote.ui.component.markdown.ancoraDoTitulo
+import io.github.wiiznokes.gitnote.ui.component.markdown.devolverPosicaoDepoisDaDobra
 import io.github.wiiznokes.gitnote.ui.component.markdown.dobrar
 import io.github.wiiznokes.gitnote.ui.component.markdown.MarkdownLivePreviewTransformation
 import io.github.wiiznokes.gitnote.ui.component.markdown.activeMarkdownLines
@@ -219,6 +222,15 @@ fun MarkDownContent(
         val itensDeSumario = remember(renderedContent) { sumarioDe(renderedContent) }
         // Recolhimento é só de exibição: o texto salvo (textContent) nunca muda.
         var recolhidas by rememberSaveable(vm.previousNote.relativePath) { mutableStateOf(setOf<Int>()) }
+        // Recolher no painel do sumário é outra coisa: esconde subtítulo da lista,
+        // e não do texto. Mora aqui para sobreviver ao fechar e reabrir o painel.
+        var recolhidasNoSumario by rememberSaveable(vm.previousNote.relativePath) {
+            mutableStateOf(setOf<Int>())
+        }
+        // Onde o título clicado estava na tela quando ele mandou dobrar.
+        var ancoraDaDobra by remember(vm.previousNote.relativePath) {
+            mutableStateOf<AncoraDaDobra?>(null)
+        }
         val textoDobrado = remember(renderedContent, recolhidas) { dobrar(renderedContent, recolhidas) }
         val conteudoExibido = textoDobrado.visivel
         var arrastandoSumario by remember { mutableStateOf(false) }
@@ -255,6 +267,24 @@ fun MarkDownContent(
             val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
             val line = lineOfOffset(renderedLineStarts, sourceOffset)
             blockCoordinates[line] = coordinates
+        }
+
+        // Dobrar nao pode mover a nota. O conteudo trocado faz a biblioteca
+        // reparsear fora da composicao: por um quadro o corpo e um Box vazio, a
+        // altura rolavel cai para zero e o ScrollState CORTA a posicao para 0 --
+        // e por isso que expandir um topico voltava para o inicio da nota. Aqui a
+        // posicao e devolvida assim que o titulo clicado volta a ser medido.
+        LaunchedEffect(recolhidas, ancoraDaDobra) {
+            val ancora = ancoraDaDobra ?: return@LaunchedEffect
+            devolverPosicaoDepoisDaDobra(
+                ancora = ancora,
+                quadros = ANCHOR_SETTLE_FRAMES,
+                esperarQuadro = { withFrameNanos { } },
+                posicaoDoTitulo = { measuredBlockPositions()[ancora.linha] },
+                rolagemMaxima = { scrollState.maxValue },
+                rolarPara = { scrollState.scrollTo(it) },
+            )
+            ancoraDaDobra = null
         }
 
         LaunchedEffect(ocorrenciaBusca, renderedContent, recolhidas) {
@@ -464,6 +494,13 @@ fun MarkDownContent(
                             onBlockPositioned = ::registerBlock,
                             onHeadingCollapseToggle = { sourceOffsetVisivel ->
                                 val sourceOffset = textoDobrado.mapa.paraOriginal(sourceOffsetVisivel)
+                                ancoraDaDobra = ancoraDoTitulo(
+                                    linha = lineOfOffset(renderedLineStarts, sourceOffset),
+                                    y = measuredBlockPositions()[
+                                        lineOfOffset(renderedLineStarts, sourceOffset)
+                                    ] ?: headingPositions[sourceOffset]?.y,
+                                    rolagem = scrollState.value,
+                                )
                                 recolhidas = if (sourceOffset in recolhidas) {
                                     recolhidas - sourceOffset
                                 } else {
@@ -473,6 +510,10 @@ fun MarkDownContent(
                             isHeadingCollapsed = { sourceOffsetVisivel ->
                                 textoDobrado.mapa.paraOriginal(sourceOffsetVisivel) in recolhidas
                             },
+                            // Sem isto, dobrar um titulo joga o estado para
+                            // `Loading`, o corpo fica vazio por um quadro e o
+                            // ScrollState corta a rolagem para 0.
+                            retainState = true,
                             modifier = Modifier.padding(15.dp),
                         )
                     }
@@ -525,12 +566,23 @@ fun MarkDownContent(
                     onRecolherAteNivel = { nivel ->
                         recolhidas = itensDeSumario.filter { it.nivel == nivel }.map { it.offset }.toSet()
                     },
+                    recolhidosNoSumario = recolhidasNoSumario,
+                    onRecolherNoSumario = { offset ->
+                        recolhidasNoSumario = if (offset in recolhidasNoSumario) {
+                            recolhidasNoSumario - offset
+                        } else {
+                            recolhidasNoSumario + offset
+                        }
+                    },
                 )
             }
         }
     } else {
         val itensDeSumario = remember(textContent.text) { sumarioDe(textContent.text) }
         var arrastandoSumario by remember { mutableStateOf(false) }
+        var recolhidasNoSumario by rememberSaveable(vm.previousNote.relativePath) {
+            mutableStateOf(setOf<Int>())
+        }
         var linhaPreview by remember { mutableStateOf<Int?>(null) }
         val pendingEditAnchor = remember { vm.consumeAnchor() }
         LaunchedEffect(pendingEditAnchor) {
@@ -590,6 +642,14 @@ fun MarkDownContent(
                         vm.moveCursorToLine(item.linha)
                     },
                     modifier = Modifier.align(Alignment.CenterStart),
+                    recolhidosNoSumario = recolhidasNoSumario,
+                    onRecolherNoSumario = { offset ->
+                        recolhidasNoSumario = if (offset in recolhidasNoSumario) {
+                            recolhidasNoSumario - offset
+                        } else {
+                            recolhidasNoSumario + offset
+                        }
+                    },
                 )
             }
         }

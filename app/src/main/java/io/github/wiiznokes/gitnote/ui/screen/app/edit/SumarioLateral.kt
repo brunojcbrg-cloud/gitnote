@@ -17,8 +17,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -35,7 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
+import androidx.compose.ui.text.style.TextAlign
 import io.github.wiiznokes.gitnote.ui.component.markdown.ItemDeSumario
+import io.github.wiiznokes.gitnote.ui.component.markdown.itensVisiveisDoSumario
+import io.github.wiiznokes.gitnote.ui.component.markdown.titulosComSubtitulos
 
 @Composable
 internal fun SumarioLateral(
@@ -47,11 +54,26 @@ internal fun SumarioLateral(
     onRecolherTudo: (() -> Unit)? = null,
     onExpandirTudo: (() -> Unit)? = null,
     onRecolherAteNivel: ((Int) -> Unit)? = null,
+    recolhidosNoSumario: Set<Int> = emptySet(),
+    onRecolherNoSumario: ((Int) -> Unit)? = null,
 ) {
-    val selecionado = itens.indexOfLast { it.linha <= linhaAtual }.coerceAtLeast(0)
+    // Recolher aqui esconde o subtitulo da LISTA. Nao mexe no texto da nota nem
+    // no recolhimento do modo leitura, que sao os botoes da linha de cima.
+    val podeRecolher = onRecolherNoSumario != null
+    val comFilho = remember(itens) { titulosComSubtitulos(itens) }
+    val visiveis = remember(itens, recolhidosNoSumario, podeRecolher) {
+        if (podeRecolher) itensVisiveisDoSumario(itens, recolhidosNoSumario) else itens
+    }
+    val offsetAtual = itens
+        .getOrNull(itens.indexOfLast { it.linha <= linhaAtual }.coerceAtLeast(0))
+        ?.offset
+        ?: 0
+    // O titulo atual pode estar escondido dentro de um recolhido: a marcacao vai
+    // para o ancestral visivel mais proximo, nao some nem volta para o topo.
+    val selecionado = visiveis.indexOfLast { it.offset <= offsetAtual }.coerceAtLeast(0)
     val listState = rememberLazyListState()
-    LaunchedEffect(selecionado, itens) {
-        if (itens.isNotEmpty()) listState.scrollToItem(selecionado)
+    LaunchedEffect(selecionado, visiveis) {
+        if (visiveis.isNotEmpty()) listState.scrollToItem(selecionado)
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxHeight()) {
@@ -110,33 +132,60 @@ internal fun SumarioLateral(
                     }
                 }
                 LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
-                    items(itens, key = { it.offset }) { item ->
-                        val atual = itens.getOrNull(selecionado) == item
+                    items(visiveis, key = { it.offset }) { item ->
+                        val atual = visiveis.getOrNull(selecionado) == item
                         val cor = if (atual) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface
                         val fundo = if (atual) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
-                        Text(
-                            text = item.texto,
-                            style = if (item.nivel == 1) MaterialTheme.typography.titleSmall
-                                else if (item.nivel <= 3) MaterialTheme.typography.bodyMedium
-                                else MaterialTheme.typography.bodySmall,
-                            fontWeight = if (atual) FontWeight.SemiBold else FontWeight.Normal,
-                            color = cor,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                        val recolhido = item.offset in recolhidosNoSumario
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(fundo)
-                                .clickable { onItemClick(item) }
                                 .heightIn(min = 44.dp)
-                                .padding(
-                                    start = 12.dp * item.nivel,
-                                    end = 12.dp,
-                                    top = 10.dp,
-                                    bottom = 10.dp,
-                                ),
-                        )
+                                .padding(start = 12.dp * item.nivel),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (podeRecolher && item.offset in comFilho) {
+                                Icon(
+                                    imageVector = if (recolhido) {
+                                        Icons.Rounded.KeyboardArrowUp
+                                    } else {
+                                        Icons.Rounded.KeyboardArrowDown
+                                    },
+                                    contentDescription = stringResource(
+                                        if (recolhido) R.string.outline_expand_item
+                                        else R.string.outline_collapse_item,
+                                    ),
+                                    tint = cor,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .testTag("sumario-seta-" + item.offset)
+                                        .clickable { onRecolherNoSumario?.invoke(item.offset) }
+                                        .padding(6.dp),
+                                )
+                            } else if (podeRecolher) {
+                                // O lugar da seta que nao existe, para o texto do
+                                // titulo sem subtitulo nao ficar desalinhado.
+                                Spacer(Modifier.size(36.dp))
+                            }
+                            Text(
+                                text = item.texto,
+                                style = if (item.nivel == 1) MaterialTheme.typography.titleSmall
+                                    else if (item.nivel <= 3) MaterialTheme.typography.bodyMedium
+                                    else MaterialTheme.typography.bodySmall,
+                                fontWeight = if (atual) FontWeight.SemiBold else FontWeight.Normal,
+                                color = cor,
+                                textAlign = TextAlign.Start,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onItemClick(item) }
+                                    .padding(end = 12.dp, top = 10.dp, bottom = 10.dp),
+                            )
+                        }
                     }
                 }
             }

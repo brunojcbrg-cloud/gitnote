@@ -70,3 +70,42 @@ private fun limparMarcadores(texto: String, inicio: Int, fim: Int): String {
     }
     return limpo.toString().trim()
 }
+
+/**
+ * Títulos que têm subtítulos logo abaixo -- os únicos que ganham seta de
+ * recolher no painel do sumário.
+ *
+ * Basta olhar o próximo item: se ele é mais fundo, este título tem filho. A
+ * lista já vem em ordem de documento.
+ */
+fun titulosComSubtitulos(itens: List<ItemDeSumario>): Set<Int> {
+    val comFilho = HashSet<Int>()
+    for (indice in 0 until itens.size - 1) {
+        if (itens[indice + 1].nivel > itens[indice].nivel) comFilho += itens[indice].offset
+    }
+    return comFilho
+}
+
+/**
+ * O que o painel mostra depois de recolher os títulos de [recolhidos].
+ *
+ * Recolher aqui é **só do painel**: esconde os subtítulos na lista e não mexe
+ * no texto da nota nem no recolhimento do modo leitura, que é outra coisa.
+ */
+fun itensVisiveisDoSumario(
+    itens: List<ItemDeSumario>,
+    recolhidos: Set<Int>,
+): List<ItemDeSumario> {
+    if (recolhidos.isEmpty()) return itens
+    val visiveis = ArrayList<ItemDeSumario>(itens.size)
+    var nivelCortado: Int? = null
+    for (item in itens) {
+        val corte = nivelCortado
+        // Um título recolhido dentro de outro recolhido nem chega a ser visto:
+        // o corte de fora vale ate aparecer um titulo do mesmo nivel ou acima.
+        if (corte != null && item.nivel > corte) continue
+        nivelCortado = if (item.offset in recolhidos) item.nivel else null
+        visiveis += item
+    }
+    return visiveis
+}

@@ -202,6 +202,8 @@
     <string name="close_outline">Fechar sumário</string>
     <string name="outline_collapse_all">Recolher tudo</string>
     <string name="outline_expand_all">Expandir tudo</string>
+    <string name="outline_collapse_item">Recolher subtópicos</string>
+    <string name="outline_expand_item">Expandir subtópicos</string>
     <string name="search_in_note">Buscar na nota</string>
     <string name="previous_occurrence">Ocorrência anterior</string>
     <string name="next_occurrence">Próxima ocorrência</string>
