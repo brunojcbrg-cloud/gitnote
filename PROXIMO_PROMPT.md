@@ -11,11 +11,18 @@ ONDE TUDO PAROU (21/09/2026)
   b75, 448 testes verdes na primeira rodada (eram 410; +38, nenhum caiu).
   Detalhe em RESULTADO_10_I_APP.md.
 
+PEDIDOS DELE DE 21/09 (fora do handoff 10) -- ver PEDIDOS_21_09.md
+- ENTREGUES na b77: expandir topico nao volta mais ao inicio da nota
+  (retainState = true + ancora da dobra) e seta de recolher no painel do sumario.
+  470 testes verdes, eram 448.
+- ABERTOS: (1) tamanho da letra das notas e titulos, nos dois modos; e
+  (4) colar imagem com Ctrl+V na web e no celular, que sao I.5 e I.3.
+
 PRIMEIRO DE TUDO: O TESTE QUE SO O BRUNO FAZ
 Nada da I.2 foi visto em aparelho. Nenhum teste desenha um PNG de verdade; o que
 esta provado e que o embed chega ao transformador com caminho e largura certos.
-Antes de comecar qualquer frente nova, peca a ele para instalar a b75, puxar o
-vault e abrir no modo LEITURA uma nota com imagem — por exemplo
+Antes de comecar qualquer frente nova, peca a ele para instalar a b77 (que ja
+carrega tudo), puxar o vault e abrir no modo LEITURA uma nota com imagem — por exemplo
 06_Conhecimento/Medicina/Materias Basicas/Microbiologia/Aula Introducao a
 micro.md, que tem `![[Pasted image 20260920093913.png|496]]`.
 - Se a imagem aparecer: registre em ESTADO_10.md e siga para as frentes abaixo.
@@ -25,7 +32,14 @@ micro.md, que tem `![[Pasted image 20260920093913.png|496]]`.
 
 FRENTES ABERTAS. Pergunte ao Bruno qual, execute SO uma.
 
-1. FASE I.3 + I.6 NO APP - colar/escolher imagem e redimensionar.
+0. TAMANHO DA LETRA (pedido 1 de 21/09). O encanamento ja existe:
+   markdownTypographyThemed(colors, scale) recebe um scale hoje sempre 1f, e o
+   editor ja calcula baseFontSize. Falta a preferencia (padrao de Theme/SortOrder
+   em AppPreferences), o controle nos Ajustes e passar o fator aos dois caminhos.
+   Cuidado medido: EDIT_LINE_HEIGHT_FACTOR e o FastScrollLineOverlay dependem do
+   baseFontSize -- mudar a fonte sem mexer neles desalinha o rolador rapido.
+
+1. FASE I.3 + I.5 + I.6 - colar imagem (pedido 4 de 21/09) e redimensionar.
    I.3: botao na TextFormatRow com ActivityResultContracts.PickVisualMedia (nao
    usar READ_MEDIA_IMAGES), colar do clipboard, gravar em
    06_Conhecimento/_anexos/Pasted image <yyyyMMddHHmmss>.png com compressao, e

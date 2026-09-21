@@ -83,6 +83,11 @@ estão mescladas. O worktree `gitnote-pos` permanece registrado e não faz parte
 arquivo — deixa a linha pronta no fim do seu `RESULTADO_10_*.md`. Quem está na master edita
 aqui normalmente, mas **preserva as linhas das outras fases**.
 
+**Fora do handoff 10 — pedidos dele de 21/09** (ver `PEDIDOS_21_09.md`):
+entregues na release **b77** o conserto do pulo ao expandir um tópico
+(`retainState = true` mais âncora da dobra) e o recolher no painel do sumário.
+Continuam abertos o tamanho da letra e o colar imagem (I.3 no app, I.5 na web).
+
 **Pendências que não são fase e dependem só do Bruno:**
 - ~~**I.0**~~ — **decidido e feito em 20/09**: pasta `06_Conhecimento/_anexos/`, exceção no
   `.gitignore` do vault e `attachmentFolderPath` no Obsidian. 21 imagens movidas e
