@@ -1,89 +1,121 @@
-Leia E:\Projetos\gitnote\ESTADO_10.md antes de qualquer coisa. Leia o
-HANDOFF_10_DESEMPENHO_E_NAVEGACAO.md se for escrever codigo.
+Leia E:\Projetos\gitnote\PEDIDOS_21_09.md e E:\Projetos\gitnote\ESTADO_10.md
+antes de qualquer coisa. Leia a FASE I do HANDOFF_10_DESEMPENHO_E_NAVEGACAO.md
+antes de mexer em imagem.
 
-ONDE TUDO PAROU (21/09/2026)
-- Handoff 10 cumprido: A, B, C, D, E, F, K, G, H (H.1, H.2, H.3, H.5) e J.1.
-- Seguranca fechada e publicada: release b73.
-- I.0 decidido e feito no vault: pasta 06_Conhecimento/_anexos/ versionada, com
-  as 21 imagens que eram anexo de nota, e o Obsidian configurado para colar la.
-- Fase I na web entregue: notas-web commit 2191b7f, 143 testes verdes.
-- FASE I NO APP, MODO LEITURA (I.2): entregue em 21/09, commit d2be3ac, release
-  b75, 448 testes verdes na primeira rodada (eram 410; +38, nenhum caiu).
-  Detalhe em RESULTADO_10_I_APP.md.
+TAREFA: fechar os dois pedidos que faltam e, no fim, DESLIGAR O COMPUTADOR.
+Eu nao vou estar na frente da maquina. Trabalhe ate acabar.
 
-PEDIDOS DELE DE 21/09 (fora do handoff 10) -- ver PEDIDOS_21_09.md
-- ENTREGUES na b77: expandir topico nao volta mais ao inicio da nota
-  (retainState = true + ancora da dobra) e seta de recolher no painel do sumario.
-  470 testes verdes, eram 448.
-- ABERTOS: (1) tamanho da letra das notas e titulos, nos dois modos; e
-  (4) colar imagem com Ctrl+V na web e no celular, que sao I.5 e I.3.
+ONDE TUDO ESTA (21/09/2026, fim do dia)
+- App Android: E:\Projetos\gitnote, master `2921ea4`, release b78, CI verde,
+  471 testes. Arvore limpa.
+- Web: E:\Projetos\notas-web, master `001745b`, 163 testes verdes.
+- Vault: E:\Obsidian\CONHECIMENTO, commit `2de3f6e` (pasta 06_Conhecimento/_anexos
+  versionada e Obsidian configurado para colar la).
+- Ja entregues nesta leva: imagem no modo leitura do app (b75), expandir topico
+  sem voltar ao inicio (b77), recolher no sumario (b77), sumario que nao salta
+  ao recolher (b78), wikilink no modo ao vivo da web e colar imagem na web.
 
-PRIMEIRO DE TUDO: O TESTE QUE SO O BRUNO FAZ
-Nada da I.2 foi visto em aparelho. Nenhum teste desenha um PNG de verdade; o que
-esta provado e que o embed chega ao transformador com caminho e largura certos.
-Antes de comecar qualquer frente nova, peca a ele para instalar a b77 (que ja
-carrega tudo), puxar o vault e abrir no modo LEITURA uma nota com imagem — por exemplo
-06_Conhecimento/Medicina/Materias Basicas/Microbiologia/Aula Introducao a
-micro.md, que tem `![[Pasted image 20260920093913.png|496]]`.
-- Se a imagem aparecer: registre em ESTADO_10.md e siga para as frentes abaixo.
-- Se NAO aparecer: pergunte qual StorageConfig a instalacao dele usa (App ou
-  Device) e peca o logcat. O suspeito n. 1 e a raiz do repositorio
-  (AppPreferences.repoPathSafely) nao bater com onde o .png esta.
+=============================================================================
+TAREFA 1 — TAMANHO DA LETRA NO APP (pedido 1, aberto)
+=============================================================================
+Ele quer mudar o tamanho de visualizacao das letras das notas e dos titulos,
+no MODO LEITURA e no EDITOR.
 
-FRENTES ABERTAS. Pergunte ao Bruno qual, execute SO uma.
+O encanamento ja existe, conferido:
+- Leitura: `markdownTypographyThemed(colors, scale)` em
+  ui/screen/app/grid/markdownHelper.kt JA recebe um `scale` e hoje e chamada
+  sem ele (1f). MarkDown.kt:~430 e quem chama.
+- Edicao: MarkDown.kt calcula `val baseFontSize = MaterialTheme.typography
+  .bodyLarge.fontSize` e passa para a previa ao vivo
+  (`rememberMarkdownVisualTransformation`) e para a altura de linha do rolador.
 
-0. TAMANHO DA LETRA (pedido 1 de 21/09). O encanamento ja existe:
-   markdownTypographyThemed(colors, scale) recebe um scale hoje sempre 1f, e o
-   editor ja calcula baseFontSize. Falta a preferencia (padrao de Theme/SortOrder
-   em AppPreferences), o controle nos Ajustes e passar o fator aos dois caminhos.
-   Cuidado medido: EDIT_LINE_HEIGHT_FACTOR e o FastScrollLineOverlay dependem do
-   baseFontSize -- mudar a fonte sem mexer neles desalinha o rolador rapido.
+Falta:
+1. Preferencia em data/AppPreferences.kt, no padrao de `theme`/`sortOrder`
+   (enumPreference) ou um floatPreference. Sugestao: enum com 5 degraus
+   (Pequena / Media / Grande / Maior / Maxima) -> fator 0.85 a 1.6. Enum
+   grava o NOME da constante: ha teste que tranca isso, nao renomeie a toa.
+2. Controle nos Ajustes (SettingsScreen.kt), no padrao dos outros seletores.
+3. Passar o fator aos DOIS caminhos: `markdownTypographyThemed(colors, escala)`
+   na leitura e `baseFontSize * escala` na edicao.
 
-1. FASE I.3 + I.5 + I.6 - colar imagem (pedido 4 de 21/09) e redimensionar.
-   I.3: botao na TextFormatRow com ActivityResultContracts.PickVisualMedia (nao
-   usar READ_MEDIA_IMAGES), colar do clipboard, gravar em
-   06_Conhecimento/_anexos/Pasted image <yyyyMMddHHmmss>.png com compressao, e
-   inserir `![[nome]]` no cursor. Conferir que o binario entra no add/commit.
-   Teste obrigatorio do .gitignore: com a pasta ignorada, o app tem de AVISAR.
-   I.6 no app e a folha com predefinicoes (25/50/75/100%) e controle deslizante
-   no modo leitura, que reescreve `![[nome|N]]` — NAO alca de arrasto.
-   Grava so a largura, inteira, como o Obsidian faz.
+ARMADILHA MEDIDA, nao ignore: `EDIT_LINE_HEIGHT_FACTOR` e o
+`FastScrollLineOverlay` calculam a altura de linha a partir do `baseFontSize`.
+Mudar a fonte sem levar o fator para esses dois desalinha o rolador rapido --
+o dedo vai para uma linha e a tela vai para outra. Deixe um teste disso.
 
-2. FASE J.2 - o conserto do custo por tecla no editor.
-   Prompt pronto: E:\Projetos\gitnote\PROXIMO_PROMPT_J2.md
-   EXIGE Opus 5 com esforco maximo e o aval explicito dele. Tambem e o que
-   destrava imagem no modo de EDICAO: VisualTransformation nao hospeda
-   composable, entao hoje o embed so vira imagem no modo leitura.
+Strings novas em values/strings.xml E em values-pt-rBR/strings.xml.
 
-3. PARTE V - renomear 06_Conhecimento para NOTAS.
-   Sem impedimento tecnico. O app nao hardcoda o nome para achar o anexo: a
-   listagem procura `_anexos` sob qualquer pasta de topo se o caminho padrao nao
-   existir. Quem tem o nome cravado e o notas-web (src/github.ts:5 e
-   src/anexos.ts:4).
+=============================================================================
+TAREFA 2 — COLAR IMAGEM NO CELULAR (pedido 4 / Fase I.3, aberto)
+=============================================================================
+A WEB JA FOI FEITA e define o contrato. Leia E:\Projetos\notas-web\src\anexos.ts
+(`nomeDeColagem`, `comprimirImagem`, `validarNomeDeAnexo`, `enviarAnexo`) e o
+handler `colarImagem` em src\main.ts. O app tem de gravar INDISTINGUIVEL:
+- nome `Pasted image <aaaammddhhmmss>.png`, o mesmo do Obsidian;
+- PNG, maior lado reduzido para 1600 px;
+- pasta 06_Conhecimento/_anexos/;
+- insere `![[nome.png]]` na posicao do cursor.
+Divergir disso e regressao: a mesma nota tem de abrir igual no Obsidian, na web
+e no celular.
 
-4. DECISAO PENDENTE, nao e fase: `![alt|496](caminho.png)` (tabela I.1 do
-   handoff) nao renderiza a 496 em NENHUM cliente — nem na web nem no app. O
-   Obsidian aceita. Consertar exige mexer nos dois clientes ao mesmo tempo;
-   consertar so um seria regressao. Pergunte se ele quer.
+No app:
+1. Botao de imagem na barra de formatacao (TextFormatRow, MarkDown.kt), ao lado
+   do de tabela, abrindo `ActivityResultContracts.PickVisualMedia`. NAO use
+   READ_MEDIA_IMAGES -- o photo picker nao exige permissao.
+2. Colar: interceptar `ClipData.Item.uri` com MIME image/*.
+3. Comprimir antes de gravar (o app ja tem amostragem em duas passadas em
+   ui/component/markdown/ImagensDaNota.kt -- reaproveite, nao reescreva).
+4. Inserir o embed com quebra de linha antes e depois, como `insertTable` faz.
+5. Conferir que o BINARIO entra no add/commit do StorageManager: o fluxo de
+   hoje e orientado a nota, nao a arquivo qualquer.
 
-F.3 (recolher no modo de edicao) e H.4 (edicao por secao) continuam depois da J.
+TESTE OBRIGATORIO DA ARMADILHA: se o .gitignore do vault voltar a ignorar a
+pasta de anexos, o app grava o arquivo, o git ignora, sobe so o .md e o embed
+aparece quebrado no PC SEM ERRO NENHUM. O app tem de AVISAR nesse caso. Teste
+com e sem a excecao no .gitignore.
 
-REGRAS QUE VALEM EM QUALQUER UMA
-- Nao compile localmente. Nao instale JDK, SDK nem Gradle. Quem compila e o
-  GitHub Actions no push da master; leia o job "Unit tests + APK".
-- Teste de UI e Robolectric. Ao compor markdown em teste, use
-  CompositionLocalProvider(LocalInspectionMode provides true); em conteiner que
-  rola, performScrollTo() antes do clique; banco em memoria com
-  allowMainThreadQueries().
-- Quando a rodada falhar, baixe gh run download <id> -n test-report-<n>.
-- Strings novas vao em values/strings.xml E em values-pt-rBR/strings.xml.
-- Nao trate mediana isolada como prova: o runner e ruidoso e ja enganou duas
-  fases. Prova boa aqui e contagem de chamadas ou identidade de referencia.
-- O contrato de imagem e o mesmo nos tres clientes (Obsidian, notas-web, app).
-  Divergir dele e regressao; se precisar mudar, muda nos tres.
+=============================================================================
+O QUE NAO FAZER SEM FALAR COMIGO
+=============================================================================
+- J.2 (migracao do editor para TextFieldState): exige Opus 5 com esforco maximo
+  e meu aval explicito. Prompt pronto em PROXIMO_PROMPT_J2.md. NAO comece.
+- Parte V (renomear 06_Conhecimento para NOTAS): decisao minha, mexe no vault.
+- `![alt|496](x.png)`: nao funciona em nenhum cliente hoje. Consertar exige
+  mexer na web e no app juntos. Registre, nao conserte sozinho.
+- F.3 e H.4 vem depois da J.
+
+=============================================================================
+REGRAS
+=============================================================================
+- APP: nao compile localmente, nao instale JDK/SDK/Gradle. Quem compila e o
+  GitHub Actions no push da master; leia o job "Unit tests + APK". Rodada de
+  ~10 min. Quando falhar: gh run download <id> -n test-report-<n>.
+- WEB: ai pode tudo localmente -- `npm test` e `npm run build` (o build gera
+  docs/, que e o que o GitHub Pages publica; commite o docs/ junto).
+- Teste de UI do app e Robolectric. Ao compor markdown em teste use
+  CompositionLocalProvider(LocalInspectionMode provides true); em lista que rola,
+  performScrollToNode antes do clique.
+- Nenhum teste consegue construir GridViewModel/MarkDownVM reais (GitManager
+  carrega git_wrapper): extraia funcao pura e teste ela.
+- CUIDADO COM SCRIPT QUE ESCREVE KOTLIN: escrever `\n` dentro de literal por
+  script ja quebrou o build duas vezes hoje (virou quebra de linha de verdade).
+  Prefira string bruta com trimIndent, ou escreva o arquivo direto.
+- Nao trate mediana isolada como prova. Prova boa aqui e contagem de chamadas,
+  identidade de referencia ou teste funcional.
 - Se medir algo diferente do que o handoff afirma, PARE, registre em
-  ESTADO_10.md e pergunte. A Fase H ja derrubou uma premissa dele, e a Fase I
-  derrubou quatro.
+  ESTADO_10.md e siga pelo que voce mediu. A Fase I ja derrubou quatro premissas.
 
-AO TERMINAR
-Escreva RESULTADO_10_<FASE>.md, atualize ESTADO_10.md e regrave este arquivo.
+=============================================================================
+AO TERMINAR — NESTA ORDEM
+=============================================================================
+1. CI verde nos dois repositorios, com o numero de testes no relatorio.
+2. Atualize PEDIDOS_21_09.md e ESTADO_10.md com o que foi feito e o que NAO foi
+   medido (nada aqui e testado em aparelho -- diga isso sem enfeitar).
+3. Regrave PROXIMO_PROMPT.md com o estado novo, dizendo que o teste em aparelho
+   da b78 em diante continua pendente e e so meu.
+4. Commite e empurre TUDO, nos dois repositorios. Confira `git status` limpo.
+5. SO DEPOIS DISSO, desligue o computador:
+   `shutdown /s /t 60 /c "Trabalho concluido"`
+   NAO desligue se sobrar arquivo sem commit, CI vermelho ou tarefa pela metade.
+   Nesse caso, pare, deixe tudo escrito no PROXIMO_PROMPT.md e me avise no
+   relatorio final -- o computador fica ligado.
