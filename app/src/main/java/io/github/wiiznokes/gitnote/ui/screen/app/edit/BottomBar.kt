@@ -12,15 +12,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -30,6 +34,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.wiiznokes.gitnote.R
+import io.github.wiiznokes.gitnote.ui.theme.TAMANHO_DA_LETRA_MAXIMO
+import io.github.wiiznokes.gitnote.ui.theme.TAMANHO_DA_LETRA_MINIMO
+import io.github.wiiznokes.gitnote.ui.theme.aumentarTamanhoDaLetra
+import io.github.wiiznokes.gitnote.ui.theme.diminuirTamanhoDaLetra
+import io.github.wiiznokes.gitnote.ui.theme.limitarTamanhoDaLetra
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.TextVM
 import io.github.wiiznokes.gitnote.utils.getParentPath
 
@@ -58,6 +67,7 @@ fun DefaultRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             leftContent()
+            TamanhoDaLetraBotoes(vm = vm)
         }
 
         Row(
@@ -114,6 +124,41 @@ fun DefaultRow(
             )
         }
     }
+}
+
+
+/**
+ * Os dois botoes de tamanho da letra, na barra da propria nota.
+ *
+ * Ficam aqui, e nao na `TextFormatRow`, por dois motivos medidos: a barra de
+ * formatacao e desligada no modo leitura (`enabled = !isReadOnlyModeActive`) e
+ * mora atras de um toque, e ler e justamente quando o tamanho incomoda. O valor
+ * escolhido e gravado na hora e passa a valer para todas as notas.
+ */
+@Composable
+fun TamanhoDaLetraBotoes(vm: TextVM) {
+    val porcentagem by vm.prefs.tamanhoDaLetraPct.getAsState()
+    val atual = limitarTamanhoDaLetra(porcentagem)
+
+    SmallButton(
+        onClick = { vm.ajustarTamanhoDaLetra(diminuirTamanhoDaLetra(atual)) },
+        enabled = atual > TAMANHO_DA_LETRA_MINIMO,
+        imageVector = Icons.Default.Remove,
+        contentDescription = stringResource(R.string.font_size_decrease),
+    )
+    // O numero e o retorno: sem ele o toque no + nao tem resposta visivel quando
+    // a nota aberta nao tem texto na tela, e nao da para saber que ja esta no teto.
+    Text(
+        text = "$atual%",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    SmallButton(
+        onClick = { vm.ajustarTamanhoDaLetra(aumentarTamanhoDaLetra(atual)) },
+        enabled = atual < TAMANHO_DA_LETRA_MAXIMO,
+        imageVector = Icons.Default.Add,
+        contentDescription = stringResource(R.string.font_size_increase),
+    )
 }
 
 

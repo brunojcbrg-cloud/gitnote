@@ -29,7 +29,6 @@ import io.github.wiiznokes.gitnote.BuildConfig
 import io.github.wiiznokes.gitnote.MainActivity
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.PrazoDaTrava
-import io.github.wiiznokes.gitnote.data.TamanhoDaLetra
 import io.github.wiiznokes.gitnote.ui.component.AppPage
 import io.github.wiiznokes.gitnote.ui.component.DefaultSettingsRow
 import io.github.wiiznokes.gitnote.ui.component.MultipleChoiceSettings
@@ -231,15 +230,8 @@ fun SettingsScreen(
                 }
             )
 
-            val tamanhoDaLetra by vm.prefs.tamanhoDaLetra.getAsState()
-            MultipleChoiceSettings(
-                title = stringResource(R.string.font_size),
-                subtitle = tamanhoDaLetra.toString(),
-                options = TamanhoDaLetra.entries,
-                onOptionClick = {
-                    vm.update { vm.prefs.tamanhoDaLetra.update(it) }
-                }
-            )
+            // O tamanho da letra nao mora aqui: o controle sao os botoes + e - da
+            // barra da propria nota, que e onde da para julgar o resultado.
 
             val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
             MultipleChoiceSettings(

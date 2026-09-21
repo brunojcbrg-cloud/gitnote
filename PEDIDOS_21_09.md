@@ -5,11 +5,11 @@ saiu na web e falta no app).
 
 | # | Pedido | Status |
 |---|---|---|
-| 1 | Mudar o tamanho da letra das notas e títulos, no modo leitura **e** no editor | **entregue** — `f3dc4b6`, 490 testes verdes; falta ver em aparelho |
+| 1 | Mudar o tamanho da letra das notas e títulos, no modo leitura **e** no editor | **entregue** — botões + e − na própria nota; falta ver em aparelho |
 | 2 | Expandir tópico recolhido voltava para o início da nota | **entregue** — b77, com o painel acertado na b78 |
 | 3 | Recolher títulos no painel do sumário (mostrar ou não os subtópicos) | **entregue** — b77 |
 | 4 | Colar imagem com Ctrl+V direto no editor da web e no celular | **web entregue** (`001745b`); **app aberto** |
-| 5 | Sair do app durante a edição perdia tudo o que tinha sido digitado | **entregue** — 494 testes verdes; falta ver em aparelho |
+| 5 | Sair do app durante a edição perdia tudo o que tinha sido digitado | **entregue** — `9fab3c6`, na b79; falta ver em aparelho |
 
 Entregues no commit `25f63b2` (+ `ca4…` de conserto do teste), release **b77
 (26.08.1.77)**, [run 35552142059](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35552142059):
@@ -61,10 +61,29 @@ Fase I.2). A b77 carrega as duas coisas.
 
 ---
 
-## 1. Tamanho da letra — entregue em `f3dc4b6`
+## 1. Tamanho da letra — entregue em `f3dc4b6`, refeito depois da b79
 
-Preferência `TamanhoDaLetra` com cinco degraus (0,85 / 1,0 / 1,2 / 1,4 / 1,6),
-controle nos Ajustes e strings nos dois idiomas. A escala é aplicada na
+**A primeira versão pôs o controle nos Ajustes, e não era isso.** Correção do
+Bruno depois de ver a b79: *"prefiro que seja na própria nota, com dois botões,
+um + para aumentar e outro − para diminuir; e quando eu modificar em uma nota,
+tem que ficar salvo como padrão."*
+
+Como ficou: dois botões na **barra de baixo da nota**, com a porcentagem atual
+entre eles. Valem nos dois modos — inclusive no de leitura, que é justamente
+quando o tamanho incomoda, e onde a barra de formatação fica desligada. Por isso
+eles moram na `DefaultRow` e não na `TextFormatRow`.
+
+A preferência deixou de ser um punhado de degraus nomeados e virou **porcentagem
+inteira**, de 80% a 200%, de 10 em 10 — com cinco degraus fixos os botões ficariam
+saltando. Cada toque grava na hora, na mesma preferência que todas as notas leem:
+não existe tamanho "só desta nota". Valor fora da grade é trazido para o degrau
+mais próximo, senão um resto de configuração antiga viraria um meio-termo que os
+botões nunca mais alcançam.
+
+A entrada nos Ajustes foi removida, para não ficarem dois controles para a mesma
+coisa. **496 testes verdes** (8 no `TamanhoDaLetraTest`).
+
+Do desenho original, o que continua valendo: a escala é aplicada na
 **tipografia inteira** (`tipografiaEscalada`), não só no corpo: os seis níveis de
 título saíam de `MaterialTheme.typography` sem escala nenhuma, e o pedido fala de
 notas **e** títulos. Com isso os dois caminhos crescem juntos — o renderizador do
@@ -72,8 +91,8 @@ modo leitura e o `TextField` do editor.
 
 A armadilha registrada abaixo está coberta e trancada por teste: o `baseFontSize`
 da prévia ao vivo e da altura de linha do rolador rápido sai da mesma tipografia
-escalada, então o dedo e a tela não se separam em nenhum degrau. **490 testes
-verdes, 0 falhas** (6 novos). Não empurrado, não visto em aparelho.
+escalada, então o dedo e a tela não se separam em nenhum degrau — e agora isso é
+verificado nos treze degraus, não em cinco.
 
 O encanamento que já existia, e que foi aproveitado:
 
@@ -87,8 +106,7 @@ O cuidado que guiou o desenho, e que continua valendo para quem mexer aqui:
 `EDIT_LINE_HEIGHT_FACTOR` e o `FastScrollLineOverlay` dependem de `baseFontSize`
 — mudar a fonte sem mexer neles desalinha o rolador.
 
-Ficou de fora, por não ter sido pedido: o gesto de pinça. O controle é a lista
-de cinco degraus nos Ajustes.
+Ficou de fora, por não ter sido pedido: o gesto de pinça.
 
 ## 4. Colar imagem — web entregue, app aberto
 
@@ -115,14 +133,15 @@ pronto nos dois clientes.
 
 ## Estado em 21/09, fim do dia
 
-- **App**: master `1a343f1`, **10 commits à frente do `origin` e não empurrados** — é o
-  handoff 11 (sugestão de wikilink), certificado em JVM com 484 testes verdes e pendente
-  de duas provas em aparelho; ver `RESULTADO_11_SUGESTAO_DE_WIKILINK.md`. A última release
-  publicada continua sendo a **b78** (`2921ea4`), CI verde.
+- **App**: release **b79** (`26.08.1.79`), CI verde, publicada a partir de `9fab3c6` —
+  carrega o handoff 11 (sugestão de wikilink, ver `RESULTADO_11_SUGESTAO_DE_WIKILINK.md`),
+  o tamanho da letra e o conserto do rascunho. Depois dela entrou a refação do pedido 1
+  (botões na nota), que ainda não saiu em release.
 - **Web**: master `001745b`, **163 testes verdes**.
 - **Vault**: `2de3f6e` — pasta de anexos e configuração do Obsidian.
-- **Nada disso foi visto em aparelho ainda.** A b78 carrega imagem no modo leitura
-  (I.2), a âncora da dobra e o recolhimento do sumário.
+- **Nada disso foi visto em aparelho ainda.** A b79 carrega, além do que já vinha da b78
+  (imagem no modo leitura, âncora da dobra, recolhimento do sumário), as três entregas
+  novas — e as duas medições de aparelho do handoff 11 continuam pendentes.
 
 ---
 

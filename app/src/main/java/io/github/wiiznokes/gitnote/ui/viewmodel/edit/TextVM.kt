@@ -20,6 +20,7 @@ import io.github.wiiznokes.gitnote.manager.StorageManager
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.model.FileExtension
+import io.github.wiiznokes.gitnote.ui.theme.limitarTamanhoDaLetra
 import io.github.wiiznokes.gitnote.ui.viewmodel.viewModelFactory
 import io.github.wiiznokes.gitnote.utils.endsWith
 import kotlinx.coroutines.CoroutineScope
@@ -306,6 +307,17 @@ open class TextVM() : ViewModel() {
 
         viewModelScope.launch {
             prefs.isReadOnlyModeActive.update(value)
+        }
+    }
+
+    /**
+     * O tamanho da letra e ajustado na propria nota, pelos botoes + e - da barra
+     * de baixo, e o valor escolhido **vira o padrao**: e a mesma preferencia que
+     * todas as notas leem, gravada na hora. Nao existe tamanho "so desta nota".
+     */
+    fun ajustarTamanhoDaLetra(porcentagem: Int) {
+        viewModelScope.launch {
+            prefs.tamanhoDaLetraPct.update(limitarTamanhoDaLetra(porcentagem))
         }
     }
 

@@ -4,6 +4,34 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.isSpecified
+import kotlin.math.roundToInt
+
+/**
+ * A escala e guardada em **porcentagem inteira**, nao num punhado de degraus
+ * nomeados: o controle sao dois botoes (+ e -) na propria nota, entao o passo
+ * precisa ser pequeno o bastante para ajustar nota a nota. Inteiro tambem tira
+ * o valor gravado da mao do arredondamento de float.
+ */
+const val TAMANHO_DA_LETRA_MINIMO = 80
+const val TAMANHO_DA_LETRA_MAXIMO = 200
+const val TAMANHO_DA_LETRA_PASSO = 10
+const val TAMANHO_DA_LETRA_PADRAO = 100
+
+/** Mantem o valor dentro da faixa e na grade do passo. */
+fun limitarTamanhoDaLetra(porcentagem: Int): Int {
+    val naGrade =
+        (porcentagem.toFloat() / TAMANHO_DA_LETRA_PASSO).roundToInt() * TAMANHO_DA_LETRA_PASSO
+    return naGrade.coerceIn(TAMANHO_DA_LETRA_MINIMO, TAMANHO_DA_LETRA_MAXIMO)
+}
+
+fun aumentarTamanhoDaLetra(porcentagem: Int): Int =
+    limitarTamanhoDaLetra(limitarTamanhoDaLetra(porcentagem) + TAMANHO_DA_LETRA_PASSO)
+
+fun diminuirTamanhoDaLetra(porcentagem: Int): Int =
+    limitarTamanhoDaLetra(limitarTamanhoDaLetra(porcentagem) - TAMANHO_DA_LETRA_PASSO)
+
+/** O fator que multiplica a tipografia. 100% devolve exatamente 1. */
+fun fatorDaLetra(porcentagem: Int): Float = limitarTamanhoDaLetra(porcentagem) / 100f
 
 /**
  * Escala da tipografia das notas (pedido 1 de 21/09/2026).

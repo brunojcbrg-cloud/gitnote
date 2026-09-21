@@ -104,6 +104,7 @@ import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownColorsThemed
 import io.github.wiiznokes.gitnote.ui.screen.app.grid.markdownTypographyThemed
 import io.github.wiiznokes.gitnote.ui.theme.markdownColorScheme
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
+import io.github.wiiznokes.gitnote.ui.theme.fatorDaLetra
 import io.github.wiiznokes.gitnote.ui.theme.tipografiaEscalada
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import kotlinx.coroutines.delay
@@ -164,11 +165,11 @@ fun MarkDownContent(
     val isMarkdownThemeActive by vm.prefs.isMarkdownThemeActive.getAsState()
     val markdownTheme by vm.prefs.markdownColorTheme.getAsState()
     val colors = markdownColorScheme(markdownTheme)
-    val tamanhoDaLetra by vm.prefs.tamanhoDaLetra.getAsState()
+    val tamanhoDaLetra by vm.prefs.tamanhoDaLetraPct.getAsState()
     // Uma escala so para os dois modos. O editor tira dela o `baseFontSize`, de
     // onde sai tambem a altura de linha do rolador rapido -- e por isso que a
     // fonte nao pode crescer por fora desta conta.
-    val tipografiaDaNota = tipografiaEscalada(MaterialTheme.typography, tamanhoDaLetra.fator)
+    val tipografiaDaNota = tipografiaEscalada(MaterialTheme.typography, fatorDaLetra(tamanhoDaLetra))
 
     if (isReadOnlyModeActive) {
         val scrollState = rememberScrollState()

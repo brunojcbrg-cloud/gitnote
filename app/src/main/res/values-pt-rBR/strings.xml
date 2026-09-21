@@ -231,10 +231,6 @@
     <string name="lock_auth_start_failed">Não foi possível iniciar a autenticação. Tente novamente.</string>
     <string name="lock_no_screen_lock">Sem bloqueio de tela, as credenciais cifradas não podem ser abertas. Reconfigure o aparelho ou o repositório.</string>
     <string name="lock_reconfigure_failed">Não foi possível reconfigurar as credenciais.</string>
-    <string name="font_size">Tamanho da letra das notas</string>
-    <string name="font_size_small">Pequena</string>
-    <string name="font_size_medium">Média</string>
-    <string name="font_size_large">Grande</string>
-    <string name="font_size_larger">Maior</string>
-    <string name="font_size_largest">Máxima</string>
+    <string name="font_size_decrease">Diminuir a letra das notas</string>
+    <string name="font_size_increase">Aumentar a letra das notas</string>
 </resources>
