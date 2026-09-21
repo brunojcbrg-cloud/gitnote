@@ -3,7 +3,13 @@
 Ordem: A, B, C, D, E, F, **K**, G, H, J.1 — **lista cumprida em 20/09/2026**
 (J.2+ exige aval dele e outro modelo — fora desta lista).
 **I.2 no app entregue em 21/09** (b75): imagem da nota renderiza no modo leitura.
-Parte V continua parada só por decisão dele.
+**I.5 na web entregue em 21/09** (`001745b` de `notas-web`, 163 testes verdes): colar
+print no editor, com compressão e nome no padrão do Obsidian. **Falta a I.3**, a
+colagem no app. Fora do handoff: dois pedidos de 21/09 entregues e um aberto — ver
+`PEDIDOS_21_09.md`. Parte V continua parada só por decisão dele.
+
+**Ponta em 21/09:** app `2921ea4` / release **b78** verde; web `001745b`; vault
+`2de3f6e`. **Nada foi visto em aparelho ainda.**
 
 ~~**A Fase K entrou em 20/09** e tem prioridade sobre G e H~~ — **entregue em 20/09**
 (`382aaf7`, release b67). A regressão da Fase B está consertada: pasta que só tem subpastas
@@ -34,6 +40,10 @@ Detalhe de cada fase entregue: `RESULTADO_10_<FASE>.md`.
 | H.5 | implementada e testada | 2026-09-20 | b422ccf | b71 (26.08.1.71) |
 | J.1 | entregue e mesclada | 2026-09-20 | df8d403 (squash de `handoff10-j1`, PR #2, mesclada pelo Bruno) | build próprio cancelado (ver nota) |
 | I.2 (app, leitura) | entregue; **falta ver em aparelho** | 2026-09-21 | d2be3ac | b75 (26.08.1.75) |
+| I.0 (vault) | entregue | 2026-09-20 | `2de3f6e` em `vault-conhecimento` | — |
+| I (web, leitura) | entregue | 2026-09-20 | `2191b7f` em `notas-web` | — |
+| I.5 (web, colar) | entregue | 2026-09-21 | `001745b` em `notas-web` | — |
+| I.3 (app, colar) | **pendente** | | | |
 
 ### Números medidos na H.2 (e a ressalva que vale para a H.3)
 

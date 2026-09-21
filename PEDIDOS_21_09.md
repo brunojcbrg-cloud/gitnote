@@ -1,13 +1,14 @@
 # Pedidos do Bruno em 21/09/2026
 
-Quatro coisas, fora das fases do handoff 10. Duas entregues, duas abertas.
+Quatro coisas, fora das fases do handoff 10. **Duas e meia entregues** (o pedido 4
+saiu na web e falta no app), uma aberta.
 
 | # | Pedido | Status |
 |---|---|---|
 | 1 | Mudar o tamanho da letra das notas e títulos, no modo leitura **e** no editor | **aberto** |
-| 2 | Expandir tópico recolhido voltava para o início da nota | **entregue** — b77 |
+| 2 | Expandir tópico recolhido voltava para o início da nota | **entregue** — b77, com o painel acertado na b78 |
 | 3 | Recolher títulos no painel do sumário (mostrar ou não os subtópicos) | **entregue** — b77 |
-| 4 | Colar imagem com Ctrl+V direto no editor da web e no celular | **aberto** |
+| 4 | Colar imagem com Ctrl+V direto no editor da web e no celular | **web entregue** (`001745b`); **app aberto** |
 
 Entregues no commit `25f63b2` (+ `ca4…` de conserto do teste), release **b77
 (26.08.1.77)**, [run 35552142059](https://github.com/brunojcbrg-cloud/gitnote/actions/runs/35552142059):
@@ -75,14 +76,17 @@ Cuidado medido: `EDIT_LINE_HEIGHT_FACTOR` e o `FastScrollLineOverlay` dependem
 de `baseFontSize` — mudar a fonte sem mexer neles desalinha o rolador.
 Strings novas em `values/` **e** `values-pt-rBR/`.
 
-## 4. Colar imagem (aberto)
+## 4. Colar imagem — web entregue, app aberto
 
-São as sub-fases I.3 (app) e I.5 (web) do handoff 10, agora com o modo leitura
-já pronto nos dois clientes.
+São as sub-fases I.3 (app) e I.5 (web) do handoff 10, com o modo leitura já
+pronto nos dois clientes.
 
-- **Web** (`E:\Projetos\notas-web`): `EditorView.domEventHandlers({ paste })` no
-  CodeMirror 6, comprimir por `canvas`, `PUT` na API de conteúdo
-  (`github.ts:162`) e inserir `![[nome]]` no cursor.
+- ~~**Web**~~ — **entregue em 21/09** (`001745b` de `notas-web`, **163 testes
+  verdes**): `paste` no CodeMirror 6, compressão por `canvas` com teto de lado,
+  `PUT` na API de conteúdo e `![[nome]]` no cursor. O nome segue o padrão do
+  Obsidian (`Pasted image <yyyyMMddHHmmss>.png`) e o caminho é validado para não
+  escapar da pasta de anexos. Na mesma leva saiu o wikilink no modo ao vivo
+  (`6ab080e`).
 - **App**: interceptar imagem da área de transferência e oferecer o seletor
   (`ActivityResultContracts.PickVisualMedia`, que **não** exige
   `READ_MEDIA_IMAGES`), gravar em `06_Conhecimento/_anexos/Pasted image
@@ -92,3 +96,13 @@ já pronto nos dois clientes.
 - **A armadilha obrigatória:** se o `.gitignore` do vault voltar a ignorar a
   pasta, o arquivo é gravado, o git o ignora e sobe só o `.md` — embed quebrado
   no PC, sem erro nenhum. O app tem de **avisar**.
+
+---
+
+## Estado em 21/09, fim do dia
+
+- **App**: master `2921ea4`, release **b78**, CI verde. Nada pendente de merge.
+- **Web**: master `001745b`, **163 testes verdes**.
+- **Vault**: `2de3f6e` — pasta de anexos e configuração do Obsidian.
+- **Nada disso foi visto em aparelho ainda.** A b78 carrega imagem no modo leitura
+  (I.2), a âncora da dobra e o recolhimento do sumário.
