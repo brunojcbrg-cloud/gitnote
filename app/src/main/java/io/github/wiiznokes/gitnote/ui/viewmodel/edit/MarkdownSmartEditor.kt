@@ -83,20 +83,22 @@ fun aplicarSugestaoWikilink(
 }
 
 fun deveAtualizarSugestaoWikilink(
-    anterior: EdicaoDeTexto,
-    atual: EdicaoDeTexto,
+    textoAnterior: String,
+    selecaoAnterior: TextRange,
+    textoAtual: String,
+    selecaoAtual: TextRange,
     gatilhoAtivo: Boolean,
 ): Boolean {
     if (gatilhoAtivo) return true
-    if (!atual.selecao.collapsed || atual.texto.length != anterior.texto.length + 1) return false
-    val inserido = atual.selecao.start - 1
-    if (inserido !in atual.texto.indices || atual.texto[inserido] != '[') return false
-    if (!atual.texto.regionMatches(0, anterior.texto, 0, inserido)) return false
-    return atual.texto.regionMatches(
+    if (!selecaoAtual.collapsed || textoAtual.length != textoAnterior.length + 1) return false
+    val inserido = selecaoAtual.start - 1
+    if (inserido !in textoAtual.indices || textoAtual[inserido] != '[') return false
+    if (!textoAtual.regionMatches(0, textoAnterior, 0, inserido)) return false
+    return textoAtual.regionMatches(
         inserido + 1,
-        anterior.texto,
-        anterior.selecao.max,
-        anterior.texto.length - anterior.selecao.max,
+        textoAnterior,
+        selecaoAnterior.max,
+        textoAnterior.length - selecaoAnterior.max,
     )
 }
 

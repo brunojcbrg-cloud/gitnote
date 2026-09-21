@@ -142,8 +142,10 @@ class MarkDownVM : TextVM {
         val editado = editMarkdownValue(anterior, v)
         super.onValueChange(editado)
         if (deveAtualizarSugestaoWikilink(
-                anterior = anterior.toEdicaoDeTexto(),
-                atual = editado.toEdicaoDeTexto(),
+                textoAnterior = anterior.text,
+                selecaoAnterior = anterior.selection,
+                textoAtual = editado.text,
+                selecaoAtual = editado.selection,
                 gatilhoAtivo = _sugestaoWikilink.value.gatilho != null,
             )
         ) {

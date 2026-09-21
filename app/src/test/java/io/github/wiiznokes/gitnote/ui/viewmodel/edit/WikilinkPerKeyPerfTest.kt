@@ -61,9 +61,14 @@ class WikilinkPerKeyPerfTest {
         var checksum = 0L
         repeat(repeticoes) {
             val editado = editMarkdownValue(anterior, digitado)
-            val anteriorPuro = EdicaoDeTexto(anterior.text, anterior.selection)
-            val editadoPuro = EdicaoDeTexto(editado.text, editado.selection)
-            if (deveAtualizarSugestaoWikilink(anteriorPuro, editadoPuro, gatilhoAtivo = false)) {
+            if (deveAtualizarSugestaoWikilink(
+                    textoAnterior = anterior.text,
+                    selecaoAnterior = anterior.selection,
+                    textoAtual = editado.text,
+                    selecaoAtual = editado.selection,
+                    gatilhoAtivo = false,
+                )
+            ) {
                 checksum += gatilhoSugestaoWikilink(editado.text, editado.selection)?.abertura ?: 0
             }
             checksum += editado.selection.start

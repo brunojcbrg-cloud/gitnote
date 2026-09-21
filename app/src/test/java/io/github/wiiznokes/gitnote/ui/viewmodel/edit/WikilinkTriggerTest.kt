@@ -77,15 +77,33 @@ class WikilinkTriggerTest {
         val anterior = EdicaoDeTexto("texto", TextRange(5))
         assertEquals(
             false,
-            deveAtualizarSugestaoWikilink(anterior, EdicaoDeTexto("textox", TextRange(6)), false),
+            deveAtualizarSugestaoWikilink(
+                anterior.texto,
+                anterior.selecao,
+                "textox",
+                TextRange(6),
+                false,
+            ),
         )
         assertEquals(
             true,
-            deveAtualizarSugestaoWikilink(anterior, EdicaoDeTexto("texto[", TextRange(6)), false),
+            deveAtualizarSugestaoWikilink(
+                anterior.texto,
+                anterior.selecao,
+                "texto[",
+                TextRange(6),
+                false,
+            ),
         )
         assertEquals(
             true,
-            deveAtualizarSugestaoWikilink(anterior, EdicaoDeTexto("textox", TextRange(6)), true),
+            deveAtualizarSugestaoWikilink(
+                anterior.texto,
+                anterior.selecao,
+                "textox",
+                TextRange(6),
+                true,
+            ),
         )
     }
 }
