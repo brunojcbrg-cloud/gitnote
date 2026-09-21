@@ -46,11 +46,13 @@ O QUE MEDI NO APP (ponto de partida, conferir antes de confiar)
 - `![[nome.png]]` **não é sintaxe GFM**: o parser não produz nó de imagem para ela.
   O projeto já tem tratamento próprio de wikilink (`WikilinkSupport.kt`) — o embed
   de imagem tem de entrar por ali ou por um pré-passe, não pelo parser.
-- **A armadilha que decide a fase:** em `StorageConfig.Device` o repositório é
-  acessado por SAF, e ter acesso ao `.md` **não** garante acesso ao `.png` ao lado.
-  Meça isso ANTES de escrever a renderização: se o caminho de leitura do anexo não
-  existir, a fase inteira muda de forma. Em `StorageConfig.App` é diretório privado
-  e o arquivo é lido direto.
+- **O risco de SAF não se confirmou, e isso é bom:** `data/platform/FileSystem.kt` usa
+  `java.nio.file.Paths`, não `DocumentFile`/`contentResolver`. Onde o app lê o `.md`,
+  lê o `.png` ao lado, nos dois `StorageConfig`. Confirme numa leitura rápida antes de
+  apoiar a fase nisso, mas não gaste sessão desenhando contorno para SAF.
+- **Limite conhecido do modo de edição:** `VisualTransformation` não hospeda
+  composable, então imagem inline no live preview do app não sai como na web. Modo
+  leitura primeiro; o de edição pode exigir a Fase J (`TextFieldState`) antes.
 
 CRITÉRIO DE ACEITAÇÃO
 - Teste de resolução (função pura, JVM): nome curto acha o arquivo em `_anexos`;
