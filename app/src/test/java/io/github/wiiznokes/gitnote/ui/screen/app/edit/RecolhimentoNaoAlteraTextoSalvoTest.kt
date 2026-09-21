@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 /**
  * F.2: o recolhimento (`Dobra.kt`) só transforma o texto que é entregue para
- * `MarkdownCustomInner` no modo leitura. `GenericTextField` (edição) e o botão de
+ * `MarkdownCustomInner` no modo leitura. `WikilinkEditorField` (edição) e o botão de
  * salvar continuam recebendo o `textContent`/`vm.content` original, nunca
  * `conteudoExibido`/`textoDobrado`. Não dá para provar isso instanciando `MarkDownVM`
  * de verdade neste repositório (bloqueio de `GitManager`/`git_wrapper`, Fases A/C/E);
@@ -27,6 +27,7 @@ class RecolhimentoNaoAlteraTextoSalvoTest {
     @Test
     fun modoEdicaoNuncaUsaOTextoDobrado() {
         val fonte = lerFonte("src/main/java/io/github/wiiznokes/gitnote/ui/screen/app/edit/MarkDown.kt")
+            .replace("\r\n", "\n")
         // "    } else {" no topo da função (4 espaços) é o único fecho do
         // `if (isReadOnlyModeActive) { ... } else { ... }` de MarkDownContent -- os
         // "} else {" aninhados (temas, etc.) vêm com mais indentação e não casam aqui.
@@ -40,8 +41,8 @@ class RecolhimentoNaoAlteraTextoSalvoTest {
             "o modo edicao nao pode renderizar nem salvar o texto dobrado",
         )
         assertTrue(
-            modoEdicao.contains("GenericTextField(") && modoEdicao.contains("textContent = textContent"),
-            "GenericTextField continua recebendo o textContent original",
+            modoEdicao.contains("WikilinkEditorField(") && modoEdicao.contains("textContent = textContent"),
+            "WikilinkEditorField continua recebendo o textContent original",
         )
     }
 
