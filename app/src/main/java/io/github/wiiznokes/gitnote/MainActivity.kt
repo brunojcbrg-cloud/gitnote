@@ -186,9 +186,9 @@ class MainActivity : FragmentActivity() {
                             editAnyway = vm::editAnyway,
                         )
                     } else {
-                        val revision = when (syncState) {
-                            is StartupSyncState.Synced -> syncState.revision
-                            is StartupSyncState.Override -> syncState.revision
+                        val revision = when (val currentSyncState = syncState) {
+                            is StartupSyncState.Synced -> currentSyncState.revision
+                            is StartupSyncState.Override -> currentSyncState.revision
                             else -> 0L
                         }
                         key(revision) {

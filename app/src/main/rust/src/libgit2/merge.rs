@@ -226,7 +226,6 @@ mod tests {
         assert_eq!(fs::read(path.join("Nota.md")).unwrap(), before);
         assert_eq!(repo.state(), git2::RepositoryState::Clean);
         drop(local_annotated);
-        drop(remote_annotated);
         drop(repo);
         fs::remove_dir_all(path).unwrap();
     }
