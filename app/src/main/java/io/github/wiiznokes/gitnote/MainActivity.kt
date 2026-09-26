@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -28,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.olshevski.navigation.reimagined.AnimatedNavHost
@@ -45,6 +48,7 @@ import io.github.wiiznokes.gitnote.ui.theme.GitNoteTheme
 import io.github.wiiznokes.gitnote.ui.theme.Theme
 import io.github.wiiznokes.gitnote.ui.viewmodel.MainViewModel
 import io.github.wiiznokes.gitnote.data.PortaoDeSeguranca
+import io.github.wiiznokes.gitnote.data.StartupSyncState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -67,6 +71,7 @@ class MainActivity : FragmentActivity() {
     private var mostrarConfirmacao by mutableStateOf(false)
     private var promptEmCurso by mutableStateOf(false)
     private var pendente: ((Boolean) -> Unit)? = null
+    private var mainViewModel: MainViewModel? = null
     private val autenticadores = BiometricManager.Authenticators.BIOMETRIC_STRONG or
         BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
@@ -96,6 +101,7 @@ class MainActivity : FragmentActivity() {
                                 try {
                                     prefs.desbloquearCofre(autenticado)
                                     aberto = true
+                                    mainViewModel?.syncAfterUnlock()
                                     terminarPrompt(true, null)
                                 } catch (_: Exception) {
                                     recuperacao = true
@@ -145,6 +151,7 @@ class MainActivity : FragmentActivity() {
         setContent {
 
             val vm: MainViewModel = viewModel()
+            mainViewModel = vm
 
             val theme by vm.prefs.theme.getAsState()
             val dynamicColor by vm.prefs.dynamicColor.getAsState()
@@ -161,46 +168,66 @@ class MainActivity : FragmentActivity() {
                 if (!aberto) {
                     TelaDeBloqueio()
                 } else {
-                val startDestination: Destination = remember {
-                    if (runBlocking { vm.tryInit() }) {
-                        Destination.App(AppDestination.Home)
-                    } else Destination.Setup(SetupDestination.Main)
-                }
-
-                val navController =
-                    rememberNavController(startDestination = startDestination)
-
-                NavBackHandler(navController)
-
-                AnimatedNavHost(
-                    controller = navController
-                ) { destination ->
-                    when (destination) {
-                        is Destination.Setup -> {
-                            SetupNav(
-                                startDestination = destination.setupDestination,
-                                authFlow = authFlow,
-                                onSetupSuccess = {
-                                    navController.popUpTo(
-                                        inclusive = true
-                                    ) {
-                                        it is Destination.Setup
-                                    }
-                                    navController.navigate(Destination.App(AppDestination.Home))
-                                }
-                            )
-                        }
-
-
-                        is Destination.App -> AppScreen(
-                            appDestination = destination.appDestination,
-                            onCloseRepo = {
-                                navController.popAll()
-                                navController.navigate(Destination.Setup(SetupDestination.Main))
-                            }
-                        )
+                    val startDestination: Destination = remember {
+                        if (runBlocking { vm.tryInit() }) {
+                            Destination.App(AppDestination.Home)
+                        } else Destination.Setup(SetupDestination.Main)
                     }
-                }
+                    val syncState by vm.startupSyncState.collectAsStateWithLifecycle()
+                    val appConfigurado = startDestination is Destination.App
+                    val bloqueado = syncState is StartupSyncState.Idle ||
+                        syncState is StartupSyncState.Syncing ||
+                        syncState is StartupSyncState.Failed
+
+                    if (appConfigurado && bloqueado) {
+                        TelaDeSincronizacao(
+                            state = syncState,
+                            retry = vm::retrySync,
+                            editAnyway = vm::editAnyway,
+                        )
+                    } else {
+                        val revision = when (syncState) {
+                            is StartupSyncState.Synced -> syncState.revision
+                            is StartupSyncState.Override -> syncState.revision
+                            else -> 0L
+                        }
+                        key(revision) {
+                            val navController =
+                                rememberNavController(startDestination = startDestination)
+
+                            NavBackHandler(navController)
+
+                            AnimatedNavHost(
+                                controller = navController
+                            ) { destination ->
+                                when (destination) {
+                                    is Destination.Setup -> {
+                                        SetupNav(
+                                            startDestination = destination.setupDestination,
+                                            authFlow = authFlow,
+                                            onSetupSuccess = {
+                                                navController.popUpTo(
+                                                    inclusive = true
+                                                ) {
+                                                    it is Destination.Setup
+                                                }
+                                                navController.navigate(Destination.App(AppDestination.Home))
+                                            }
+                                        )
+                                    }
+
+
+                                    is Destination.App -> AppScreen(
+                                        appDestination = destination.appDestination,
+                                        onCloseRepo = {
+                                            navController.popAll()
+                                            navController.navigate(Destination.Setup(SetupDestination.Main))
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -263,6 +290,37 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    @androidx.compose.runtime.Composable
+    private fun TelaDeSincronizacao(
+        state: StartupSyncState,
+        retry: () -> Unit,
+        editAnyway: () -> Unit,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            when (state) {
+                StartupSyncState.Idle, is StartupSyncState.Syncing -> {
+                    CircularProgressIndicator()
+                    Text("Sincronizando antes de abrir as notas…", modifier = Modifier.padding(top = 16.dp))
+                }
+
+                is StartupSyncState.Failed -> {
+                    Text("Sem sincronizar — ${state.message}")
+                    Button(
+                        onClick = retry,
+                        modifier = Modifier.padding(top = 16.dp),
+                    ) { Text("Tentar de novo") }
+                    TextButton(onClick = editAnyway) { Text("Editar mesmo assim") }
+                }
+
+                is StartupSyncState.Synced, is StartupSyncState.Override -> Unit
+            }
+        }
+    }
+
     override fun onStop() {
         if (!promptEmCurso) portao.aoParar(SystemClock.elapsedRealtime(), aberto)
         super.onStop()
@@ -277,7 +335,10 @@ class MainActivity : FragmentActivity() {
             if (portao.deveRetravar(SystemClock.elapsedRealtime(), prefs.prazoDaTrava.get(), prefs.travaDeAbertura.get())) {
                 prefs.bloquearCofre()
                 autenticar()
-            } else aberto = true
+            } else {
+                aberto = true
+                mainViewModel?.syncAfterUnlock()
+            }
         }
     }
 
