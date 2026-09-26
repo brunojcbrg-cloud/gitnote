@@ -72,8 +72,6 @@ class StorageManager {
         val cred = prefs.cred()
         val remoteUrl = prefs.remoteUrl.get()
         val author = prefs.gitAuthor()
-        var isError = false
-
         gitManager.commitAll(
             author,
             "commit from gitnote to update the repo of the app"
@@ -86,9 +84,11 @@ class StorageManager {
         if (remoteUrl.isNotEmpty()) {
             _syncState.emit(SyncState.Pull)
             gitManager.pull(cred, author).onFailure { err ->
-                isError = true
                 err.message?.let { Log.e(TAG, it) }
                 _syncState.emit(SyncState.Error(err.message))
+                // Sem pull confirmado, push e recarga do banco seriam baseados
+                // num estado que pode estar velho ou conflitado.
+                return@withLock failure(err)
             }
         }
 
@@ -96,18 +96,20 @@ class StorageManager {
             _syncState.emit(SyncState.Push)
             // todo: maybe async this call
             gitManager.push(cred).onFailure { err ->
-                isError = true
                 err.message?.let { Log.e(TAG, it) }
                 _syncState.emit(SyncState.Error(err.message))
+                return@withLock failure(err)
             }
         }
 
-        if (!isError)
-            _syncState.emit(SyncState.Ok(false))
+        updateDatabaseWithoutLocker().onFailure { err ->
+            err.message?.let { Log.e(TAG, it) }
+            _syncState.emit(SyncState.Error(err.message))
+            return@withLock failure(err)
+        }
 
-        updateDatabaseWithoutLocker()
-
-        return success(Unit)
+        _syncState.emit(SyncState.Ok(false))
+        success(Unit)
     }
 
     /**
@@ -407,8 +409,6 @@ class StorageManager {
         val remoteUrl = prefs.remoteUrl.get()
         val author = prefs.gitAuthor()
 
-        var isError = false
-
         gitManager.commitAll(
             author,
             "commit from gitnote, before doing a change"
@@ -421,9 +421,9 @@ class StorageManager {
         if (remoteUrl.isNotEmpty()) {
             _syncState.emit(SyncState.Pull)
             gitManager.pull(cred, author).onFailure { err ->
-                isError = true
                 err.message?.let { Log.e(TAG, it) }
                 _syncState.emit(SyncState.Error(err.message))
+                return failure(err)
             }
         }
 
@@ -454,14 +454,13 @@ class StorageManager {
         if (remoteUrl.isNotEmpty()) {
             _syncState.emit(SyncState.Push)
             gitManager.push(cred).onFailure { err ->
-                isError = true
                 err.message?.let { Log.e(TAG, it) }
                 _syncState.emit(SyncState.Error(err.message))
+                return failure(err)
             }
         }
 
-        if (!isError)
-            _syncState.emit(SyncState.Ok(false))
+        _syncState.emit(SyncState.Ok(false))
         return success(payload)
     }
 
