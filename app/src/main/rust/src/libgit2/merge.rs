@@ -225,6 +225,8 @@ mod tests {
         assert_eq!(repo.head().unwrap().target(), Some(local));
         assert_eq!(fs::read(path.join("Nota.md")).unwrap(), before);
         assert_eq!(repo.state(), git2::RepositoryState::Clean);
+        drop(local_annotated);
+        drop(remote_annotated);
         drop(repo);
         fs::remove_dir_all(path).unwrap();
     }
@@ -253,6 +255,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(repo.head().unwrap().target(), Some(base));
         assert_eq!(fs::read_to_string(path.join("Nota.md")).unwrap(), "rascunho local\n");
+        drop(remote_annotated);
         drop(repo);
         fs::remove_dir_all(path).unwrap();
     }
