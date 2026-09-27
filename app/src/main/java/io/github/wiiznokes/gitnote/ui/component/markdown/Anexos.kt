@@ -182,6 +182,19 @@ fun calcularAmostragem(larguraOriginal: Int, larguraAlvo: Int): Int {
 }
 
 /**
+ * Igual a [calcularAmostragem], mas com a garantia oposta: o lado decodificado
+ * nunca **passa** de [larguraMaxima] (em vez de nunca ficar abaixo do alvo).
+ * É o que o visor em tela cheia precisa para limitar o bitmap a um teto de
+ * memória, mesmo numa foto de altíssima resolução.
+ */
+fun calcularAmostragemComTeto(larguraOriginal: Int, larguraMaxima: Int): Int {
+    if (larguraOriginal <= 0 || larguraMaxima <= 0) return 1
+    var amostra = 1
+    while (larguraOriginal / amostra > larguraMaxima) amostra *= 2
+    return amostra
+}
+
+/**
  * Acha os embeds de imagem do texto.
  *
  * Varredura linear própria, e não o [MarkdownScanner]: ele ignora `![[` de

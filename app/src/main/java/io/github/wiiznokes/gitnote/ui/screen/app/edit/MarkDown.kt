@@ -95,6 +95,7 @@ import io.github.wiiznokes.gitnote.ui.component.markdown.nearestLineAtOrBefore
 import io.github.wiiznokes.gitnote.ui.component.markdown.ocorrencias
 import io.github.wiiznokes.gitnote.ui.component.markdown.parseWikilinkUri
 import io.github.wiiznokes.gitnote.ui.component.markdown.TransformadorDeImagemDaNota
+import io.github.wiiznokes.gitnote.ui.component.markdown.VisorDeImagem
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessarImagens
 import io.github.wiiznokes.gitnote.ui.component.markdown.preprocessWikilinksForReading
 import io.github.wiiznokes.gitnote.ui.component.markdown.resolveSectionHeading
@@ -209,11 +210,15 @@ fun MarkDownContent(
                 preprocessarImagens(comWikilinks) { vm.resolverAnexo(it, listaDeAnexos) }
             }
         }
+        // Caminho absoluto da figura aberta em tela cheia (§Z.1); null = visor fechado.
+        var imagemAberta by remember(vm.previousNote.relativePath) {
+            mutableStateOf<String?>(null)
+        }
         // Nota sem imagem nao paga a leitura da raiz do repositorio.
         val transformadorDeImagem: ImageTransformer =
             remember(podeTerImagem, vm.previousNote.relativePath) {
                 if (podeTerImagem) {
-                    TransformadorDeImagemDaNota(vm.raizDoRepo)
+                    TransformadorDeImagemDaNota(vm.raizDoRepo, aoAbrirImagem = { imagemAberta = it })
                 } else {
                     NoOpImageTransformerImpl()
                 }
@@ -590,6 +595,10 @@ fun MarkDownContent(
                     },
                 )
             }
+        }
+
+        imagemAberta?.let { caminho ->
+            VisorDeImagem(caminho = caminho, aoFechar = { imagemAberta = null })
         }
     } else {
         val itensDeSumario = remember(textContent.text) { sumarioDe(textContent.text) }

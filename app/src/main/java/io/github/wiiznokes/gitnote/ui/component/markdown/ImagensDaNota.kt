@@ -2,6 +2,7 @@ package io.github.wiiznokes.gitnote.ui.component.markdown
 
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -63,16 +64,18 @@ object CacheDeImagens {
 }
 
 /**
- * Decodifica o anexo em duas passadas: primeiro só os limites, depois a imagem
- * já sub-amostrada para a largura pedida. Sem isto, três fotos numa nota matam o
+ * Decodifica em duas passadas: primeiro só os limites, depois a imagem já
+ * sub-amostrada para a largura pedida. Sem isto, três fotos numa nota matam o
  * app por falta de memória -- 4000x3000 descomprime em 48 MB de bitmap.
+ *
+ * Sem cache: quem decodifica para o visor em tela cheia (resolução bem maior
+ * que a miniatura) não pode usar [CacheDeImagens], que tem teto de 1/8 da
+ * memória e seria todo tomado por um único bitmap grande, expulsando as
+ * miniaturas de todas as outras notas abertas.
  */
-fun decodificarAnexo(caminhoAbsoluto: String, larguraAlvoPx: Int): ImageBitmap? {
+private fun decodificarAnexoBitmap(caminhoAbsoluto: String, larguraAlvoPx: Int): ImageBitmap? {
     val arquivo = File(caminhoAbsoluto)
     if (!arquivo.isFile) return null
-
-    val chave = "$caminhoAbsoluto|$larguraAlvoPx|${arquivo.lastModified()}|${arquivo.length()}"
-    CacheDeImagens.obter(chave)?.let { return it }
 
     val limites = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     runCatching { BitmapFactory.decodeFile(caminhoAbsoluto, limites) }.getOrNull()
@@ -81,12 +84,42 @@ fun decodificarAnexo(caminhoAbsoluto: String, larguraAlvoPx: Int): ImageBitmap? 
     val opcoes = BitmapFactory.Options().apply {
         inSampleSize = calcularAmostragem(limites.outWidth, larguraAlvoPx)
     }
-    val bitmap = runCatching { BitmapFactory.decodeFile(caminhoAbsoluto, opcoes) }
+    return runCatching { BitmapFactory.decodeFile(caminhoAbsoluto, opcoes) }
         .getOrNull()
-        ?: return null
-    val imagem = bitmap.asImageBitmap()
+        ?.asImageBitmap()
+}
+
+fun decodificarAnexo(caminhoAbsoluto: String, larguraAlvoPx: Int): ImageBitmap? {
+    val arquivo = File(caminhoAbsoluto)
+    if (!arquivo.isFile) return null
+    val chave = "$caminhoAbsoluto|$larguraAlvoPx|${arquivo.lastModified()}|${arquivo.length()}"
+    CacheDeImagens.obter(chave)?.let { return it }
+    val imagem = decodificarAnexoBitmap(caminhoAbsoluto, larguraAlvoPx) ?: return null
     CacheDeImagens.guardar(chave, imagem)
     return imagem
+}
+
+/**
+ * Decodificação em alta resolução para o [VisorDeImagem]; nunca entra no
+ * cache de miniaturas. Ao contrário de [decodificarAnexo] (que garante um
+ * mínimo, para não borrar), aqui o [calcularAmostragemComTeto] garante um
+ * **máximo**: uma foto de 8000 px de largura não pode virar um bitmap de
+ * 8000×6000 só porque o alvo pedido também era grande.
+ */
+fun decodificarAnexoParaVisor(caminhoAbsoluto: String, larguraMaximaPx: Int): ImageBitmap? {
+    val arquivo = File(caminhoAbsoluto)
+    if (!arquivo.isFile) return null
+
+    val limites = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    runCatching { BitmapFactory.decodeFile(caminhoAbsoluto, limites) }.getOrNull()
+    if (limites.outWidth <= 0 || limites.outHeight <= 0) return null
+
+    val opcoes = BitmapFactory.Options().apply {
+        inSampleSize = calcularAmostragemComTeto(limites.outWidth, larguraMaximaPx)
+    }
+    return runCatching { BitmapFactory.decodeFile(caminhoAbsoluto, opcoes) }
+        .getOrNull()
+        ?.asImageBitmap()
 }
 
 /**
@@ -98,6 +131,7 @@ fun decodificarAnexo(caminhoAbsoluto: String, larguraAlvoPx: Int): ImageBitmap? 
  */
 class TransformadorDeImagemDaNota(
     private val raizDoRepo: String,
+    private val aoAbrirImagem: (String) -> Unit = {},
     private val decodificar: (String, Int) -> ImageBitmap? = ::decodificarAnexo,
 ) : ImageTransformer {
 
@@ -121,13 +155,14 @@ class TransformadorDeImagemDaNota(
         }
         val bitmap = imagem ?: return null
 
+        val larguraModifier = if (pedido.largura != null) {
+            Modifier.width(pedido.largura.dp)
+        } else {
+            Modifier.fillMaxWidth()
+        }
         return ImageData(
             painter = BitmapPainter(bitmap),
-            modifier = if (pedido.largura != null) {
-                Modifier.width(pedido.largura.dp)
-            } else {
-                Modifier.fillMaxWidth()
-            },
+            modifier = larguraModifier.clickable { aoAbrirImagem(caminho) },
             contentScale = ContentScale.Fit,
         )
     }

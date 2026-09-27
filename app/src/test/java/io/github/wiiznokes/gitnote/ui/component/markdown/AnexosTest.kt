@@ -275,6 +275,36 @@ class AnexosTest {
         assertTrue((4000 / amostra) >= 400, "nao pode ficar menor que o contentor")
     }
 
+    @Test
+    fun amostragemComTetoNuncaPassaDaLarguraMaxima() {
+        // 8000 px com teto de 4096: tem que cair pra 4000 (amostra 2), nao
+        // ficar nos 8000 originais como calcularAmostragem faria aqui.
+        assertEquals(2, calcularAmostragemComTeto(8000, 4096))
+        assertTrue(8000 / calcularAmostragemComTeto(8000, 4096) <= 4096)
+    }
+
+    @Test
+    fun amostragemComTetoNaoMexeEmImagemMenorQueOTeto() {
+        assertEquals(1, calcularAmostragemComTeto(800, 4096))
+        assertEquals(1, calcularAmostragemComTeto(4096, 4096))
+    }
+
+    @Test
+    fun amostragemComTetoLidaComEntradasInvalidas() {
+        assertEquals(1, calcularAmostragemComTeto(0, 4096))
+        assertEquals(1, calcularAmostragemComTeto(8000, 0))
+    }
+
+    @Test
+    fun amostragemComTetoEmImagemEnormeAindaAssimNaoPassaDoTeto() {
+        val original = 32_000
+        val teto = 4096
+        val amostra = calcularAmostragemComTeto(original, teto)
+        assertTrue(original / amostra <= teto, "decodificado: ${original / amostra}")
+        // e nao superamostra a ponto de ficar muito menor que o teto pedido
+        assertTrue(original / amostra > teto / 2, "decodificado: ${original / amostra}")
+    }
+
     // ---------- listagem no disco ----------
 
     @Test
