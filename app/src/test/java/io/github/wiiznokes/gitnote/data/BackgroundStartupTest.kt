@@ -45,6 +45,7 @@ class BackgroundStartupTest {
         scope.cancel()
         dispatcher.close()
         executor.shutdownNow()
+        Unit
     }
 
     @Test
