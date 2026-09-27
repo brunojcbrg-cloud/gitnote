@@ -58,6 +58,27 @@ class UpdateModelsTest {
     }
 
     @Test
+    fun `progresso do download so grava a cada 10 por cento, sempre em 100`() {
+        assertTrue(deveAtualizarProgressoDownload(-1, 0))
+        assertFalse(deveAtualizarProgressoDownload(0, 1))
+        assertFalse(deveAtualizarProgressoDownload(0, 9))
+        assertTrue(deveAtualizarProgressoDownload(9, 10))
+        assertFalse(deveAtualizarProgressoDownload(41, 42))
+        assertTrue(deveAtualizarProgressoDownload(41, 50))
+        assertTrue(deveAtualizarProgressoDownload(99, 100))
+        assertTrue(deveAtualizarProgressoDownload(90, 100))
+    }
+
+    @Test
+    fun `texto de progresso mostra percentual e megabytes, ou so reticencias sem tamanho`() {
+        assertEquals(
+            "Baixando b92 — 42% (10.5 MB de 25.0 MB)",
+            textoProgressoDownload("b92", 42, 10_500_000, 25_000_000),
+        )
+        assertEquals("Baixando b92…", textoProgressoDownload("b92", 0, 0, 0))
+    }
+
+    @Test
     fun `sha errado rejeita e apaga arquivo`() {
         val directory = Files.createTempDirectory("gitnote-update-test").toFile()
         val file = File(directory, "update.apk").apply { writeText("apk de teste") }

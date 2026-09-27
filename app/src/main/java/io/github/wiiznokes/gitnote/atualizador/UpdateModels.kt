@@ -99,6 +99,22 @@ fun evaluateUpdate(
     )
 }
 
+/**
+ * Buckets por 10% (e sempre em 100%) para não regravar a preferência a cada
+ * pedaço de 8 KB lido — writes de DataStore custam I/O de disco.
+ */
+fun deveAtualizarProgressoDownload(percentAnterior: Int, percentAtual: Int): Boolean =
+    percentAnterior < 0 || percentAtual == 100 || percentAtual / 10 != percentAnterior / 10
+
+fun textoProgressoDownload(tag: String, percent: Int, copiedBytes: Long, totalBytes: Long): String {
+    if (totalBytes <= 0) return "Baixando $tag…"
+    // Locale.US fixo: ponto decimal sempre, independente do idioma do
+    // aparelho (evita "10,5" vs "10.5" conforme a região).
+    val copiedMb = String.format(java.util.Locale.US, "%.1f", copiedBytes / 1_000_000.0)
+    val totalMb = String.format(java.util.Locale.US, "%.1f", totalBytes / 1_000_000.0)
+    return "Baixando $tag — $percent% ($copiedMb MB de $totalMb MB)"
+}
+
 fun verifySha256AndSize(file: File, expectedSize: Long, expectedDigest: String): Boolean {
     val expectedHex = expectedDigest.removePrefix("sha256:").lowercase()
     val actualHex = MessageDigest.getInstance("SHA-256").let { digest ->

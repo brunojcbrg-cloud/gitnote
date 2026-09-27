@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -78,10 +79,17 @@ object UpdateCoordinator {
     fun enqueueDownload(context: Context) {
         val request = OneTimeWorkRequestBuilder<UpdateDownloadWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            // Expedited: é uma ação que o Bruno acabou de tocar, não uma tarefa
+            // de fundo — sem isto o agendador pode adiar o início e parecer
+            // que tocar em "Atualizar" não fez nada.
+            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
+        // KEEP, não REPLACE: tocar em "Atualizar" de novo enquanto já está
+        // baixando não pode cancelar e reiniciar o download (ficava sem
+        // terminar nunca se o Bruno tocasse mais de uma vez).
         WorkManager.getInstance(context).enqueueUniqueWork(
             UPDATE_DOWNLOAD_WORK,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             request,
         )
     }
@@ -162,6 +170,7 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
         return withContext(Dispatchers.IO) {
             try {
                 setForeground(updateForeground("Baixando ${release.tag}", 0))
+                prefs.lastUpdateStatus.update(textoProgressoDownload(release.tag, 0, 0, release.asset.size))
                 val connection = (URI(release.asset.downloadUrl).toURL().openConnection() as HttpURLConnection).apply {
                     connectTimeout = 30_000
                     readTimeout = 120_000
@@ -170,6 +179,7 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
                 }
                 require(connection.responseCode in 200..299) { "download HTTP ${connection.responseCode}" }
                 var copied = 0L
+                var ultimoPercentGravado = -1
                 connection.inputStream.use { input ->
                     apk.outputStream().use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -182,6 +192,16 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
                                 (copied * 100L / release.asset.size).toInt().coerceIn(0, 100)
                             } else 0
                             setForegroundAsync(updateForeground("Baixando ${release.tag}", percent))
+                            // A notificação de progresso some se o Bruno não estiver
+                            // olhando o painel de notificações nesse instante; a tela
+                            // Configurações > Atualizações precisa mostrar o mesmo
+                            // número, sem regravar a cada pedaço lido.
+                            if (deveAtualizarProgressoDownload(ultimoPercentGravado, percent)) {
+                                ultimoPercentGravado = percent
+                                prefs.lastUpdateStatus.update(
+                                    textoProgressoDownload(release.tag, percent, copied, release.asset.size),
+                                )
+                            }
                         }
                     }
                 }
@@ -209,12 +229,25 @@ class UpdateActionReceiver : BroadcastReceiver() {
                 MyApp.appModule.appPreferences,
                 "Permita instalar apps desta fonte e toque em Atualizar novamente",
             )
+            Toast.makeText(
+                context.applicationContext,
+                "Permita instalar apps desta fonte e toque em Atualizar de novo",
+                Toast.LENGTH_LONG,
+            ).show()
             context.startActivity(
                 Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
             return
         }
+        // Tocar em "Atualizar" não abre o app (é uma ação de notificação), então
+        // sem isto o Bruno não tem nenhum sinal de que algo aconteceu — daí ele
+        // tocar de novo achando que não funcionou.
+        Toast.makeText(
+            context.applicationContext,
+            "Baixando atualização — acompanhe pela notificação",
+            Toast.LENGTH_SHORT,
+        ).show()
         UpdateCoordinator.enqueueDownload(context)
     }
 }
