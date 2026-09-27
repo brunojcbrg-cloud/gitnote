@@ -5,16 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.data.AppPreferences
+import io.github.wiiznokes.gitnote.data.AsyncSyncRunner
+import io.github.wiiznokes.gitnote.data.ProcessInitialization
 import io.github.wiiznokes.gitnote.data.StartupSyncGate
 import io.github.wiiznokes.gitnote.data.StorageConfig
 import io.github.wiiznokes.gitnote.data.platform.NodeFs
 import io.github.wiiznokes.gitnote.helper.StoragePermissionHelper
 import io.github.wiiznokes.gitnote.helper.UiHelper
 import io.github.wiiznokes.gitnote.ui.model.StorageConfiguration
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 class MainViewModel : ViewModel() {
 
@@ -25,11 +24,28 @@ class MainViewModel : ViewModel() {
     private val storageManager = MyApp.appModule.storageManager
     private val startupSyncGate = StartupSyncGate(SystemClock::elapsedRealtime)
     val startupSyncState = startupSyncGate.state
-    private var syncJob: Job? = null
     private var repoReady = false
+    private val processInitialization = ProcessInitialization(
+        scope = viewModelScope,
+        dispatcher = Dispatchers.IO,
+        initialize = ::initialize,
+    )
+    val initializationState = processInitialization.state
+    private val syncRunner = AsyncSyncRunner(
+        scope = viewModelScope,
+        dispatcher = Dispatchers.IO,
+        shouldRun = startupSyncGate::shouldSync,
+    ) { force ->
+        startupSyncGate.run(force) {
+            storageManager.updateDatabaseAndRepo()
+        }
+    }
 
+    fun ensureInitialized() {
+        processInitialization.start()
+    }
 
-    suspend fun tryInit(): Boolean {
+    private suspend fun initialize(): Boolean {
 
         if (!prefs.isInit.get()) {
             return false
@@ -80,15 +96,8 @@ class MainViewModel : ViewModel() {
     }
 
     private fun syncNow(force: Boolean) {
-        if (!repoReady || syncJob?.isActive == true || !startupSyncGate.shouldSync(force)) return
-        syncJob = viewModelScope.launch(
-            context = Dispatchers.IO,
-            start = CoroutineStart.UNDISPATCHED,
-        ) {
-            startupSyncGate.run(force) {
-                storageManager.updateDatabaseAndRepo()
-            }
-        }
+        if (!repoReady) return
+        syncRunner.request(force)
     }
 
 }

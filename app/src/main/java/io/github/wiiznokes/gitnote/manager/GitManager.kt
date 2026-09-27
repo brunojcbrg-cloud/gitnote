@@ -6,6 +6,8 @@ import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.ui.model.Cred
 import io.github.wiiznokes.gitnote.ui.model.GitAuthor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.Result.Companion.failure
@@ -55,22 +57,25 @@ class GitManager {
         private set
     private var isLibInitialized = false
 
-    private suspend fun <T> safelyAccessLibGit2(f: suspend () -> T): Result<T> = locker.withLock {
-        try {
-            if (!isLibInitialized) {
-                val res = initLib()
-                Log.d(TAG, "res on init = $res")
-                if (res < 0) {
-                    throw GitException(GitExceptionType.InitLib)
+    private suspend fun <T> safelyAccessLibGit2(f: suspend () -> T): Result<T> =
+        withContext(Dispatchers.IO) {
+            locker.withLock {
+                try {
+                    if (!isLibInitialized) {
+                        val res = initLib()
+                        Log.d(TAG, "res on init = $res")
+                        if (res < 0) {
+                            throw GitException(GitExceptionType.InitLib)
+                        }
+                        isLibInitialized = true
+                    }
+                    success(f())
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    failure(e)
                 }
-                isLibInitialized = true
             }
-            success(f())
-        } catch (e: Exception) {
-            e.printStackTrace()
-            failure(e)
         }
-    }
 
 
     suspend fun createRepo(repoPath: String): Result<Unit> = safelyAccessLibGit2 {

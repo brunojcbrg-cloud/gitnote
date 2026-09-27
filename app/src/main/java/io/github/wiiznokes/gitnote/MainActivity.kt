@@ -48,6 +48,7 @@ import io.github.wiiznokes.gitnote.ui.theme.GitNoteTheme
 import io.github.wiiznokes.gitnote.ui.theme.Theme
 import io.github.wiiznokes.gitnote.ui.viewmodel.MainViewModel
 import io.github.wiiznokes.gitnote.data.PortaoDeSeguranca
+import io.github.wiiznokes.gitnote.data.InitializationState
 import io.github.wiiznokes.gitnote.data.StartupSyncState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -168,62 +169,74 @@ class MainActivity : FragmentActivity() {
                 if (!aberto) {
                     TelaDeBloqueio()
                 } else {
-                    val startDestination: Destination = remember {
-                        if (runBlocking { vm.tryInit() }) {
-                            Destination.App(AppDestination.Home)
-                        } else Destination.Setup(SetupDestination.Main)
-                    }
+                    LaunchedEffect(Unit) { vm.ensureInitialized() }
+                    val initializationState by vm.initializationState.collectAsStateWithLifecycle()
                     val syncState by vm.startupSyncState.collectAsStateWithLifecycle()
-                    val appConfigurado = startDestination is Destination.App
-                    val bloqueado = syncState is StartupSyncState.Idle ||
-                        syncState is StartupSyncState.Syncing ||
-                        syncState is StartupSyncState.Failed
 
-                    if (appConfigurado && bloqueado) {
+                    if (initializationState is InitializationState.Loading) {
                         TelaDeSincronizacao(
                             state = syncState,
                             retry = vm::retrySync,
                             editAnyway = vm::editAnyway,
                         )
                     } else {
-                        val revision = when (val currentSyncState = syncState) {
-                            is StartupSyncState.Synced -> currentSyncState.revision
-                            is StartupSyncState.Override -> currentSyncState.revision
-                            else -> 0L
+                        val configured = (initializationState as InitializationState.Ready).configured
+                        val startDestination: Destination = remember(configured) {
+                            if (configured) Destination.App(AppDestination.Home)
+                            else Destination.Setup(SetupDestination.Main)
                         }
-                        key(revision) {
-                            val navController =
-                                rememberNavController(startDestination = startDestination)
+                        val bloqueado = configured && (
+                            syncState is StartupSyncState.Idle ||
+                                syncState is StartupSyncState.Syncing ||
+                                syncState is StartupSyncState.Failed
+                            )
 
-                            NavBackHandler(navController)
+                        if (bloqueado) {
+                            TelaDeSincronizacao(
+                                state = syncState,
+                                retry = vm::retrySync,
+                                editAnyway = vm::editAnyway,
+                            )
+                        } else {
+                            val revision = when (val currentSyncState = syncState) {
+                                is StartupSyncState.Synced -> currentSyncState.revision
+                                is StartupSyncState.Override -> currentSyncState.revision
+                                else -> 0L
+                            }
+                            key(revision) {
+                                val navController =
+                                    rememberNavController(startDestination = startDestination)
 
-                            AnimatedNavHost(
-                                controller = navController
-                            ) { destination ->
-                                when (destination) {
-                                    is Destination.Setup -> {
-                                        SetupNav(
-                                            startDestination = destination.setupDestination,
-                                            authFlow = authFlow,
-                                            onSetupSuccess = {
-                                                navController.popUpTo(
-                                                    inclusive = true
-                                                ) {
-                                                    it is Destination.Setup
+                                NavBackHandler(navController)
+
+                                AnimatedNavHost(
+                                    controller = navController
+                                ) { destination ->
+                                    when (destination) {
+                                        is Destination.Setup -> {
+                                            SetupNav(
+                                                startDestination = destination.setupDestination,
+                                                authFlow = authFlow,
+                                                onSetupSuccess = {
+                                                    navController.popUpTo(
+                                                        inclusive = true
+                                                    ) {
+                                                        it is Destination.Setup
+                                                    }
+                                                    navController.navigate(Destination.App(AppDestination.Home))
                                                 }
-                                                navController.navigate(Destination.App(AppDestination.Home))
+                                            )
+                                        }
+
+
+                                        is Destination.App -> AppScreen(
+                                            appDestination = destination.appDestination,
+                                            onCloseRepo = {
+                                                navController.popAll()
+                                                navController.navigate(Destination.Setup(SetupDestination.Main))
                                             }
                                         )
                                     }
-
-
-                                    is Destination.App -> AppScreen(
-                                        appDestination = destination.appDestination,
-                                        onCloseRepo = {
-                                            navController.popAll()
-                                            navController.navigate(Destination.Setup(SetupDestination.Main))
-                                        }
-                                    )
                                 }
                             }
                         }
