@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -77,12 +78,12 @@ object UpdateCoordinator {
     }
 
     fun enqueueDownload(context: Context) {
+        // Sem setExpedited: a interação entre "expedited" e setForeground()
+        // manual dentro do CoroutineWorker varia por versão do Android e não
+        // dá para testar sem o aparelho real — não vale o risco de crash por
+        // uma melhoria de latência que não é essencial aqui.
         val request = OneTimeWorkRequestBuilder<UpdateDownloadWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            // Expedited: é uma ação que o Bruno acabou de tocar, não uma tarefa
-            // de fundo — sem isto o agendador pode adiar o início e parecer
-            // que tocar em "Atualizar" não fez nada.
-            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
         // KEEP, não REPLACE: tocar em "Atualizar" de novo enquanto já está
         // baixando não pode cancelar e reiniciar o download (ficava sem
@@ -223,6 +224,29 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
 
 class UpdateActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // Um receiver que lança sem capturar derruba o app inteiro (a tela que
+        // o Bruno via fecha na hora) — nunca deixar nada escapar daqui, nem um
+        // erro que eu não previ. Mesma cautela do setForeground em
+        // LessonWorkers.kt (§1.3 do handoff-mãe).
+        try {
+            onReceiveInterno(context, intent)
+        } catch (error: Exception) {
+            Log.e("UpdateActionReceiver", "falha ao processar Atualizar", error)
+            runCatching {
+                Toast.makeText(
+                    context.applicationContext,
+                    "Não consegui iniciar a atualização (${error.message ?: "erro desconhecido"})",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+            updateStatusAsync(
+                MyApp.appModule.appPreferences,
+                "Atualização falhou ao iniciar: ${error.message ?: "erro desconhecido"}",
+            )
+        }
+    }
+
+    private fun onReceiveInterno(context: Context, intent: Intent) {
         if (intent.action != ACTION_DOWNLOAD || BuildConfig.BUILD_TYPE != "nightly") return
         if (!context.packageManager.canRequestPackageInstalls()) {
             updateStatusAsync(
