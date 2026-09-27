@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -26,6 +27,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -64,6 +66,7 @@ import io.github.wiiznokes.gitnote.ui.destination.resolveEditNote
 import io.github.wiiznokes.gitnote.ui.model.EditType
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.MarkDownVM
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.TextVM
+import io.github.wiiznokes.gitnote.ui.viewmodel.edit.DiskReconciliation
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.newEditViewModel
 import io.github.wiiznokes.gitnote.ui.viewmodel.edit.newMarkDownVM
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +83,8 @@ fun EditScreen(
     editParams: EditParams,
     onFinished: () -> Unit,
     onOpenNote: (Note, String?) -> Unit = { _, _ -> },
+    runtimeReadOnly: Boolean = false,
+    syncRevision: Long = 0L,
 ) {
     var openedNote by remember(editParams) { mutableStateOf<Note?>(null) }
     LaunchedEffect(editParams) {
@@ -105,6 +110,42 @@ fun EditScreen(
         ExtensionType.Text -> newEditViewModel(editParams, note)
         ExtensionType.Markdown -> newMarkDownVM(editParams, note)
         null -> throw Exception("file extension not supported, but present in the database?? $extension")
+    }
+    var conflictDiskNote by remember { mutableStateOf<Note?>(null) }
+    LaunchedEffect(syncRevision) {
+        if (syncRevision <= 0L || vm.editType != EditType.Update) return@LaunchedEffect
+        val diskNote = withContext(Dispatchers.IO) {
+            MyApp.appModule.repoDatabase.repoDatabaseDao.noteByRelativePath(vm.previousPath())
+        } ?: return@LaunchedEffect
+        when (vm.reconciliationWith(diskNote)) {
+            DiskReconciliation.Unchanged -> Unit
+            DiskReconciliation.ReloadFromDisk -> vm.reloadFromDisk(diskNote)
+            DiskReconciliation.Conflict -> conflictDiskNote = diskNote
+        }
+    }
+
+    conflictDiskNote?.let { diskNote ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Esta nota mudou em outro aparelho") },
+            text = { Text("Escolha qual versão deve ser preservada. Nada será substituído automaticamente.") },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = {
+                        vm.keepMineOver(diskNote)
+                        conflictDiskNote = null
+                    }) { Text("Manter a minha") }
+                    TextButton(onClick = {
+                        vm.reloadFromDisk(diskNote)
+                        conflictDiskNote = null
+                    }) { Text("Ficar com a do outro aparelho") }
+                    TextButton(onClick = {
+                        vm.saveMineAsCopyAndReload(diskNote)
+                        conflictDiskNote = null
+                    }) { Text("Guardar a minha como cópia") }
+                }
+            },
+        )
     }
 
     // O rascunho tem de estar em disco ANTES de o app ir para segundo plano.
@@ -185,8 +226,8 @@ fun EditScreen(
         }
     }
 
-    val isReadOnlyModeActive =
-        !vm.shouldForceNotReadOnlyMode.value && vm.prefs.isReadOnlyModeActive.getAsState().value
+    val isReadOnlyModeActive = runtimeReadOnly ||
+        (!vm.shouldForceNotReadOnlyMode.value && vm.prefs.isReadOnlyModeActive.getAsState().value)
 
     val leituraMarkdown = vm is MarkDownVM && isReadOnlyModeActive
     val textoBusca = vm.content.value.text

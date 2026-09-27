@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.zip.DataFormatException
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
@@ -65,6 +66,22 @@ internal const val MAX_HISTORY_STEPS = 100
 internal fun <T> MutableList<T>.keepNewestHistorySteps(limit: Int) {
     require(limit > 0)
     if (size > limit) subList(0, size - limit).clear()
+}
+
+enum class DiskReconciliation {
+    Unchanged,
+    ReloadFromDisk,
+    Conflict,
+}
+
+fun diskReconciliation(
+    baseContent: String,
+    localContent: String,
+    diskContent: String,
+): DiskReconciliation = when {
+    diskContent == baseContent -> DiskReconciliation.Unchanged
+    localContent == baseContent -> DiskReconciliation.ReloadFromDisk
+    else -> DiskReconciliation.Conflict
 }
 
 open class TextVM() : ViewModel() {
@@ -504,6 +521,47 @@ open class TextVM() : ViewModel() {
     fun isPreviousNoteTheSame(): Boolean =
         previousNote.nameWithoutExtension() == NameValidation.removeEndingWhiteSpace(name.value.text)
                 && previousNote.content == content.value.text
+
+    fun reconciliationWith(diskNote: Note): DiskReconciliation = diskReconciliation(
+        baseContent = previousNote.content,
+        localContent = content.value.text,
+        diskContent = diskNote.content,
+    )
+
+    fun previousPath(): String = previousNote.relativePath
+
+    fun reloadFromDisk(diskNote: Note) {
+        previousNote = diskNote
+        val baseName = diskNote.nameWithoutExtension()
+        name.value = TextFieldValue(baseName, selection = TextRange(baseName.length))
+        val diskValue = TextFieldValue(diskNote.content, selection = TextRange(0))
+        _content.value = diskValue
+        history.clear()
+        history.add(HistoryItem(diskValue))
+        _historyManager.value = History(index = 0, size = 1)
+        confirmarEscrita()
+    }
+
+    fun keepMineOver(diskNote: Note) {
+        previousNote = diskNote
+        save()
+    }
+
+    fun saveMineAsCopyAndReload(diskNote: Note) {
+        val localContent = content.value.text
+        val extension = diskNote.fileExtension().text
+        val parent = diskNote.parentPath().trim('/')
+        val copyName = "${name.value.text} - minha copia ${System.currentTimeMillis()}.$extension"
+        val copyPath = listOf(parent, copyName).filter { it.isNotEmpty() }.joinToString("/")
+        val copy = Note.new(relativePath = copyPath, content = localContent)
+        viewModelScope.launch(Dispatchers.IO) {
+            storageManager.createNote(copy).onFailure {
+                uiHelper.makeToast(it.message)
+                return@launch
+            }
+            withContext(Dispatchers.Main) { reloadFromDisk(diskNote) }
+        }
+    }
 
     /**
      * Grava (ou apaga) o rascunho da edicao em curso.

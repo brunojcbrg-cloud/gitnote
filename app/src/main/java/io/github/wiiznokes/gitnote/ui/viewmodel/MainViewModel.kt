@@ -14,6 +14,8 @@ import io.github.wiiznokes.gitnote.helper.StoragePermissionHelper
 import io.github.wiiznokes.gitnote.helper.UiHelper
 import io.github.wiiznokes.gitnote.ui.model.StorageConfiguration
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class MainViewModel : ViewModel() {
 
@@ -25,6 +27,8 @@ class MainViewModel : ViewModel() {
     private val startupSyncGate = StartupSyncGate(SystemClock::elapsedRealtime)
     val startupSyncState = startupSyncGate.state
     val startupSyncProgress = startupSyncGate.progress
+    private val _firstSyncAttemptFinished = MutableStateFlow(false)
+    val firstSyncAttemptFinished = _firstSyncAttemptFinished.asStateFlow()
     private var repoReady = false
     private val processInitialization = ProcessInitialization(
         scope = viewModelScope,
@@ -37,9 +41,10 @@ class MainViewModel : ViewModel() {
         dispatcher = Dispatchers.IO,
         shouldRun = startupSyncGate::shouldSync,
     ) { force ->
-        startupSyncGate.run(force) {
+        val attempted = startupSyncGate.run(force) {
             storageManager.updateDatabaseAndRepo(startupSyncGate::reportProgress)
         }
+        if (attempted != null) _firstSyncAttemptFinished.value = true
     }
 
     fun ensureInitialized() {

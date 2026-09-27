@@ -35,6 +35,8 @@ private const val TAG = "AppScreen"
 fun AppScreen(
     appDestination: AppDestination,
     onCloseRepo: () -> Unit,
+    runtimeReadOnly: Boolean = false,
+    syncRevision: Long = 0L,
 ) {
 
     val initialBackstack: List<AppDestination> = rememberSaveable {
@@ -142,6 +144,8 @@ fun AppScreen(
 
             is AppDestination.Edit -> EditScreen(
                 editParams = it.params,
+                runtimeReadOnly = runtimeReadOnly,
+                syncRevision = syncRevision,
                 onFinished = {
                     navController.pop()
                 },

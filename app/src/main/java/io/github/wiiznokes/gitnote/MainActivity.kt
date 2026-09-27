@@ -10,6 +10,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,9 +21,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,8 @@ import io.github.wiiznokes.gitnote.ui.viewmodel.MainViewModel
 import io.github.wiiznokes.gitnote.data.PortaoDeSeguranca
 import io.github.wiiznokes.gitnote.data.InitializationState
 import io.github.wiiznokes.gitnote.data.StartupSyncState
+import io.github.wiiznokes.gitnote.data.SyncPresentationMode
+import io.github.wiiznokes.gitnote.data.syncPresentationMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -71,6 +74,7 @@ class MainActivity : FragmentActivity() {
     private val prefs get() = MyApp.appModule.appPreferences
     private val portao = PortaoDeSeguranca()
     private var aberto by mutableStateOf(false)
+    private var verificandoRetorno by mutableStateOf(false)
     private var mensagem by mutableStateOf<String?>(null)
     private var recuperacao by mutableStateOf(false)
     private var mostrarConfirmacao by mutableStateOf(false)
@@ -170,13 +174,15 @@ class MainActivity : FragmentActivity() {
                 darkTheme = (theme == Theme.SYSTEM && isSystemInDarkTheme()) || theme == Theme.DARK,
                 dynamicColor = dynamicColor
             ) {
-                if (!aberto) {
-                    TelaDeBloqueio()
-                } else {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (!aberto) {
+                        TelaDeBloqueio()
+                    } else {
                     LaunchedEffect(Unit) { vm.ensureInitialized() }
                     val initializationState by vm.initializationState.collectAsStateWithLifecycle()
                     val syncState by vm.startupSyncState.collectAsStateWithLifecycle()
                     val syncProgress by vm.startupSyncProgress.collectAsStateWithLifecycle()
+                    val firstSyncAttemptFinished by vm.firstSyncAttemptFinished.collectAsStateWithLifecycle()
 
                     if (initializationState is InitializationState.Loading) {
                         TelaDeSincronizacao(
@@ -191,13 +197,13 @@ class MainActivity : FragmentActivity() {
                             if (configured) Destination.App(AppDestination.Home)
                             else Destination.Setup(SetupDestination.Main)
                         }
-                        val bloqueado = configured && (
-                            syncState is StartupSyncState.Idle ||
-                                syncState is StartupSyncState.Syncing ||
-                                syncState is StartupSyncState.Failed
-                            )
+                        val presentation = if (configured) {
+                            syncPresentationMode(syncState, firstSyncAttemptFinished)
+                        } else {
+                            SyncPresentationMode.Free
+                        }
 
-                        if (bloqueado) {
+                        if (presentation == SyncPresentationMode.FullScreen) {
                             TelaDeSincronizacao(
                                 state = syncState,
                                 progress = syncProgress,
@@ -210,41 +216,64 @@ class MainActivity : FragmentActivity() {
                                 is StartupSyncState.Override -> currentSyncState.revision
                                 else -> 0L
                             }
-                            key(revision) {
-                                val navController =
-                                    rememberNavController(startDestination = startDestination)
+                            val navController =
+                                rememberNavController(startDestination = startDestination)
 
-                                NavBackHandler(navController)
+                            NavBackHandler(navController)
 
-                                AnimatedNavHost(
-                                    controller = navController
-                                ) { destination ->
-                                    when (destination) {
-                                        is Destination.Setup -> {
-                                            SetupNav(
-                                                startDestination = destination.setupDestination,
-                                                authFlow = authFlow,
-                                                onSetupSuccess = {
-                                                    navController.popUpTo(
-                                                        inclusive = true
-                                                    ) {
-                                                        it is Destination.Setup
-                                                    }
-                                                    navController.navigate(Destination.App(AppDestination.Home))
+                            AnimatedNavHost(
+                                controller = navController
+                            ) { destination ->
+                                when (destination) {
+                                    is Destination.Setup -> {
+                                        SetupNav(
+                                            startDestination = destination.setupDestination,
+                                            authFlow = authFlow,
+                                            onSetupSuccess = {
+                                                navController.popUpTo(
+                                                    inclusive = true
+                                                ) {
+                                                    it is Destination.Setup
                                                 }
-                                            )
-                                        }
-
-
-                                        is Destination.App -> AppScreen(
-                                            appDestination = destination.appDestination,
-                                            onCloseRepo = {
-                                                navController.popAll()
-                                                navController.navigate(Destination.Setup(SetupDestination.Main))
+                                                navController.navigate(Destination.App(AppDestination.Home))
                                             }
                                         )
                                     }
+
+
+                                    is Destination.App -> AppScreen(
+                                        appDestination = destination.appDestination,
+                                        runtimeReadOnly = presentation == SyncPresentationMode.Banner,
+                                        syncRevision = revision,
+                                        onCloseRepo = {
+                                            navController.popAll()
+                                            navController.navigate(Destination.Setup(SetupDestination.Main))
+                                        }
+                                    )
                                 }
+                            }
+                            if (presentation == SyncPresentationMode.Banner) {
+                                Surface(
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer,
+                                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                                ) {
+                                    Text(
+                                        "Sincronizando… ${syncProgress.percent}% — ${syncProgress.message}",
+                                        modifier = Modifier.padding(12.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    }
+                    if (verificandoRetorno) {
+                        Surface(modifier = Modifier.fillMaxSize()) {
+                            Column(
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                CircularProgressIndicator()
+                                Text("Conferindo bloqueio…", modifier = Modifier.padding(top = 16.dp))
                             }
                         }
                     }
@@ -364,14 +393,16 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         if (!aberto || promptEmCurso) return
-        // Hide the navigation before asynchronous preference reads can show a frame of notes.
-        aberto = false
+        // Keep the navigation composed while an opaque overlay protects the notes.
+        verificandoRetorno = true
         lifecycleScope.launch {
             if (portao.deveRetravar(SystemClock.elapsedRealtime(), prefs.prazoDaTrava.get(), prefs.travaDeAbertura.get())) {
+                aberto = false
+                verificandoRetorno = false
                 prefs.bloquearCofre()
                 autenticar()
             } else {
-                aberto = true
+                verificandoRetorno = false
                 mainViewModel?.syncAfterUnlock()
             }
         }

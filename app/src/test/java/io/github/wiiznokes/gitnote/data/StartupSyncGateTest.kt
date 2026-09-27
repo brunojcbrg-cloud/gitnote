@@ -12,6 +12,38 @@ import org.junit.Test
 
 class StartupSyncGateTest {
     @Test
+    fun `tela cheia so no arranque e faixa no retorno`() {
+        val states = listOf<StartupSyncState>(
+            StartupSyncState.Idle,
+            StartupSyncState.Syncing(1),
+            StartupSyncState.Synced(1, 1_000),
+            StartupSyncState.Failed(1, "sem rede"),
+            StartupSyncState.Override(1),
+        )
+
+        assertEquals(
+            listOf(
+                SyncPresentationMode.FullScreen,
+                SyncPresentationMode.FullScreen,
+                SyncPresentationMode.Free,
+                SyncPresentationMode.FullScreen,
+                SyncPresentationMode.Free,
+            ),
+            states.map { syncPresentationMode(it, firstAttemptFinished = false) },
+        )
+        assertEquals(
+            listOf(
+                SyncPresentationMode.FullScreen,
+                SyncPresentationMode.Banner,
+                SyncPresentationMode.Free,
+                SyncPresentationMode.FullScreen,
+                SyncPresentationMode.Free,
+            ),
+            states.map { syncPresentationMode(it, firstAttemptFinished = true) },
+        )
+    }
+
+    @Test
     fun `progresso por etapa e monotono de zero a cem`() {
         val reducer = SyncProgressReducer()
         val values = listOf(

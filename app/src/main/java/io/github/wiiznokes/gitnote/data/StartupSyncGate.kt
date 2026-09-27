@@ -86,6 +86,26 @@ sealed interface StartupSyncState {
     data class Override(val revision: Long) : StartupSyncState
 }
 
+enum class SyncPresentationMode {
+    FullScreen,
+    Banner,
+    Free,
+}
+
+fun syncPresentationMode(
+    state: StartupSyncState,
+    firstAttemptFinished: Boolean,
+): SyncPresentationMode = when (state) {
+    StartupSyncState.Idle -> SyncPresentationMode.FullScreen
+    is StartupSyncState.Syncing -> if (firstAttemptFinished) {
+        SyncPresentationMode.Banner
+    } else {
+        SyncPresentationMode.FullScreen
+    }
+    is StartupSyncState.Failed -> SyncPresentationMode.FullScreen
+    is StartupSyncState.Synced, is StartupSyncState.Override -> SyncPresentationMode.Free
+}
+
 class StartupSyncGate(
     private val now: () -> Long,
     private val timeoutMs: Long = STARTUP_SYNC_TIMEOUT_MS,
