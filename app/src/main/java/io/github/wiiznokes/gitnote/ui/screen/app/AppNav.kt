@@ -25,6 +25,7 @@ import io.github.wiiznokes.gitnote.ui.screen.app.grid.GridScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.home.HomeScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.aulas.SendLessonScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.aulas.LessonHistoryScreen
+import io.github.wiiznokes.gitnote.ui.screen.app.triade.TriadeScreen
 import io.github.wiiznokes.gitnote.ui.screen.settings.SettingsNav
 import io.github.wiiznokes.gitnote.ui.utils.crossFade
 import io.github.wiiznokes.gitnote.ui.utils.slide
@@ -105,12 +106,17 @@ fun AppScreen(
                             )
                         )
                     },
+                    onTriadeClick = {
+                        navController.navigate(AppDestination.Triade)
+                    },
                 )
             }
 
             is AppDestination.SendLesson -> SendLessonScreen(onBack = { navController.pop() })
 
             is AppDestination.LessonHistory -> LessonHistoryScreen(onBack = { navController.pop() })
+
+            is AppDestination.Triade -> TriadeScreen(onBack = { navController.pop() })
 
             is AppDestination.Grid -> {
                 GridScreen(
@@ -187,7 +193,8 @@ private object AppNavTransitionSpec : NavTransitionSpec<AppDestination> {
         return when (from) {
             AppDestination.Home -> crossFade()
             AppDestination.SendLesson,
-            AppDestination.LessonHistory -> crossFade()
+            AppDestination.LessonHistory,
+            AppDestination.Triade -> crossFade()
             is AppDestination.Edit -> crossFade()
             AppDestination.Grid -> {
                 if (to is AppDestination.Settings) {

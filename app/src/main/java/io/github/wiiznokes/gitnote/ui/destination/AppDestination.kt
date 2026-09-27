@@ -19,6 +19,9 @@ sealed interface AppDestination : Parcelable {
     data object LessonHistory : AppDestination
 
     @Parcelize
+    data object Triade : AppDestination
+
+    @Parcelize
     data object Grid : AppDestination
 
     @Parcelize

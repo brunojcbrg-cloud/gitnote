@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -48,6 +49,7 @@ fun HomeScreen(
     onSendLessonClick: () -> Unit,
     onLessonHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onTriadeClick: () -> Unit,
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets.safeContent,
@@ -99,6 +101,13 @@ fun HomeScreen(
                 title = stringResource(R.string.home_lesson_history),
                 detail = stringResource(R.string.home_lesson_history_detail),
                 onClick = onLessonHistoryClick,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            HomeFunctionCard(
+                icon = Icons.Filled.Hub,
+                title = "Tríade",
+                detail = "O que já chegou ao PC, ao celular e à web",
+                onClick = onTriadeClick,
             )
             Spacer(modifier = Modifier.height(12.dp))
             HomeFunctionCard(
