@@ -5,6 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import io.github.wiiznokes.gitnote.aulas.LessonHistoryWorker
+import io.github.wiiznokes.gitnote.atualizador.UpdateCoordinator
 
 const val TAG = "MyApp (Application)"
 
@@ -25,6 +26,11 @@ class MyApp : Application() {
 
         scope.launch {
             appModule.appPreferences.preload()
+            UpdateCoordinator.schedule(
+                this@MyApp,
+                appModule.appPreferences.lastUpdateCheckEpochSeconds.get(),
+                appModule.appPreferences.automaticUpdateChecks.get(),
+            )
             // Tem de vir junto: a retomada da posicao le de forma bloqueante na
             // composicao da tela, e uma leitura em arquivo ainda nao aberto volta
             // vazia -- a nota abriria no topo depois de o app ser fechado.

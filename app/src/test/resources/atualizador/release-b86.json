@@ -1,0 +1,12 @@
+{
+  "tag_name": "b86",
+  "body": "Build automatica do fork.\n\n| | |\n|---|---|\n| versionName | `26.08.1.86` |\n| versionCode | `106` |\n| commit | `20614fa5a46f6ae541d9adc933ee00d3c492a915` |\n| applicationId | `io.github.wiiznokes.gitnote.nightly` |",
+  "assets": [
+    {
+      "name": "gitnote-fork-86.apk",
+      "size": 25714015,
+      "digest": "sha256:237bab015a478896f773468411f190b87dbcd1e2081ddcad7ab7d8701d5b5683",
+      "browser_download_url": "https://github.com/brunojcbrg-cloud/gitnote/releases/download/b86/gitnote-fork-86.apk"
+    }
+  ]
+}

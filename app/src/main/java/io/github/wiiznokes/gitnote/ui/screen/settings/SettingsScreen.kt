@@ -29,6 +29,7 @@ import io.github.wiiznokes.gitnote.BuildConfig
 import io.github.wiiznokes.gitnote.MainActivity
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.PrazoDaTrava
+import io.github.wiiznokes.gitnote.atualizador.UpdateCoordinator
 import io.github.wiiznokes.gitnote.ui.component.AppPage
 import io.github.wiiznokes.gitnote.ui.component.DefaultSettingsRow
 import io.github.wiiznokes.gitnote.ui.component.MultipleChoiceSettings
@@ -362,6 +363,46 @@ fun SettingsScreen(
                     vm.closeRepo()
                     onCloseRepo()
                 }
+            )
+        }
+
+        SettingsSection(
+            title = "Atualizações"
+        ) {
+            val context = LocalContext.current
+            val automatic by vm.prefs.automaticUpdateChecks.getAsState()
+            val lastStatus by vm.prefs.lastUpdateStatus.getAsState()
+            DefaultSettingsRow(
+                title = "Versão instalada",
+                subTitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+            )
+            DefaultSettingsRow(
+                title = "Última verificação",
+                subTitle = if (BuildConfig.BUILD_TYPE == "nightly") lastStatus else "Desligado neste build",
+            )
+            DefaultSettingsRow(
+                title = "Verificar agora",
+                startIcon = Icons.Default.Refresh,
+                onClick = {
+                    if (BuildConfig.BUILD_TYPE == "nightly") UpdateCoordinator.enqueueCheck(context)
+                },
+            )
+            ToggleableSettings(
+                title = "Verificar automaticamente",
+                subtitle = "A cada 6 horas, somente no build nightly",
+                checked = automatic && BuildConfig.BUILD_TYPE == "nightly",
+                onCheckedChange = { enabled ->
+                    if (BuildConfig.BUILD_TYPE == "nightly") {
+                        vm.update {
+                            vm.prefs.automaticUpdateChecks.update(enabled)
+                            UpdateCoordinator.schedule(
+                                context,
+                                vm.prefs.lastUpdateCheckEpochSeconds.get(),
+                                enabled,
+                            )
+                        }
+                    }
+                },
             )
         }
 

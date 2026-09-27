@@ -1,11 +1,16 @@
 package io.github.wiiznokes.gitnote
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -33,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +63,8 @@ import io.github.wiiznokes.gitnote.data.InitializationState
 import io.github.wiiznokes.gitnote.data.StartupSyncState
 import io.github.wiiznokes.gitnote.data.SyncPresentationMode
 import io.github.wiiznokes.gitnote.data.syncPresentationMode
+import io.github.wiiznokes.gitnote.atualizador.UpdateCoordinator
+import io.github.wiiznokes.gitnote.atualizador.shouldRequestUpdateNotificationPermission
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -166,6 +174,27 @@ class MainActivity : FragmentActivity() {
             val theme by vm.prefs.theme.getAsState()
             val dynamicColor by vm.prefs.dynamicColor.getAsState()
             val bloquearCapturaDeTela by vm.prefs.bloquearCapturaDeTela.getAsState()
+            val updateStatus by vm.prefs.lastUpdateStatus.getAsState()
+            val notificationPermission = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                if (granted) UpdateCoordinator.enqueueCheck(this@MainActivity)
+            }
+            LaunchedEffect(updateStatus) {
+                val granted = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) == PackageManager.PERMISSION_GRANTED
+                if (shouldRequestUpdateNotificationPermission(
+                        BuildConfig.BUILD_TYPE,
+                        Build.VERSION.SDK_INT,
+                        updateStatus,
+                        granted,
+                    )
+                ) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             LaunchedEffect(bloquearCapturaDeTela) {
                 setScreenCaptureBlocked(bloquearCapturaDeTela)
             }

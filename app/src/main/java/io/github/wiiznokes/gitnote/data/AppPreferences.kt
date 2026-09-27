@@ -305,6 +305,10 @@ class AppPreferences(
     // Porcentagem inteira; o controle sao os botoes + e - da propria nota.
     // 100 = a tela de sempre. Faixa e passo vivem em ui/theme/TamanhoDoTexto.kt.
     val tamanhoDaLetraPct = intPreference("tamanhoDaLetraPct", 100)
+    val automaticUpdateChecks = booleanPreference("automaticUpdateChecks", true)
+    val lastUpdateCheckEpochSeconds = intPreference("lastUpdateCheckEpochSeconds", 0)
+    val lastUpdateStatus = stringPreference("lastUpdateStatus", "Ainda não verificado")
+    val availableUpdateJson = stringPreference("availableUpdateJson", "")
 
 }
 

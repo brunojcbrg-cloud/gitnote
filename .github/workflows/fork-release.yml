@@ -147,10 +147,26 @@ jobs:
           mkdir -p packages
           mv app/build/outputs/apk/nightly/app-nightly.apk packages/gitnote-fork-${{ github.run_number }}.apk
 
+      - name: Measure effective targetSdk
+        run: |
+          AAPT2="$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 | sort -V | tail -1)"
+          APK="packages/gitnote-fork-${{ github.run_number }}.apk"
+          TARGET_SDK="$($AAPT2 dump badging "$APK" | sed -n "s/.*targetSdkVersion:'\([0-9]*\)'.*/\1/p" | head -1)"
+          test -n "$TARGET_SDK"
+          echo "targetSdkVersion=$TARGET_SDK"
+          test "$TARGET_SDK" = "37"
+          printf 'targetSdkVersion=%s\n' "$TARGET_SDK" > target-sdk.txt
+
       - uses: actions/upload-artifact@v7
         with:
           name: gitnote-fork-${{ github.run_number }}
           path: packages/*
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: target-sdk-${{ github.run_number }}
+          path: target-sdk.txt
           if-no-files-found: error
 
   # ------------------------------------------------------------------ publicar
@@ -168,12 +184,18 @@ jobs:
           name: gitnote-fork-${{ github.run_number }}
           path: packages
 
+      - uses: actions/download-artifact@v7
+        with:
+          name: target-sdk-${{ github.run_number }}
+          path: release-metadata
+
       - name: Publish release
         run: |
           TAG="b${{ github.run_number }}"
 
           # versionCode = 20 + run_number, definido em app/build.gradle.kts
           VERSION_CODE=$(( 20 + ${{ github.run_number }} ))
+          TARGET_SDK="$(cut -d= -f2 release-metadata/target-sdk.txt)"
 
           cat > notes.md <<EOF
           Build automatica do fork.
@@ -184,6 +206,7 @@ jobs:
           | versionCode | \`$VERSION_CODE\` |
           | commit | \`${{ github.sha }}\` |
           | applicationId | \`io.github.wiiznokes.gitnote.nightly\` |
+          | targetSdkVersion medido no APK | \`$TARGET_SDK\` |
 
           ${{ inputs.note }}
 

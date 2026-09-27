@@ -52,6 +52,9 @@ android {
 
         applicationId = "io.github.wiiznokes.gitnote"
         minSdk = 30
+        // O AGP 9.3 já resolvia implicitamente para 37; declarar torna o
+        // requisito do instalador interno verificável e estável no CI.
+        targetSdk = 37
 
         // Fork: o versionCode precisa crescer a cada build, senao nenhum atualizador
         // (Obtainium, F-Droid) detecta que existe versao nova. GITHUB_RUN_NUMBER e
