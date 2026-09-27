@@ -36,7 +36,7 @@ class StartupSyncGateTest {
                 SyncPresentationMode.FullScreen,
                 SyncPresentationMode.Banner,
                 SyncPresentationMode.Free,
-                SyncPresentationMode.FullScreen,
+                SyncPresentationMode.Banner,
                 SyncPresentationMode.Free,
             ),
             states.map { syncPresentationMode(it, firstAttemptFinished = true) },
@@ -112,10 +112,12 @@ class StartupSyncGateTest {
         gate.run(force = true) { Result.failure(IllegalStateException("sem rede")) }
 
         assertTrue(gate.state.value is StartupSyncState.Failed)
+        assertTrue(readingAllowed(gate.state.value, firstAttemptFinished = true))
         assertFalse(gate.editingAllowed())
 
         gate.editAnyway()
         assertTrue(gate.state.value is StartupSyncState.Override)
+        assertTrue(readingAllowed(gate.state.value, firstAttemptFinished = true))
         assertTrue(gate.editingAllowed())
     }
 

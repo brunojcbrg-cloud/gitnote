@@ -102,9 +102,16 @@ fun syncPresentationMode(
     } else {
         SyncPresentationMode.FullScreen
     }
-    is StartupSyncState.Failed -> SyncPresentationMode.FullScreen
+    is StartupSyncState.Failed -> if (firstAttemptFinished) {
+        SyncPresentationMode.Banner
+    } else {
+        SyncPresentationMode.FullScreen
+    }
     is StartupSyncState.Synced, is StartupSyncState.Override -> SyncPresentationMode.Free
 }
+
+fun readingAllowed(state: StartupSyncState, firstAttemptFinished: Boolean): Boolean =
+    syncPresentationMode(state, firstAttemptFinished) != SyncPresentationMode.FullScreen
 
 class StartupSyncGate(
     private val now: () -> Long,

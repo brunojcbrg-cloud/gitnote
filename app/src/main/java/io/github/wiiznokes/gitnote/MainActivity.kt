@@ -12,6 +12,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -243,7 +244,8 @@ class MainActivity : FragmentActivity() {
 
                                     is Destination.App -> AppScreen(
                                         appDestination = destination.appDestination,
-                                        runtimeReadOnly = presentation == SyncPresentationMode.Banner,
+                                        runtimeReadOnly = syncState is StartupSyncState.Syncing ||
+                                            syncState is StartupSyncState.Failed,
                                         syncRevision = revision,
                                         onCloseRepo = {
                                             navController.popAll()
@@ -257,10 +259,22 @@ class MainActivity : FragmentActivity() {
                                     color = androidx.compose.material3.MaterialTheme.colorScheme.secondaryContainer,
                                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
                                 ) {
-                                    Text(
-                                        "Sincronizando… ${syncProgress.percent}% — ${syncProgress.message}",
-                                        modifier = Modifier.padding(12.dp),
-                                    )
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        when (syncState) {
+                                            is StartupSyncState.Failed -> {
+                                                Text("Sem sincronizar — ${syncState.message}")
+                                                Row {
+                                                    Button(onClick = vm::retrySync) { Text("Tentar de novo") }
+                                                    TextButton(onClick = vm::editAnyway) {
+                                                        Text("Editar mesmo assim")
+                                                    }
+                                                }
+                                            }
+                                            else -> Text(
+                                                "Sincronizando… ${syncProgress.percent}% — ${syncProgress.message}",
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
