@@ -393,10 +393,16 @@ fn status_for_repo(repo: &Repository) -> Result<Vec<WorkingTreeChange>, Error> {
             } else {
                 return None;
             };
-            entry.path().map(|path| WorkingTreeChange {
-                path: path.to_string(),
-                kind,
-            })
+            match entry.path() {
+                Ok(path) => Some(WorkingTreeChange {
+                    path: path.to_string(),
+                    kind,
+                }),
+                Err(e) => {
+                    warn!("status entry path is not valid utf-8: {e}");
+                    None
+                }
+            }
         })
         .collect())
 }
@@ -435,7 +441,7 @@ fn recent_commits_for_repo(repo: &Repository, n: usize) -> Result<Vec<RecentComm
             short_hash: commit.id().to_string()[..7].to_string(),
             author: commit.author().name().unwrap_or("Unknown").to_string(),
             timestamp: commit.time().seconds(),
-            message: commit.summary().unwrap_or("").to_string(),
+            message: commit.summary().ok().flatten().unwrap_or("").to_string(),
             files,
         });
     }

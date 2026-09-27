@@ -233,32 +233,17 @@ class GitManager {
 
     suspend fun aheadBehind(): Result<Pair<Int, Int>> = safelyAccessLibGit2 {
         if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
-        val values = aheadBehindLib().split(':').map(String::toInt)
-        check(values.size == 2) { "invalid ahead/behind response" }
-        values[0] to values[1]
+        parseAheadBehind(aheadBehindLib())
     }
 
     suspend fun status(): Result<List<GitWorkingTreeChange>> = safelyAccessLibGit2 {
         if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
-        statusLib().lineSequence().filter(String::isNotEmpty).map { line ->
-            val (kind, path) = line.split('|', limit = 2)
-            GitWorkingTreeChange(path = path.fromNativeHex(), kind = kind)
-        }.toList()
+        parseStatus(statusLib())
     }
 
     suspend fun recentCommits(n: Int = 5): Result<List<GitRecentCommit>> = safelyAccessLibGit2 {
         if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
-        recentCommitsLib(n).lineSequence().filter(String::isNotEmpty).map { line ->
-            val fields = line.split('|', limit = 5)
-            check(fields.size == 5) { "invalid recent commit response" }
-            GitRecentCommit(
-                shortHash = fields[0],
-                author = fields[1].fromNativeHex(),
-                timestamp = fields[2].toLong(),
-                message = fields[3].fromNativeHex(),
-                files = fields[4].split(',').filter(String::isNotEmpty).map(String::fromNativeHex),
-            )
-        }.toList()
+        parseRecentCommits(recentCommitsLib(n))
     }
 
     suspend fun syncSnapshot(cred: Cred?): Result<GitSyncSnapshot> {
@@ -266,24 +251,10 @@ class GitManager {
             if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
             val fetchResult = fetchLib(cred)
             if (fetchResult < 0) throw GitException("fetch error $fetchResult")
-            val values = aheadBehindLib().split(':').map(String::toInt)
-            check(values.size == 2) { "invalid ahead/behind response" }
-            val changes = statusLib().lineSequence().filter(String::isNotEmpty).map { line ->
-                val (kind, path) = line.split('|', limit = 2)
-                GitWorkingTreeChange(path = path.fromNativeHex(), kind = kind)
-            }.toList()
-            val commits = recentCommitsLib(5).lineSequence().filter(String::isNotEmpty).map { line ->
-                val fields = line.split('|', limit = 5)
-                check(fields.size == 5) { "invalid recent commit response" }
-                GitRecentCommit(
-                    shortHash = fields[0],
-                    author = fields[1].fromNativeHex(),
-                    timestamp = fields[2].toLong(),
-                    message = fields[3].fromNativeHex(),
-                    files = fields[4].split(',').filter(String::isNotEmpty).map(String::fromNativeHex),
-                )
-            }.toList()
-            GitSyncSnapshot(values[0], values[1], changes, commits)
+            val (ahead, behind) = parseAheadBehind(aheadBehindLib())
+            val changes = parseStatus(statusLib())
+            val commits = parseRecentCommits(recentCommitsLib(5))
+            GitSyncSnapshot(ahead, behind, changes, commits)
         }
     }
 
@@ -368,4 +339,40 @@ private fun String.fromNativeHex(): String {
     require(length % 2 == 0) { "invalid native string" }
     return chunked(2).map { it.toInt(16).toByte() }.toByteArray().toString(Charsets.UTF_8)
 }
+
+/**
+ * Native git functions that can fail return "ERR:<motivo>" instead of an empty
+ * string, so a failure is never read as "0 pendentes" / "sincronizado".
+ */
+internal fun String.checkNativeError(): String {
+    if (startsWith("ERR:")) {
+        throw GitException(removePrefix("ERR:"))
+    }
+    return this
+}
+
+internal fun parseAheadBehind(raw: String): Pair<Int, Int> {
+    val values = raw.checkNativeError().split(':').map(String::toInt)
+    check(values.size == 2) { "invalid ahead/behind response" }
+    return values[0] to values[1]
+}
+
+internal fun parseStatus(raw: String): List<GitWorkingTreeChange> =
+    raw.checkNativeError().lineSequence().filter(String::isNotEmpty).map { line ->
+        val (kind, path) = line.split('|', limit = 2)
+        GitWorkingTreeChange(path = path.fromNativeHex(), kind = kind)
+    }.toList()
+
+internal fun parseRecentCommits(raw: String): List<GitRecentCommit> =
+    raw.checkNativeError().lineSequence().filter(String::isNotEmpty).map { line ->
+        val fields = line.split('|', limit = 5)
+        check(fields.size == 5) { "invalid recent commit response" }
+        GitRecentCommit(
+            shortHash = fields[0],
+            author = fields[1].fromNativeHex(),
+            timestamp = fields[2].toLong(),
+            message = fields[3].fromNativeHex(),
+            files = fields[4].split(',').filter(String::isNotEmpty).map(String::fromNativeHex),
+        )
+    }.toList()
 

@@ -560,7 +560,13 @@ fn ahead_behind_lib<'local>(
     env: &mut Env<'local>,
     _class: JClass<'local>,
 ) -> Result<JString<'local>, jni::errors::Error> {
-    let (ahead, behind) = unwrap_or_log!(libgit2::ahead_behind(), "ahead_behind");
+    let (ahead, behind) = match libgit2::ahead_behind() {
+        Ok(v) => v,
+        Err(e) => {
+            error!("ahead_behind: {e}");
+            return Ok(native_string(env, format!("ERR:{e}")));
+        }
+    };
     Ok(native_string(env, format!("{ahead}:{behind}")))
 }
 
@@ -568,7 +574,13 @@ fn status_lib<'local>(
     env: &mut Env<'local>,
     _class: JClass<'local>,
 ) -> Result<JString<'local>, jni::errors::Error> {
-    let status = unwrap_or_log!(libgit2::status(), "status");
+    let status = match libgit2::status() {
+        Ok(v) => v,
+        Err(e) => {
+            error!("status: {e}");
+            return Ok(native_string(env, format!("ERR:{e}")));
+        }
+    };
     Ok(native_string(
         env,
         status
@@ -584,7 +596,13 @@ fn recent_commits_lib<'local>(
     _class: JClass<'local>,
     n: jint,
 ) -> Result<JString<'local>, jni::errors::Error> {
-    let commits = unwrap_or_log!(libgit2::recent_commits(n.max(0) as usize), "recent_commits");
+    let commits = match libgit2::recent_commits(n.max(0) as usize) {
+        Ok(v) => v,
+        Err(e) => {
+            error!("recent_commits: {e}");
+            return Ok(native_string(env, format!("ERR:{e}")));
+        }
+    };
     Ok(native_string(
         env,
         commits
