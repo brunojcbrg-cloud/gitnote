@@ -90,7 +90,7 @@ class StartupSyncGateTest {
     @Test
     fun `pull suspenso mantem editor bloqueado`() = runBlocking {
         var clock = 1_000L
-        val gate = StartupSyncGate { clock }
+        val gate = StartupSyncGate(now = { clock })
         val pull = CompletableDeferred<Result<Unit>>()
 
         val running = async { gate.run(force = true) { pull.await() } }
@@ -108,7 +108,7 @@ class StartupSyncGateTest {
 
     @Test
     fun `falha mantem bloqueio ate escolha explicita`() = runBlocking {
-        val gate = StartupSyncGate { 1_000L }
+        val gate = StartupSyncGate(now = { 1_000L })
         gate.run(force = true) { Result.failure(IllegalStateException("sem rede")) }
 
         assertTrue(gate.state.value is StartupSyncState.Failed)
@@ -125,7 +125,7 @@ class StartupSyncGateTest {
     fun `retorno ao app respeita intervalo minimo`() = runBlocking {
         var clock = 10_000L
         var calls = 0
-        val gate = StartupSyncGate { clock }
+        val gate = StartupSyncGate(now = { clock })
         gate.run(force = true) { calls += 1; Result.success(Unit) }
 
         clock += STARTUP_SYNC_MIN_INTERVAL_MS - 1
