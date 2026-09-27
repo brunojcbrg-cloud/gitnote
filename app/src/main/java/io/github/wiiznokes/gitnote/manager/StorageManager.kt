@@ -172,7 +172,7 @@ class StorageManager {
         val aberturas = historicoDao.todas().associate { it.relativePath to it.abertaEmMillis }
 
         var indexed = 0
-        dao.clearAndInit(repoPath, timestamps, aberturas) { progress ->
+        dao.clearAndInit(repoPath, timestamps, aberturas, progressCb = { progress ->
             when (progress) {
                 is Progress.GeneratingDatabase -> {
                     indexed += 1
@@ -182,7 +182,7 @@ class StorageManager {
                 }
                 Progress.Timestamps -> progressCb?.invoke(progress)
             }
-        }
+        })
         prefs.databaseCommit.update(fsCommit)
 
         return success(Unit)

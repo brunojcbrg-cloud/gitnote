@@ -289,9 +289,9 @@ class MainActivity : FragmentActivity() {
                                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp)) {
-                                        when (syncState) {
+                                        when (val currentSyncState = syncState) {
                                             is StartupSyncState.Failed -> {
-                                                Text("Sem sincronizar — ${syncState.message}")
+                                                Text("Sem sincronizar — ${currentSyncState.message}")
                                                 Row {
                                                     Button(onClick = vm::retrySync) { Text("Tentar de novo") }
                                                     TextButton(onClick = vm::editAnyway) {
