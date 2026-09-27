@@ -13,6 +13,7 @@ import dev.olshevski.navigation.reimagined.navigate
 import dev.olshevski.navigation.reimagined.pop
 import dev.olshevski.navigation.reimagined.rememberNavController
 import io.github.wiiznokes.gitnote.helper.NoteSaver
+import io.github.wiiznokes.gitnote.data.StartupSyncState
 import io.github.wiiznokes.gitnote.ui.destination.AppDestination
 import io.github.wiiznokes.gitnote.ui.destination.EditParams
 import io.github.wiiznokes.gitnote.ui.destination.SettingsDestination
@@ -37,6 +38,8 @@ fun AppScreen(
     onCloseRepo: () -> Unit,
     runtimeReadOnly: Boolean = false,
     syncRevision: Long = 0L,
+    startupSyncState: StartupSyncState = StartupSyncState.Idle,
+    onSyncNow: () -> Unit = {},
 ) {
 
     val initialBackstack: List<AppDestination> = rememberSaveable {
@@ -118,6 +121,11 @@ fun AppScreen(
                             )
                         )
                     },
+                    onSyncClick = {
+                        navController.navigate(
+                            AppDestination.Settings(SettingsDestination.Sync)
+                        )
+                    },
                     onEditClick = { note, editType ->
                         navController.navigate(AppDestination.Edit(EditParams.Idle(note.relativePath, editType)))
                     },
@@ -159,7 +167,10 @@ fun AppScreen(
             is AppDestination.Settings -> SettingsNav(
                 onBackClick = { navController.pop() },
                 destination = it.settingsDestination,
-                onCloseRepo = onCloseRepo
+                onCloseRepo = onCloseRepo,
+                startupSyncState = startupSyncState,
+                syncRevision = syncRevision,
+                onSyncNow = onSyncNow,
             )
         }
     }

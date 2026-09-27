@@ -94,6 +94,7 @@ internal val topSpacerHeight = topBarHeight + 40.dp + 15.dp
 @Composable
 fun GridScreen(
     onSettingsClick: () -> Unit,
+    onSyncClick: () -> Unit,
     onEditClick: (Note, EditType) -> Unit,
 ) {
 
@@ -182,6 +183,7 @@ fun GridScreen(
                 noteViewType = vm.prefs.noteViewType.getAsState().value,
                 syncState = vm.syncState.collectAsState().value,
                 consumeOkSyncState = vm::consumeOkSyncState,
+                onSyncClick = onSyncClick,
                 isReadOnlyModeActive = vm.prefs.isReadOnlyModeActive.getAsState().value,
                 updateSettings = vm::updateSettings,
                 unselectAllNotes = vm::unselectAllNotes,

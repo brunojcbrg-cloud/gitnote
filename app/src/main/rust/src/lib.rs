@@ -144,6 +144,27 @@ const _PULL_LIB_METHOD: NativeMethod = native_method! {
     static extern fn pull_lib(cred: JObject, name: JString, email: JString, progress_callback: JObject) -> jint,
 };
 
+const _FETCH_LIB_METHOD: NativeMethod = native_method! {
+    java_type = "io.github.wiiznokes.gitnote.manager.GitManagerKt",
+    export = "Java_io_github_wiiznokes_gitnote_manager_GitManagerKt_fetchLib",
+    static extern fn fetch_lib(cred: JObject) -> jint,
+};
+
+const _AHEAD_BEHIND_LIB_METHOD: NativeMethod = native_method! {
+    java_type = "io.github.wiiznokes.gitnote.manager.GitManagerKt",
+    static extern fn ahead_behind_lib() -> JString,
+};
+
+const _STATUS_LIB_METHOD: NativeMethod = native_method! {
+    java_type = "io.github.wiiznokes.gitnote.manager.GitManagerKt",
+    static extern fn status_lib() -> JString,
+};
+
+const _RECENT_COMMITS_LIB_METHOD: NativeMethod = native_method! {
+    java_type = "io.github.wiiznokes.gitnote.manager.GitManagerKt",
+    static extern fn recent_commits_lib(n: jint) -> JString,
+};
+
 const _FREE_LIB_METHOD: NativeMethod = native_method! {
     java_type = "io.github.wiiznokes.gitnote.manager.GitManagerKt",
     static extern fn free_lib(),
@@ -511,6 +532,81 @@ fn pull_lib<'local>(
     let cb = JniProgressCB::new(env, progress_callback);
     unwrap_or_log!(libgit2::pull(cred, &author, cb), "pull");
     Ok(OK)
+}
+
+fn fetch_lib<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    cred: JObject<'local>,
+) -> Result<jint, jni::errors::Error> {
+    let cred = Cred::from_jni(env, &cred).unwrap();
+    unwrap_or_log!(libgit2::fetch(cred), "fetch");
+    Ok(OK)
+}
+
+fn native_string<'local>(env: &mut Env<'local>, value: String) -> JString<'local> {
+    env.new_string(value).expect("Couldn't create Java string!")
+}
+
+fn hex(value: &str) -> String {
+    value
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn ahead_behind_lib<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+) -> Result<JString<'local>, jni::errors::Error> {
+    let (ahead, behind) = unwrap_or_log!(libgit2::ahead_behind(), "ahead_behind");
+    Ok(native_string(env, format!("{ahead}:{behind}")))
+}
+
+fn status_lib<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+) -> Result<JString<'local>, jni::errors::Error> {
+    let status = unwrap_or_log!(libgit2::status(), "status");
+    Ok(native_string(
+        env,
+        status
+            .iter()
+            .map(|change| format!("{}|{}", change.kind, hex(&change.path)))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    ))
+}
+
+fn recent_commits_lib<'local>(
+    env: &mut Env<'local>,
+    _class: JClass<'local>,
+    n: jint,
+) -> Result<JString<'local>, jni::errors::Error> {
+    let commits = unwrap_or_log!(libgit2::recent_commits(n.max(0) as usize), "recent_commits");
+    Ok(native_string(
+        env,
+        commits
+            .iter()
+            .map(|commit| {
+                format!(
+                    "{}|{}|{}|{}|{}",
+                    commit.short_hash,
+                    hex(&commit.author),
+                    commit.timestamp,
+                    hex(&commit.message),
+                    commit
+                        .files
+                        .iter()
+                        .map(|file| hex(file))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    ))
 }
 
 fn free_lib<'local>(

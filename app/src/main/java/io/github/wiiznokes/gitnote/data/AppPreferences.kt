@@ -149,6 +149,8 @@ class AppPreferences(
 
     val isInit = booleanPreference("isInit", false)
     val databaseCommit = stringPreference("")
+    val lastSyncEpochMillis = stringPreference("lastSyncEpochMillis", "0")
+    val lastSyncResult = stringPreference("lastSyncResult", "Nunca sincronizado")
 
     private val repoPath = stringPreference("repoPath")
 

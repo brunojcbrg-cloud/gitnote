@@ -276,6 +276,8 @@ class MainActivity : FragmentActivity() {
                                         runtimeReadOnly = syncState is StartupSyncState.Syncing ||
                                             syncState is StartupSyncState.Failed,
                                         syncRevision = revision,
+                                        startupSyncState = syncState,
+                                        onSyncNow = vm::retrySync,
                                         onCloseRepo = {
                                             navController.popAll()
                                             navController.navigate(Destination.Setup(SetupDestination.Main))

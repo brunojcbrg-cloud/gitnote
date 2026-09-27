@@ -27,6 +27,96 @@ fn commit_file(repo: &git2::Repository, path: &str, content: &str, message: &str
         .unwrap();
 }
 
+fn commit_all(repo: &git2::Repository, message: &str) -> git2::Oid {
+    let mut index = repo.index().unwrap();
+    index.add_all(["*"], git2::IndexAddOption::DEFAULT, None).unwrap();
+    index.write().unwrap();
+    let tree_id = index.write_tree().unwrap();
+    let tree = repo.find_tree(tree_id).unwrap();
+    let signature = git2::Signature::now("Teste", "teste@example.com").unwrap();
+    let parent = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
+    let parents: Vec<&git2::Commit> = parent.iter().collect();
+    repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &parents).unwrap()
+}
+
+fn tracking_repo(label: &str) -> (std::path::PathBuf, git2::Repository) {
+    let root = std::env::temp_dir().join(format!(
+        "gitnote-dashboard-{label}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    let repo = git2::Repository::init(&root).unwrap();
+    std::fs::write(root.join("base.md"), "base").unwrap();
+    let base = commit_all(&repo, "base");
+    repo.reference("refs/remotes/origin/master", base, true, "test").unwrap();
+    (root, repo)
+}
+
+#[test]
+fn ahead_behind_covers_equal_ahead_behind_and_diverged() {
+    let (root, repo) = tracking_repo("graph");
+    assert_eq!(ahead_behind_for_repo(&repo).unwrap(), (0, 0));
+
+    std::fs::write(root.join("ahead.md"), "ahead").unwrap();
+    commit_all(&repo, "ahead");
+    assert_eq!(ahead_behind_for_repo(&repo).unwrap(), (1, 0));
+
+    let base = repo.refname_to_id("refs/remotes/origin/master").unwrap();
+    repo.set_head_detached(base).unwrap();
+    let remote_one = {
+        std::fs::write(root.join("remote-1.md"), "one").unwrap();
+        commit_all(&repo, "remote one")
+    };
+    let remote_two = {
+        std::fs::write(root.join("remote-2.md"), "two").unwrap();
+        commit_all(&repo, "remote two")
+    };
+    repo.reference("refs/remotes/origin/master", remote_two, true, "test").unwrap();
+    repo.set_head("refs/heads/master").unwrap();
+    assert_eq!(ahead_behind_for_repo(&repo).unwrap(), (1, 2));
+
+    repo.reference("refs/heads/master", base, true, "test").unwrap();
+    assert_eq!(ahead_behind_for_repo(&repo).unwrap(), (0, 2));
+    assert_ne!(remote_one, base);
+    drop(repo);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn status_reports_clean_modified_new_and_deleted() {
+    let (root, repo) = tracking_repo("status");
+    assert!(status_for_repo(&repo).unwrap().is_empty());
+    std::fs::write(root.join("base.md"), "changed").unwrap();
+    std::fs::write(root.join("new.md"), "new").unwrap();
+    std::fs::write(root.join("ignored.md"), "ignored").unwrap();
+    std::fs::write(root.join(".gitignore"), "ignored.md\n").unwrap();
+    std::fs::remove_file(root.join("base.md")).unwrap();
+    let changes = status_for_repo(&repo).unwrap();
+    assert!(changes.iter().any(|it| it.path == "base.md" && it.kind == "deleted"));
+    assert!(changes.iter().any(|it| it.path == "new.md" && it.kind == "new"));
+    assert!(!changes.iter().any(|it| it.path == "ignored.md"));
+
+    std::fs::write(root.join("base.md"), "modified").unwrap();
+    let changes = status_for_repo(&repo).unwrap();
+    assert!(changes.iter().any(|it| it.path == "base.md" && it.kind == "modified"));
+    drop(repo);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn recent_commits_respects_limit_and_lists_touched_files() {
+    let (root, repo) = tracking_repo("history");
+    std::fs::write(root.join("second.md"), "second").unwrap();
+    let second = commit_all(&repo, "second");
+    repo.reference("refs/remotes/origin/master", second, true, "test").unwrap();
+    let commits = recent_commits_for_repo(&repo, 1).unwrap();
+    assert_eq!(commits.len(), 1);
+    assert_eq!(commits[0].message, "second");
+    assert_eq!(commits[0].files, vec!["second.md"]);
+    drop(repo);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn pull_reports_transfer_progress_through_completion() {
     let root = std::env::temp_dir().join(format!("gitnote-pull-progress-{}", std::process::id()));

@@ -224,6 +224,69 @@ class GitManager {
         }
     }
 
+    suspend fun fetch(cred: Cred?): Result<Unit> = safelyAccessLibGit2 {
+        Log.d(TAG, "fetch")
+        if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
+        val res = fetchLib(cred)
+        if (res < 0) throw GitException("fetch error $res")
+    }
+
+    suspend fun aheadBehind(): Result<Pair<Int, Int>> = safelyAccessLibGit2 {
+        if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
+        val values = aheadBehindLib().split(':').map(String::toInt)
+        check(values.size == 2) { "invalid ahead/behind response" }
+        values[0] to values[1]
+    }
+
+    suspend fun status(): Result<List<GitWorkingTreeChange>> = safelyAccessLibGit2 {
+        if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
+        statusLib().lineSequence().filter(String::isNotEmpty).map { line ->
+            val (kind, path) = line.split('|', limit = 2)
+            GitWorkingTreeChange(path = path.fromNativeHex(), kind = kind)
+        }.toList()
+    }
+
+    suspend fun recentCommits(n: Int = 5): Result<List<GitRecentCommit>> = safelyAccessLibGit2 {
+        if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
+        recentCommitsLib(n).lineSequence().filter(String::isNotEmpty).map { line ->
+            val fields = line.split('|', limit = 5)
+            check(fields.size == 5) { "invalid recent commit response" }
+            GitRecentCommit(
+                shortHash = fields[0],
+                author = fields[1].fromNativeHex(),
+                timestamp = fields[2].toLong(),
+                message = fields[3].fromNativeHex(),
+                files = fields[4].split(',').filter(String::isNotEmpty).map(String::fromNativeHex),
+            )
+        }.toList()
+    }
+
+    suspend fun syncSnapshot(cred: Cred?): Result<GitSyncSnapshot> {
+        return safelyAccessLibGit2 {
+            if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
+            val fetchResult = fetchLib(cred)
+            if (fetchResult < 0) throw GitException("fetch error $fetchResult")
+            val values = aheadBehindLib().split(':').map(String::toInt)
+            check(values.size == 2) { "invalid ahead/behind response" }
+            val changes = statusLib().lineSequence().filter(String::isNotEmpty).map { line ->
+                val (kind, path) = line.split('|', limit = 2)
+                GitWorkingTreeChange(path = path.fromNativeHex(), kind = kind)
+            }.toList()
+            val commits = recentCommitsLib(5).lineSequence().filter(String::isNotEmpty).map { line ->
+                val fields = line.split('|', limit = 5)
+                check(fields.size == 5) { "invalid recent commit response" }
+                GitRecentCommit(
+                    shortHash = fields[0],
+                    author = fields[1].fromNativeHex(),
+                    timestamp = fields[2].toLong(),
+                    message = fields[3].fromNativeHex(),
+                    files = fields[4].split(',').filter(String::isNotEmpty).map(String::fromNativeHex),
+                )
+            }.toList()
+            GitSyncSnapshot(values[0], values[1], changes, commits)
+        }
+    }
+
     suspend fun getTimestamps(): Result<HashMap<String, Long>> = safelyAccessLibGit2 {
         Log.d(TAG, "getTimestamps")
 
@@ -282,6 +345,10 @@ private external fun pullLib(
     email: String,
     progressCallback: GitManager,
 ): Int
+private external fun fetchLib(cred: Cred?): Int
+private external fun aheadBehindLib(): String
+private external fun statusLib(): String
+private external fun recentCommitsLib(n: Int): String
 
 private external fun freeLib()
 
@@ -296,4 +363,9 @@ external fun generateSshKeysLib(): Pair<String, String>
 
 // return true if url is ssh
 external fun getUrlInfoLib(url: String): Boolean?
+
+private fun String.fromNativeHex(): String {
+    require(length % 2 == 0) { "invalid native string" }
+    return chunked(2).map { it.toInt(16).toByte() }.toByteArray().toString(Charsets.UTF_8)
+}
 

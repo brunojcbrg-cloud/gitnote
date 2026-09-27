@@ -7,7 +7,7 @@ use std::{
 
 use git2::{
     CertificateCheckStatus, FetchOptions, IndexAddOption, Progress, PushOptions, RemoteCallbacks,
-    Repository, Signature, StatusOptions,
+    Repository, Signature, Status, StatusOptions,
 };
 
 use crate::{Cred, Error, GitAuthor, callback::ProgressCB, mime_types::is_extension_supported};
@@ -22,6 +22,21 @@ mod test_clone;
 mod test_merge;
 
 const REMOTE: &str = "origin";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkingTreeChange {
+    pub path: String,
+    pub kind: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecentCommit {
+    pub short_hash: String,
+    pub author: String,
+    pub timestamp: i64,
+    pub message: String,
+    pub files: Vec<String>,
+}
 
 static REPO: LazyLock<Mutex<Option<Repository>>> = LazyLock::new(|| Mutex::new(None));
 
@@ -308,6 +323,128 @@ pub fn push(cred: Option<Cred>, mut cb: impl ProgressCB) -> Result<(), Error> {
         .map_err(|e| Error::git2(e, "push"))?;
 
     Ok(())
+}
+
+fn fetch_remote(repo: &Repository, cred: Option<Cred>) -> Result<(), Error> {
+    apply_ssh_workaround(false);
+    let mut remote = repo
+        .find_remote(REMOTE)
+        .map_err(|e| Error::git2(e, "find_remote"))?;
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.certificate_check(|_cert, _| Ok(CertificateCheckStatus::CertificateOk));
+    if let Some(cred) = cred {
+        callbacks.credentials(move |_url, username_from_url, _allowed_types| {
+            credential_helper(&cred, username_from_url)
+        });
+    }
+    let branch = current_branch(repo)?;
+    let refspec = format!("+refs/heads/{branch}:refs/remotes/origin/{branch}");
+    let mut options = FetchOptions::new();
+    options
+        .remote_callbacks(callbacks)
+        .download_tags(git2::AutotagOption::None);
+    remote
+        .fetch(&[&refspec], Some(&mut options), None)
+        .map_err(|e| Error::git2(e, "fetch"))
+}
+
+/// Updates only the remote-tracking reference. It never merges or checks out files.
+pub fn fetch(cred: Option<Cred>) -> Result<(), Error> {
+    let repo = REPO.lock().expect("repo lock");
+    fetch_remote(repo.as_ref().expect("repo"), cred)
+}
+
+fn ahead_behind_for_repo(repo: &Repository) -> Result<(usize, usize), Error> {
+    let branch = current_branch(repo)?;
+    let local = repo.refname_to_id("HEAD")?;
+    let remote = repo.refname_to_id(&format!("refs/remotes/{REMOTE}/{branch}"))?;
+    repo.graph_ahead_behind(local, remote).map_err(Error::from)
+}
+
+pub fn ahead_behind() -> Result<(usize, usize), Error> {
+    let repo = REPO.lock().expect("repo lock");
+    ahead_behind_for_repo(repo.as_ref().expect("repo"))
+}
+
+fn status_for_repo(repo: &Repository) -> Result<Vec<WorkingTreeChange>, Error> {
+    let mut options = StatusOptions::new();
+    options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false);
+    let statuses = repo.statuses(Some(&mut options))?;
+    Ok(statuses
+        .iter()
+        .filter_map(|entry| {
+            let flags = entry.status();
+            let kind = if flags.intersects(Status::WT_DELETED | Status::INDEX_DELETED) {
+                "deleted"
+            } else if flags.intersects(Status::WT_NEW | Status::INDEX_NEW) {
+                "new"
+            } else if flags.intersects(
+                Status::WT_MODIFIED
+                    | Status::INDEX_MODIFIED
+                    | Status::WT_RENAMED
+                    | Status::INDEX_RENAMED
+                    | Status::WT_TYPECHANGE
+                    | Status::INDEX_TYPECHANGE,
+            ) {
+                "modified"
+            } else {
+                return None;
+            };
+            entry.path().map(|path| WorkingTreeChange {
+                path: path.to_string(),
+                kind,
+            })
+        })
+        .collect())
+}
+
+pub fn status() -> Result<Vec<WorkingTreeChange>, Error> {
+    let repo = REPO.lock().expect("repo lock");
+    status_for_repo(repo.as_ref().expect("repo"))
+}
+
+fn recent_commits_for_repo(repo: &Repository, n: usize) -> Result<Vec<RecentCommit>, Error> {
+    let branch = current_branch(repo)?;
+    let start = repo
+        .refname_to_id(&format!("refs/remotes/{REMOTE}/{branch}"))
+        .or_else(|_| repo.refname_to_id("HEAD"))?;
+    let mut walk = repo.revwalk()?;
+    walk.push(start)?;
+    walk.set_sorting(git2::Sort::TIME)?;
+    let mut result = Vec::new();
+    for oid in walk.take(n) {
+        let commit = repo.find_commit(oid?)?;
+        let tree = commit.tree()?;
+        let parent_tree = if commit.parent_count() > 0 {
+            Some(commit.parent(0)?.tree()?)
+        } else {
+            None
+        };
+        let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
+        let mut files = diff
+            .deltas()
+            .filter_map(|delta| delta.new_file().path().or_else(|| delta.old_file().path()))
+            .filter_map(|path| path.to_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        files.sort();
+        files.dedup();
+        result.push(RecentCommit {
+            short_hash: commit.id().to_string()[..7].to_string(),
+            author: commit.author().name().unwrap_or("Unknown").to_string(),
+            timestamp: commit.time().seconds(),
+            message: commit.summary().unwrap_or("").to_string(),
+            files,
+        });
+    }
+    Ok(result)
+}
+
+pub fn recent_commits(n: usize) -> Result<Vec<RecentCommit>, Error> {
+    let repo = REPO.lock().expect("repo lock");
+    recent_commits_for_repo(repo.as_ref().expect("repo"), n)
 }
 
 pub fn pull(

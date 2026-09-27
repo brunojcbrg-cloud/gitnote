@@ -12,6 +12,7 @@ import dev.olshevski.navigation.reimagined.NavTransitionSpec
 import dev.olshevski.navigation.reimagined.pop
 import dev.olshevski.navigation.reimagined.rememberNavController
 import io.github.wiiznokes.gitnote.ui.destination.SettingsDestination
+import io.github.wiiznokes.gitnote.data.StartupSyncState
 import io.github.wiiznokes.gitnote.ui.utils.slide
 import io.github.wiiznokes.gitnote.ui.viewmodel.SettingsViewModel
 
@@ -25,6 +26,9 @@ fun SettingsNav(
     destination: SettingsDestination,
     onBackClick: () -> Unit,
     onCloseRepo: () -> Unit,
+    startupSyncState: StartupSyncState,
+    syncRevision: Long,
+    onSyncNow: () -> Unit,
 ) {
 
     val navController =
@@ -73,6 +77,13 @@ fun SettingsNav(
                     vm = vm
                 )
             }
+
+            SettingsDestination.Sync -> SyncDashboardScreen(
+                onBackClick = { navController.pop() },
+                startupState = startupSyncState,
+                syncRevision = syncRevision,
+                onSyncNow = onSyncNow,
+            )
         }
     }
 }
@@ -86,7 +97,7 @@ private object SettingsNavTransitionSpec : NavTransitionSpec<SettingsDestination
     ): ContentTransform {
 
         return when (from) {
-            SettingsDestination.FolderFilters -> slide(backWard = true)
+            SettingsDestination.FolderFilters, SettingsDestination.Sync -> slide(backWard = true)
             SettingsDestination.Logs -> slide(backWard = true)
             SettingsDestination.Main -> slide()
         }

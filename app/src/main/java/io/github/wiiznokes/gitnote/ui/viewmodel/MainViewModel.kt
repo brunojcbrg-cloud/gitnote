@@ -16,6 +16,7 @@ import io.github.wiiznokes.gitnote.ui.model.StorageConfiguration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class MainViewModel : ViewModel() {
 
@@ -45,6 +46,23 @@ class MainViewModel : ViewModel() {
             storageManager.updateDatabaseAndRepo(startupSyncGate::reportProgress)
         }
         if (attempted != null) _firstSyncAttemptFinished.value = true
+    }
+
+    init {
+        viewModelScope.launch {
+            startupSyncState.collect { state ->
+                val result = when (state) {
+                    is io.github.wiiznokes.gitnote.data.StartupSyncState.Synced -> "Sincronizado"
+                    is io.github.wiiznokes.gitnote.data.StartupSyncState.Failed ->
+                        "Falhou: ${state.message}"
+                    else -> null
+                }
+                if (result != null) {
+                    prefs.lastSyncEpochMillis.update(System.currentTimeMillis().toString())
+                    prefs.lastSyncResult.update(result)
+                }
+            }
+        }
     }
 
     fun ensureInitialized() {

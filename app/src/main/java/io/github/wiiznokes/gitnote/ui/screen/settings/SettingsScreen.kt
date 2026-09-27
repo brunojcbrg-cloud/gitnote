@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -259,6 +260,13 @@ fun SettingsScreen(
         SettingsSection(
             title = stringResource(R.string.repository)
         ) {
+
+            DefaultSettingsRow(
+                title = "Sincronização",
+                subTitle = "Estado do GitHub, edições locais e mudanças recentes",
+                startIcon = Icons.Default.Sync,
+                onClick = { navController.navigate(SettingsDestination.Sync) },
+            )
 
             val activity = LocalContext.current as? MainActivity
             val travaDeAbertura by vm.prefs.travaDeAbertura.getAsState()

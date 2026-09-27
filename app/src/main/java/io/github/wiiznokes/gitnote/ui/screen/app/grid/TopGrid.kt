@@ -105,6 +105,7 @@ fun TopBar(
     noteViewType: NoteViewType,
     syncState: SyncState,
     consumeOkSyncState: () -> Unit,
+    onSyncClick: () -> Unit,
     isReadOnlyModeActive: Boolean,
     updateSettings: (suspend AppPreferences.() -> Unit) -> Unit,
     unselectAllNotes: () -> Unit,
@@ -129,6 +130,7 @@ fun TopBar(
                 noteViewType = noteViewType,
                 syncState = syncState,
                 consumeOkSyncState = consumeOkSyncState,
+                onSyncClick = onSyncClick,
                 isReadOnlyModeActive = isReadOnlyModeActive,
                 updateSettings = updateSettings,
             )
@@ -158,6 +160,7 @@ private fun SearchBar(
     noteViewType: NoteViewType,
     syncState: SyncState,
     consumeOkSyncState: () -> Unit,
+    onSyncClick: () -> Unit,
     isReadOnlyModeActive: Boolean,
     updateSettings: (suspend AppPreferences.() -> Unit) -> Unit,
 ) {
@@ -238,7 +241,8 @@ private fun SearchBar(
                 if (isEmpty) {
                     SyncStateIcon(
                         state = syncState,
-                        onConsumeOkSyncState = consumeOkSyncState
+                        onConsumeOkSyncState = consumeOkSyncState,
+                        onClick = onSyncClick,
                     )
                 }
 
@@ -418,7 +422,8 @@ private fun SelectableTopBar(
 @Composable
 private fun SyncStateIcon(
     state: SyncState,
-    onConsumeOkSyncState: () -> Unit
+    onConsumeOkSyncState: () -> Unit,
+    onClick: () -> Unit,
 ) {
     var modifier: Modifier = Modifier
 
@@ -453,12 +458,7 @@ private fun SyncStateIcon(
         }
     }
 
-    AnimatedVisibility(
-        visible = visible,
-        exit = fadeOut(animationSpec = tween(durationMillis = 500))
-    ) {
-        val scope = rememberCoroutineScope()
-
+    run {
         TooltipBox(
             positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
             tooltip = {
@@ -470,15 +470,7 @@ private fun SyncStateIcon(
         ) {
             IconButton(
                 modifier = Modifier.size(ButtonSize),
-                onClick = {
-                    scope.launch {
-                        if (tooltipState.isVisible) {
-                            tooltipState.dismiss()
-                        } else {
-                            tooltipState.show()
-                        }
-                    }
-                }
+                onClick = onClick,
             ) {
                 when (state) {
                     is SyncState.Error -> Icon(
@@ -528,6 +520,7 @@ private fun TopBarPreview() {
         noteViewType = NoteViewType.Grid,
         syncState = SyncState.Error("hello"),
         consumeOkSyncState = {},
+        onSyncClick = {},
         isReadOnlyModeActive = true,
         updateSettings = { },
         selectedNotesNumber = 0,
