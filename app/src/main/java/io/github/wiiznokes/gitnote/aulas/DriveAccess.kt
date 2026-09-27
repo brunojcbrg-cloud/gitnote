@@ -79,6 +79,21 @@ class LessonJobStore(private val context: Context) {
 
     fun read(path: String): LessonUploadJob =
         lessonJson.decodeFromString(File(path).readText(Charsets.UTF_8))
+
+    fun latest(): LessonUploadJob? = directory.listFiles()
+        ?.filter { it.isFile && it.extension == "json" }
+        ?.maxByOrNull { it.lastModified() }
+        ?.let { runCatching { read(it.absolutePath) }.getOrNull() }
+}
+
+data class LessonUploadProgress(
+    val fileIndex: Int,
+    val fileTotal: Int,
+    val bytesSent: Long,
+    val bytesTotal: Long,
+) {
+    val percent: Int
+        get() = if (bytesTotal <= 0L) 100 else ((bytesSent * 100L) / bytesTotal).toInt().coerceIn(0, 100)
 }
 
 class DriveRestClient(
@@ -104,18 +119,29 @@ class DriveRestClient(
         return root
     }
 
-    fun uploadLesson(job: LessonUploadJob) {
+    fun uploadLesson(
+        job: LessonUploadJob,
+        onProgress: (LessonUploadProgress) -> Unit = {},
+    ) {
         val root = ensureRootAndStateFile()
         val folderQuery = "appProperties has { key='lifeSoLessonId' and value='${escapeQuery(job.idAula)}' } and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
         val lessonFolder = findFirst(folderQuery)
             ?: createFolder(job.pastaDrive, root, mapOf("lifeSoLessonId" to job.idAula))
         job.arquivos.forEachIndexed { index, file ->
+            val current = index + 1
+            onProgress(LessonUploadProgress(current, job.arquivos.size, 0L, file.bytes))
             val fileKey = "$index:${file.nome}:${file.bytes}"
             val existing = findFirst(
                 "appProperties has { key='lifeSoLessonId' and value='${escapeQuery(job.idAula)}' } and " +
                     "appProperties has { key='lifeSoFileKey' and value='${escapeQuery(fileKey)}' } and trashed = false"
             )
-            if (existing == null) uploadContentUri(file, lessonFolder, job.idAula, fileKey)
+            if (existing == null) {
+                uploadContentUri(file, lessonFolder, job.idAula, fileKey) { sent ->
+                    onProgress(LessonUploadProgress(current, job.arquivos.size, sent, file.bytes))
+                }
+            } else {
+                onProgress(LessonUploadProgress(current, job.arquivos.size, file.bytes, file.bytes))
+            }
         }
         val ready = lessonJson.encodeToString(job.readyMarker()).toByteArray(Charsets.UTF_8)
         val readyId = findFirst("name = 'PRONTO.json' and '$lessonFolder' in parents and trashed = false")
@@ -137,7 +163,13 @@ class DriveRestClient(
         return connection.useResponse { input -> lessonJson.decodeFromString(input.bufferedReader().readText()) }
     }
 
-    private fun uploadContentUri(file: LessonFile, parent: String, lessonId: String, fileKey: String) {
+    private fun uploadContentUri(
+        file: LessonFile,
+        parent: String,
+        lessonId: String,
+        fileKey: String,
+        onBytesSent: (Long) -> Unit,
+    ) {
         val uri = Uri.parse(file.uri)
         val metadata = metadata(
             file.nome, parent,
@@ -154,9 +186,19 @@ class DriveRestClient(
         connection.setFixedLengthStreamingMode(prefix.size.toLong() + file.bytes + suffix.size)
         connection.outputStream.use { output ->
             output.write(prefix)
-            context.contentResolver.openInputStream(uri).use { input ->
-                requireNotNull(input) { "Nao consegui reabrir ${file.nome}." }
-                input.copyTo(output)
+            val input = requireNotNull(context.contentResolver.openInputStream(uri)) {
+                "Nao consegui reabrir ${file.nome}."
+            }
+            input.use {
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var sent = 0L
+                while (true) {
+                    val read = it.read(buffer)
+                    if (read < 0) break
+                    output.write(buffer, 0, read)
+                    sent += read
+                    onBytesSent(sent)
+                }
             }
             output.write(suffix)
         }
