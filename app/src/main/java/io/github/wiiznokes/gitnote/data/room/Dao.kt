@@ -63,8 +63,6 @@ interface RepoDatabaseDao {
 
         val rootLength = rootFs.path.length + 1
 
-        var folderCount = 0
-
         val stack = ArrayDeque<NodeFs.Folder>()
         stack.add(rootFs)
 
@@ -100,6 +98,7 @@ interface RepoDatabaseDao {
                         )
 
                         notes.add(note)
+                        progressCb?.invoke(Progress.GeneratingDatabase(note.relativePath))
                         if (notes.size >= 1000) {
                             insertNotes(notes)
                             notes.clear()
@@ -121,11 +120,6 @@ interface RepoDatabaseDao {
                             insertFolders(folders)
                             folders.clear()
                         }
-
-                        if (folderCount % 20 == 0) {
-                            progressCb?.invoke(Progress.GeneratingDatabase(noteFolder.relativePath))
-                        }
-                        folderCount += 1
 
                         stack.addLast(nodeFs)
                     }

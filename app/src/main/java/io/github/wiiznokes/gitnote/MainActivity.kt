@@ -12,7 +12,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -22,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +56,7 @@ import io.github.wiiznokes.gitnote.data.StartupSyncState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -172,10 +176,12 @@ class MainActivity : FragmentActivity() {
                     LaunchedEffect(Unit) { vm.ensureInitialized() }
                     val initializationState by vm.initializationState.collectAsStateWithLifecycle()
                     val syncState by vm.startupSyncState.collectAsStateWithLifecycle()
+                    val syncProgress by vm.startupSyncProgress.collectAsStateWithLifecycle()
 
                     if (initializationState is InitializationState.Loading) {
                         TelaDeSincronizacao(
                             state = syncState,
+                            progress = syncProgress,
                             retry = vm::retrySync,
                             editAnyway = vm::editAnyway,
                         )
@@ -194,6 +200,7 @@ class MainActivity : FragmentActivity() {
                         if (bloqueado) {
                             TelaDeSincronizacao(
                                 state = syncState,
+                                progress = syncProgress,
                                 retry = vm::retrySync,
                                 editAnyway = vm::editAnyway,
                             )
@@ -306,9 +313,17 @@ class MainActivity : FragmentActivity() {
     @androidx.compose.runtime.Composable
     private fun TelaDeSincronizacao(
         state: StartupSyncState,
+        progress: io.github.wiiznokes.gitnote.data.SyncProgressSnapshot,
         retry: () -> Unit,
         editAnyway: () -> Unit,
     ) {
+        var elapsedSeconds by remember(state) { mutableIntStateOf(0) }
+        LaunchedEffect(state) {
+            while (state is StartupSyncState.Syncing || state is StartupSyncState.Idle) {
+                delay(1_000)
+                elapsedSeconds += 1
+            }
+        }
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.Center,
@@ -316,8 +331,15 @@ class MainActivity : FragmentActivity() {
         ) {
             when (state) {
                 StartupSyncState.Idle, is StartupSyncState.Syncing -> {
-                    CircularProgressIndicator()
-                    Text("Sincronizando antes de abrir as notas…", modifier = Modifier.padding(top = 16.dp))
+                    LinearProgressIndicator(
+                        progress = { progress.percent / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text("${progress.percent}% — ${progress.message}", modifier = Modifier.padding(top = 16.dp))
+                    Text("há $elapsedSeconds s", modifier = Modifier.padding(top = 8.dp))
+                    if (progress.indeterminate) {
+                        CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp))
+                    }
                 }
 
                 is StartupSyncState.Failed -> {

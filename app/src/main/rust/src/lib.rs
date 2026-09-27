@@ -135,13 +135,13 @@ const _CURRENT_SIGNATURE_LIB_METHOD: NativeMethod = native_method! {
 const _PUSH_LIB_METHOD: NativeMethod = native_method! {
     java_type = "io.github.wiiznokes.gitnote.manager.GitManagerKt",
     export = "Java_io_github_wiiznokes_gitnote_manager_GitManagerKt_pushLib",
-    static extern fn push_lib(cred: JObject) -> jint,
+    static extern fn push_lib(cred: JObject, progress_callback: JObject) -> jint,
 };
 
 const _PULL_LIB_METHOD: NativeMethod = native_method! {
     java_type = "io.github.wiiznokes.gitnote.manager.GitManagerKt",
     export = "Java_io_github_wiiznokes_gitnote_manager_GitManagerKt_pullLib",
-    static extern fn pull_lib(cred: JObject, name: JString, email: JString) -> jint,
+    static extern fn pull_lib(cred: JObject, name: JString, email: JString, progress_callback: JObject) -> jint,
 };
 
 const _FREE_LIB_METHOD: NativeMethod = native_method! {
@@ -372,14 +372,14 @@ mod callback {
     }
 
     impl<'ptr, 'local> ProgressCB for JniProgressCB<'ptr, 'local> {
-        fn progress(&mut self, progress: i32) -> bool {
+        fn progress(&mut self, current: i32, total: i32) -> bool {
             let res = self
                 .env
                 .call_method(
                     &self.callback_class,
                     jni_str!("progressCb"),
-                    jni_sig!((jint) -> jboolean),
-                    &[progress.into()],
+                    jni_sig!((jint, jint) -> jboolean),
+                    &[current.into(), total.into()],
                 )
                 .unwrap();
 
@@ -392,13 +392,13 @@ mod callback {
 
     #[cfg(test)]
     impl ProgressCB for DummyProgressCB {
-        fn progress(&mut self, _progress: i32) -> bool {
+        fn progress(&mut self, _current: i32, _total: i32) -> bool {
             true
         }
     }
 
     pub trait ProgressCB {
-        fn progress(&mut self, progress: i32) -> bool;
+        fn progress(&mut self, current: i32, total: i32) -> bool;
     }
 }
 fn clone_repo_lib<'local>(
@@ -488,9 +488,11 @@ fn push_lib<'local>(
     env: &mut Env<'local>,
     _class: JClass<'local>,
     cred: JObject<'local>,
+    progress_callback: JObject<'local>,
 ) -> Result<jint, jni::errors::Error> {
     let cred = Cred::from_jni(env, &cred).unwrap();
-    unwrap_or_log!(libgit2::push(cred), "push");
+    let cb = JniProgressCB::new(env, progress_callback);
+    unwrap_or_log!(libgit2::push(cred, cb), "push");
     Ok(OK)
 }
 
@@ -500,12 +502,14 @@ fn pull_lib<'local>(
     cred: JObject<'local>,
     name: JString<'local>,
     email: JString<'local>,
+    progress_callback: JObject<'local>,
 ) -> Result<jint, jni::errors::Error> {
     let cred = Cred::from_jni(env, &cred).unwrap();
     let name: String = name.try_to_string(env).unwrap();
     let email: String = email.try_to_string(env).unwrap();
     let author = GitAuthor { name, email };
-    unwrap_or_log!(libgit2::pull(cred, &author), "pull");
+    let cb = JniProgressCB::new(env, progress_callback);
+    unwrap_or_log!(libgit2::pull(cred, &author, cb), "pull");
     Ok(OK)
 }
 

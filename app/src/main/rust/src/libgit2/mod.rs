@@ -185,9 +185,7 @@ pub fn clone_repo(
     }
 
     callbacks.transfer_progress(|stats: Progress| {
-        let progress = stats.indexed_objects() as f32 / stats.total_objects() as f32 * 100.;
-
-        cb.progress(progress as i32)
+        cb.progress(stats.indexed_objects() as i32, stats.total_objects() as i32)
     });
 
     let mut fetch_options = FetchOptions::new();
@@ -276,7 +274,7 @@ pub fn commit_all(name: &str, email: &str, message: &str) -> Result<(), Error> {
     .map_err(|e| Error::git2(e, "commit"))
 }
 
-pub fn push(cred: Option<Cred>) -> Result<(), Error> {
+pub fn push(cred: Option<Cred>, mut cb: impl ProgressCB) -> Result<(), Error> {
     apply_ssh_workaround(false);
 
     let repo = REPO.lock().expect("repo lock");
@@ -298,6 +296,9 @@ pub fn push(cred: Option<Cred>) -> Result<(), Error> {
             credential_helper(&cred, username_from_url)
         });
     }
+    callbacks.push_transfer_progress(|current, total, _bytes| {
+        cb.progress(current as i32, total as i32);
+    });
 
     let mut push_opts = PushOptions::new();
     push_opts.remote_callbacks(callbacks);
@@ -309,7 +310,11 @@ pub fn push(cred: Option<Cred>) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn pull(cred: Option<Cred>, author: &GitAuthor) -> Result<(), Error> {
+pub fn pull(
+    cred: Option<Cred>,
+    author: &GitAuthor,
+    mut cb: impl ProgressCB,
+) -> Result<(), Error> {
     apply_ssh_workaround(false);
 
     let repo = REPO.lock().expect("repo lock");
@@ -328,6 +333,9 @@ pub fn pull(cred: Option<Cred>, author: &GitAuthor) -> Result<(), Error> {
             credential_helper(&cred, username_from_url)
         });
     }
+    callbacks.transfer_progress(|stats: Progress| {
+        cb.progress(stats.received_objects() as i32, stats.total_objects() as i32)
+    });
 
     let mut fetch_options = FetchOptions::new();
     fetch_options
@@ -339,6 +347,9 @@ pub fn pull(cred: Option<Cred>, author: &GitAuthor) -> Result<(), Error> {
     remote
         .fetch(&[&refspec], Some(&mut fetch_options), None)
         .map_err(|e| Error::git2(e, "fetch"))?;
+
+    drop(fetch_options);
+    cb.progress(-1, -1);
 
     let fetch_head = repo
         .find_reference("FETCH_HEAD")

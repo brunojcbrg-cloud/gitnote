@@ -4,6 +4,7 @@ import android.util.Log
 import io.github.wiiznokes.gitnote.MyApp
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.AppPreferences
+import io.github.wiiznokes.gitnote.data.SyncProgressEvent
 import io.github.wiiznokes.gitnote.data.room.Note
 import io.github.wiiznokes.gitnote.data.room.NoteFolder
 import io.github.wiiznokes.gitnote.data.room.RepoDatabase
@@ -44,7 +45,11 @@ sealed interface SyncState {
 sealed class Progress {
     data object Timestamps : Progress()
 
-    data class GeneratingDatabase(val path: String) : Progress()
+    data class GeneratingDatabase(
+        val path: String,
+        val current: Int = 0,
+        val total: Int = 0,
+    ) : Progress()
 }
 
 class StorageManager {
@@ -66,12 +71,15 @@ class StorageManager {
     val syncState: StateFlow<SyncState> = _syncState
 
 
-    suspend fun updateDatabaseAndRepo(): Result<Unit> = locker.withLock {
+    suspend fun updateDatabaseAndRepo(
+        syncProgress: (SyncProgressEvent) -> Unit = {},
+    ): Result<Unit> = locker.withLock {
         Log.d(TAG, "updateDatabaseAndRepo")
 
         val cred = prefs.cred()
         val remoteUrl = prefs.remoteUrl.get()
         val author = prefs.gitAuthor()
+        syncProgress(SyncProgressEvent.CheckingLocalChanges)
         gitManager.commitAll(
             author,
             "commit from gitnote to update the repo of the app"
@@ -83,7 +91,11 @@ class StorageManager {
 
         if (remoteUrl.isNotEmpty()) {
             _syncState.emit(SyncState.Pull)
-            gitManager.pull(cred, author).onFailure { err ->
+            syncProgress(SyncProgressEvent.Downloading(0, 0))
+            gitManager.pull(cred, author) { current, total ->
+                if (current < 0) syncProgress(SyncProgressEvent.Merging)
+                else syncProgress(SyncProgressEvent.Downloading(current, total))
+            }.onFailure { err ->
                 err.message?.let { Log.e(TAG, it) }
                 _syncState.emit(SyncState.Error(err.message))
                 // Sem pull confirmado, push e recarga do banco seriam baseados
@@ -94,15 +106,28 @@ class StorageManager {
 
         if (remoteUrl.isNotEmpty()) {
             _syncState.emit(SyncState.Push)
+            syncProgress(SyncProgressEvent.Uploading(0, 0))
             // todo: maybe async this call
-            gitManager.push(cred).onFailure { err ->
+            gitManager.push(cred) { current, total ->
+                syncProgress(SyncProgressEvent.Uploading(current, total))
+            }.onFailure { err ->
                 err.message?.let { Log.e(TAG, it) }
                 _syncState.emit(SyncState.Error(err.message))
                 return@withLock failure(err)
             }
         }
 
-        updateDatabaseWithoutLocker().onFailure { err ->
+        updateDatabaseWithoutLocker(progressCb = { progress ->
+            if (progress is Progress.GeneratingDatabase) {
+                syncProgress(
+                    SyncProgressEvent.Indexing(
+                        progress.current,
+                        progress.total,
+                        progress.path,
+                    ),
+                )
+            }
+        }).onFailure { err ->
             err.message?.let { Log.e(TAG, it) }
             _syncState.emit(SyncState.Error(err.message))
             return@withLock failure(err)
@@ -146,7 +171,18 @@ class StorageManager {
         val timestamps = gitManager.getTimestamps().getOrThrow()
         val aberturas = historicoDao.todas().associate { it.relativePath to it.abertaEmMillis }
 
-        dao.clearAndInit(repoPath, timestamps, aberturas, progressCb)
+        var indexed = 0
+        dao.clearAndInit(repoPath, timestamps, aberturas) { progress ->
+            when (progress) {
+                is Progress.GeneratingDatabase -> {
+                    indexed += 1
+                    progressCb?.invoke(
+                        progress.copy(current = indexed, total = timestamps.size),
+                    )
+                }
+                Progress.Timestamps -> progressCb?.invoke(progress)
+            }
+        }
         prefs.databaseCommit.update(fsCommit)
 
         return success(Unit)

@@ -102,14 +102,14 @@ class GitManager {
         isRepoInitialized = true
     }
 
-    private var actualCb: ((Int) -> Boolean)? = null
+    private var actualCb: ((Int, Int) -> Boolean)? = null
 
     /**
      * This function is called from native code
      */
     @Keep
-    fun progressCb(progress: Int): Boolean {
-        return actualCb?.invoke(progress) != false
+    fun progressCb(current: Int, total: Int): Boolean {
+        return actualCb?.invoke(current, total) != false
     }
 
     suspend fun cloneRepo(
@@ -122,7 +122,10 @@ class GitManager {
 
         if (isRepoInitialized) throw GitException(GitExceptionType.RepoAlreadyInit)
 
-        actualCb = progressCallback
+        actualCb = { current, total ->
+            val percent = if (total > 0) current * 100 / total else 0
+            progressCallback(percent)
+        }
 
         val res = cloneRepoLib(
             repoPath = repoPath,
@@ -178,10 +181,18 @@ class GitManager {
         currentSignatureLib()
     }.getOrNull()?.let { GitAuthor(name = it.first, email = it.second) }
 
-    suspend fun push(cred: Cred?): Result<Unit> = safelyAccessLibGit2 {
+    suspend fun push(
+        cred: Cred?,
+        progressCallback: (current: Int, total: Int) -> Unit = { _, _ -> },
+    ): Result<Unit> = safelyAccessLibGit2 {
         Log.d(TAG, "push: $cred")
         if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
-        val res = pushLib(cred)
+        val res = try {
+            actualCb = { current, total -> progressCallback(current, total); true }
+            pushLib(cred, this)
+        } finally {
+            actualCb = null
+        }
 
         if (res < 0) {
             Log.d(TAG, "push: $res")
@@ -193,11 +204,20 @@ class GitManager {
 
     }
 
-    suspend fun pull(cred: Cred?, author: GitAuthor): Result<Unit> = safelyAccessLibGit2 {
+    suspend fun pull(
+        cred: Cred?,
+        author: GitAuthor,
+        progressCallback: (current: Int, total: Int) -> Unit = { _, _ -> },
+    ): Result<Unit> = safelyAccessLibGit2 {
         Log.d(TAG, "pull: $cred")
         if (!isRepoInitialized) throw GitException(GitExceptionType.RepoNotInit)
 
-        val res = pullLib(cred, author.name, author.email)
+        val res = try {
+            actualCb = { current, total -> progressCallback(current, total); true }
+            pullLib(cred, author.name, author.email, this)
+        } finally {
+            actualCb = null
+        }
 
         if (res < 0) {
             throw Exception(uiHelper.getString(R.string.error_pull_repo, res.toString()))
@@ -255,8 +275,13 @@ private external fun lastCommitLib(): String?
 
 private external fun commitAllLib(name: String, email: String, message: String): Int
 private external fun currentSignatureLib(): Pair<String, String>?
-private external fun pushLib(cred: Cred?): Int
-private external fun pullLib(cred: Cred?, name: String, email: String): Int
+private external fun pushLib(cred: Cred?, progressCallback: GitManager): Int
+private external fun pullLib(
+    cred: Cred?,
+    name: String,
+    email: String,
+    progressCallback: GitManager,
+): Int
 
 private external fun freeLib()
 

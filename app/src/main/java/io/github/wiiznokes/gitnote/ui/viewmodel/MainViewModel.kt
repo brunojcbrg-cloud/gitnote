@@ -24,6 +24,7 @@ class MainViewModel : ViewModel() {
     private val storageManager = MyApp.appModule.storageManager
     private val startupSyncGate = StartupSyncGate(SystemClock::elapsedRealtime)
     val startupSyncState = startupSyncGate.state
+    val startupSyncProgress = startupSyncGate.progress
     private var repoReady = false
     private val processInitialization = ProcessInitialization(
         scope = viewModelScope,
@@ -37,7 +38,7 @@ class MainViewModel : ViewModel() {
         shouldRun = startupSyncGate::shouldSync,
     ) { force ->
         startupSyncGate.run(force) {
-            storageManager.updateDatabaseAndRepo()
+            storageManager.updateDatabaseAndRepo(startupSyncGate::reportProgress)
         }
     }
 
