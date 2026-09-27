@@ -57,6 +57,33 @@ class LessonFlowTest {
     }
 
     @Test
+    fun foregroundServiceDeniedContinuesWithoutForeground() {
+        class ForegroundServiceStartNotAllowedException : IllegalStateException()
+
+        assertEquals(
+            ForegroundFailureAction.CONTINUE_WITHOUT_FOREGROUND,
+            foregroundFailureAction(ForegroundServiceStartNotAllowedException()),
+        )
+        assertEquals(
+            ForegroundFailureAction.THROW,
+            foregroundFailureAction(IllegalStateException("outro erro")),
+        )
+    }
+
+    @Test
+    fun drive403DistinguishesQuotaFromAuthorization() {
+        assertEquals(
+            DriveFailureKind.QUOTA,
+            driveFailureKind(403, "{\"reason\":\"userRateLimitExceeded\"}"),
+        )
+        assertEquals(
+            DriveFailureKind.AUTHORIZATION,
+            driveFailureKind(403, "{\"reason\":\"insufficientPermissions\"}"),
+        )
+        assertEquals(DriveFailureKind.AUTHORIZATION, driveFailureKind(401, ""))
+    }
+
+    @Test
     fun stateContainsFiveHistoryFieldsAndStalePcIsExplicit() {
         val text = """{"schema":1,"atualizado_em":"2026-09-15T10:25:00-03:00","pc_publicado_em":"2026-09-15T10:20:00-03:00","aulas":[{"id_aula":"x","processado_em":"2026-09-15T10:22:00-03:00","aula_gravada_em":{"data":"2026-08-11","hora":"12:41:51","fonte":"ID3:TDRC"},"materia":"Genética","arquivos_originais":["parte 1.mp3"],"nome_final":"DNA e RNA","pendente_triagem":false,"status":"concluida"}]}"""
         val state = lessonJson.decodeFromString<MobileLessonState>(text)

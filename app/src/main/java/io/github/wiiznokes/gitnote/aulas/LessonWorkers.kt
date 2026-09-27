@@ -43,7 +43,13 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
         val path = inputData.getString(JOB_PATH) ?: return Result.failure()
         return try {
             val job = LessonJobStore(applicationContext).read(path)
-            setForeground(foregroundInfo(job, 1, job.arquivos.size, 0))
+            try {
+                setForeground(foregroundInfo(job, 1, job.arquivos.size, 0))
+            } catch (error: IllegalStateException) {
+                if (foregroundFailureAction(error) == ForegroundFailureAction.THROW) throw error
+                // Android 12+ pode negar a promoção quando esta é uma nova tentativa
+                // iniciada em segundo plano. O WorkManager continua executando o job.
+            }
             val auth = DriveAuthorization(applicationContext).tokenBlocking()
             if (auth.resolution != null || auth.accessToken == null) {
                 return Result.failure(workDataOf(
@@ -72,11 +78,15 @@ class LessonUploadWorker(context: Context, params: WorkerParameters) : Coroutine
             }
             Result.success()
         } catch (error: Exception) {
-            if (error is DriveHttpException && error.status in setOf(401, 403)) {
-                return Result.failure(workDataOf(
-                    LESSON_ERROR_REASON to LESSON_ERROR_AUTHORIZATION,
-                    LESSON_ERROR_MESSAGE to "entre de novo no Google",
-                ))
+            if (error is DriveHttpException) {
+                when (driveFailureKind(error.status, error.detail)) {
+                    DriveFailureKind.AUTHORIZATION -> return Result.failure(workDataOf(
+                        LESSON_ERROR_REASON to LESSON_ERROR_AUTHORIZATION,
+                        LESSON_ERROR_MESSAGE to "entre de novo no Google",
+                    ))
+                    DriveFailureKind.QUOTA -> return Result.retry()
+                    DriveFailureKind.OTHER -> Unit
+                }
             }
             when (uploadFailureAction(error is IOException)) {
                 UploadFailureAction.RETRY -> Result.retry()

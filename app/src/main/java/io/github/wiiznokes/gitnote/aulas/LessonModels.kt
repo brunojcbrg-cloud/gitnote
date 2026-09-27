@@ -108,5 +108,32 @@ fun LessonUploadJob.readyMarker(): ReadyMarker = ReadyMarker(
 
 enum class UploadFailureAction { RETRY, FAIL }
 
-fun uploadFailureAction(isNetworkFailure: Boolean): UploadFailureAction =
-    if (isNetworkFailure) UploadFailureAction.RETRY else UploadFailureAction.FAIL
+fun uploadFailureAction(
+    isNetworkFailure: Boolean,
+    isForegroundStartDenied: Boolean = false,
+): UploadFailureAction =
+    if (isNetworkFailure || isForegroundStartDenied) UploadFailureAction.RETRY else UploadFailureAction.FAIL
+
+enum class ForegroundFailureAction { CONTINUE_WITHOUT_FOREGROUND, THROW }
+
+fun foregroundFailureAction(error: Throwable): ForegroundFailureAction =
+    if (error is IllegalStateException &&
+        error.javaClass.simpleName == "ForegroundServiceStartNotAllowedException"
+    ) {
+        ForegroundFailureAction.CONTINUE_WITHOUT_FOREGROUND
+    } else {
+        ForegroundFailureAction.THROW
+    }
+
+enum class DriveFailureKind { AUTHORIZATION, QUOTA, OTHER }
+
+fun driveFailureKind(status: Int, detail: String): DriveFailureKind = when {
+    status == 401 -> DriveFailureKind.AUTHORIZATION
+    status == 403 && (
+        "userRateLimitExceeded" in detail ||
+            "rateLimitExceeded" in detail ||
+            "dailyLimitExceeded" in detail
+        ) -> DriveFailureKind.QUOTA
+    status == 403 -> DriveFailureKind.AUTHORIZATION
+    else -> DriveFailureKind.OTHER
+}

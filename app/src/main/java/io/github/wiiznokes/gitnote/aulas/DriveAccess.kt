@@ -286,4 +286,7 @@ class DriveRestClient(
     private fun escapeQuery(value: String): String = value.replace("\\", "\\\\").replace("'", "\\'")
 }
 
-class DriveHttpException(val status: Int, detail: String) : IOException("Drive HTTP $status: ${detail.take(500)}")
+class DriveHttpException(
+    val status: Int,
+    val detail: String,
+) : IOException("Drive HTTP $status: ${detail.take(500)}")
