@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 const val DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+const val DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 const val LIFE_SO_AULAS_FOLDER = "LifeSO_Aulas"
 
 val lessonJson = Json {
@@ -39,10 +40,13 @@ data class DriveAuthorizationResult(
     val resolution: PendingIntent? = null,
 )
 
-class DriveAuthorization(context: Context) {
+class DriveAuthorization(
+    context: Context,
+    requestedScopes: List<String> = listOf(DRIVE_FILE_SCOPE),
+) {
     private val client = Identity.getAuthorizationClient(context)
     private val request = AuthorizationRequest.builder()
-        .setRequestedScopes(listOf(Scope(DRIVE_FILE_SCOPE)))
+        .setRequestedScopes(requestedScopes.map(::Scope))
         .build()
 
     fun request(callback: (Result<DriveAuthorizationResult>) -> Unit) {
@@ -161,6 +165,12 @@ class DriveRestClient(
             ?: return MobileLessonState()
         val connection = connection("$filesUrl/$id?alt=media", "GET")
         return connection.useResponse { input -> lessonJson.decodeFromString(input.bufferedReader().readText()) }
+    }
+
+    fun downloadFile(id: String): ByteArray {
+        require(id.matches(Regex("[A-Za-z0-9_-]+"))) { "ID do Drive inválido." }
+        val connection = connection("$filesUrl/$id?alt=media", "GET")
+        return connection.useResponse { input -> input.readBytes() }
     }
 
     private fun uploadContentUri(

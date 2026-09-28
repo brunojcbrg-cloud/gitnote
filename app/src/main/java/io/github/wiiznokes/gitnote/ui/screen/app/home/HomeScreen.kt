@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -50,6 +51,7 @@ fun HomeScreen(
     onLessonHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onTriadeClick: () -> Unit,
+    onMaterialsClick: () -> Unit,
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets.safeContent,
@@ -75,6 +77,13 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
+            HomeFunctionCard(
+                icon = Icons.Filled.FolderOpen,
+                title = "Materiais",
+                detail = "Apostilas HTML do Drive, inclusive offline",
+                onClick = onMaterialsClick,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
             HomeFunctionCard(
                 icon = Icons.AutoMirrored.Filled.MenuBook,
                 title = stringResource(R.string.home_notes),

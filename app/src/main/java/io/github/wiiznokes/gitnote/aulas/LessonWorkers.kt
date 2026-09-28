@@ -3,6 +3,8 @@ package io.github.wiiznokes.gitnote.aulas
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.content.Context
 import android.content.pm.PackageManager
@@ -22,6 +24,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import io.github.wiiznokes.gitnote.MainActivity
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -29,6 +32,8 @@ private const val JOB_PATH = "job_path"
 private const val HISTORY_WORK = "life-so-aulas-history"
 private const val NOTIFICATION_CHANNEL = "aulas_concluidas"
 private const val UPLOAD_NOTIFICATION_CHANNEL = "aulas_envio"
+private const val MATERIAL_ID = "material_id"
+const val EXTRA_OPEN_MATERIAL_ID = "open_material_id"
 const val LESSON_PROGRESS_FILE_INDEX = "lesson_file_index"
 const val LESSON_PROGRESS_FILE_TOTAL = "lesson_file_total"
 const val LESSON_PROGRESS_PERCENT = "lesson_percent"
@@ -160,14 +165,13 @@ class LessonHistoryWorker(context: Context, params: WorkerParameters) : Coroutin
 
     private fun notifyNewCompletions(state: MobileLessonState) {
         val preferences = applicationContext.getSharedPreferences("life_so_aulas", Context.MODE_PRIVATE)
-        val previous = preferences.getStringSet("known_completed", null)
-        val completed = state.aulas.filter { it.status == "concluida" }.map { it.idAula }.toSet()
-        if (previous != null) {
-            state.aulas.filter { it.status == "concluida" && it.idAula !in previous }.forEach { lesson ->
-                showNotification(lesson)
-            }
+        val previous = preferences.getStringSet("known_ready", null)
+            ?: preferences.getStringSet("known_completed", null)
+        newlyReadyLessons(state, previous).forEach { lesson ->
+            showNotification(lesson)
+            driveIdFromHtml(lesson.html)?.let { MaterialCacheWorker.enqueue(applicationContext, it) }
         }
-        preferences.edit().putStringSet("known_completed", completed).apply()
+        preferences.edit().putStringSet("known_ready", readyLessonIds(state)).apply()
     }
 
     private fun showNotification(lesson: MobileLesson) {
@@ -176,11 +180,22 @@ class LessonHistoryWorker(context: Context, params: WorkerParameters) : Coroutin
             NotificationChannel(NOTIFICATION_CHANNEL, "Aulas concluidas", NotificationManager.IMPORTANCE_DEFAULT)
         )
         if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        val triage = if (lesson.pendenteTriagem) " · aguardando classificacao" else ""
+        val materialId = driveIdFromHtml(lesson.html)
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_MATERIAL_ID, materialId)
+        }
+        val pending = PendingIntent.getActivity(
+            applicationContext,
+            lesson.idAula.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         val notification = NotificationCompat.Builder(applicationContext, NOTIFICATION_CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentTitle(lesson.nomeFinal.ifBlank { "Aula concluida" })
-            .setContentText("${lesson.materia.ifBlank { "Materia ainda nao definida" }}$triage")
+            .setContentTitle("${lesson.nomeFinal.ifBlank { "Aula" }} pronta — abrir")
+            .setContentText(lesson.materia.ifBlank { "Material HTML disponível" })
+            .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(applicationContext).notify(lesson.idAula.hashCode(), notification)
@@ -193,6 +208,39 @@ class LessonHistoryWorker(context: Context, params: WorkerParameters) : Coroutin
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 HISTORY_WORK, ExistingPeriodicWorkPolicy.UPDATE, request,
+            )
+        }
+    }
+}
+
+class MaterialCacheWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val id = inputData.getString(MATERIAL_ID) ?: return Result.failure()
+        return try {
+            val auth = DriveAuthorization(applicationContext, listOf(DRIVE_READONLY_SCOPE)).tokenBlocking()
+            if (auth.resolution != null || auth.accessToken == null) return Result.retry()
+            val bytes = DriveRestClient(applicationContext, auth.accessToken).downloadFile(id)
+            MaterialCache(applicationContext).store(id, bytes)
+            Result.success()
+        } catch (_: IOException) {
+            Result.retry()
+        } catch (_: Exception) {
+            Result.failure()
+        }
+    }
+
+    companion object {
+        fun enqueue(context: Context, id: String) {
+            val (_, anyNetwork) = MaterialCache(context).settings()
+            val network = if (anyNetwork) NetworkType.CONNECTED else NetworkType.UNMETERED
+            val request = OneTimeWorkRequestBuilder<MaterialCacheWorker>()
+                .setInputData(workDataOf(MATERIAL_ID to id))
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(network).build())
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "material-html-$id",
+                ExistingWorkPolicy.KEEP,
+                request,
             )
         }
     }

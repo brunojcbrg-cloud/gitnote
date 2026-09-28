@@ -22,6 +22,9 @@ sealed interface AppDestination : Parcelable {
     data object Triade : AppDestination
 
     @Parcelize
+    data class Materials(val initialMaterialId: String? = null) : AppDestination
+
+    @Parcelize
     data object Grid : AppDestination
 
     @Parcelize

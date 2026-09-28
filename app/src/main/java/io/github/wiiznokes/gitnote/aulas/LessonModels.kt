@@ -51,6 +51,11 @@ data class MobileLesson(
     @SerialName("nome_final") val nomeFinal: String = "",
     @SerialName("pendente_triagem") val pendenteTriagem: Boolean = false,
     val status: String = "",
+    val posicao: Int? = null,
+    val etapa: String? = null,
+    val progresso: Int? = null,
+    val motivo: String? = null,
+    val html: String? = null,
 )
 
 @Serializable
@@ -67,6 +72,22 @@ data class MobileLessonState(
     @SerialName("pc_publicado_em") val pcPublicadoEm: String = "",
     val aulas: List<MobileLesson> = emptyList(),
 )
+
+fun readyLessonIds(state: MobileLessonState): Set<String> = state.aulas
+    .filter { it.status == "pronta" || it.status == "concluida" }
+    .map { it.idAula }
+    .toSet()
+
+fun newlyReadyLessons(state: MobileLessonState, known: Set<String>?): List<MobileLesson> =
+    if (known == null) emptyList()
+    else state.aulas.filter {
+        (it.status == "pronta" || it.status == "concluida") && it.idAula !in known
+    }
+
+fun driveIdFromHtml(link: String?): String? {
+    val value = link.orEmpty()
+    return Regex("/file/d/([A-Za-z0-9_-]+)").find(value)?.groupValues?.get(1)
+}
 
 class LessonDraft(initial: List<LessonFile> = emptyList()) {
     private val byUri = linkedMapOf<String, LessonFile>()

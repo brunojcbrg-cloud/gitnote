@@ -65,6 +65,7 @@ import io.github.wiiznokes.gitnote.data.SyncPresentationMode
 import io.github.wiiznokes.gitnote.data.syncPresentationMode
 import io.github.wiiznokes.gitnote.atualizador.UpdateCoordinator
 import io.github.wiiznokes.gitnote.atualizador.shouldRequestUpdateNotificationPermission
+import io.github.wiiznokes.gitnote.aulas.EXTRA_OPEN_MATERIAL_ID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -90,6 +91,7 @@ class MainActivity : FragmentActivity() {
     private var promptEmCurso by mutableStateOf(false)
     private var pendente: ((Boolean) -> Unit)? = null
     private var mainViewModel: MainViewModel? = null
+    private var pendingMaterialId by mutableStateOf<String?>(null)
     private val autenticadores = BiometricManager.Authenticators.BIOMETRIC_STRONG or
         BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
@@ -160,6 +162,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
+        pendingMaterialId = intent.getStringExtra(EXTRA_OPEN_MATERIAL_ID)
 
         // Apply before the first frame, including the recents thumbnail.
         setScreenCaptureBlocked(runBlocking {
@@ -273,6 +276,8 @@ class MainActivity : FragmentActivity() {
 
                                     is Destination.App -> AppScreen(
                                         appDestination = destination.appDestination,
+                                        openMaterialId = pendingMaterialId,
+                                        onMaterialOpened = { pendingMaterialId = null },
                                         runtimeReadOnly = syncState is StartupSyncState.Syncing ||
                                             syncState is StartupSyncState.Failed,
                                         syncRevision = revision,
@@ -456,6 +461,11 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         Log.d(TAG, "onNewIntent $intent")
+
+        intent.getStringExtra(EXTRA_OPEN_MATERIAL_ID)?.let {
+            pendingMaterialId = it
+            return
+        }
 
         val uri = intent.data ?: return
         if (uri.scheme == "gitnote-identity" && uri.host == "register-callback") {

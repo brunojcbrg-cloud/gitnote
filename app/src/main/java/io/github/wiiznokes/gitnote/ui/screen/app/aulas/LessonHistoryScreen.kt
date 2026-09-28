@@ -109,7 +109,7 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
                         it.message ?: "Falha ao atualizar o historico."
                     }
                 }
-            delay(60_000)
+            delay(30_000)
         }
     }
 
@@ -175,6 +175,7 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
                             // nomes dos audios continuam no estado (historico e auditoria
                             // dependem deles), so nao aparecem aqui.
                             Text(lesson.nomeFinal.ifBlank { "Aula" })
+                            Text(lessonStatusText(lesson.status, lesson.posicao, lesson.etapa, lesson.progresso, lesson.motivo))
                             Text(diaDaAula(lesson.aulaGravadaEm))
                             if (lesson.unidade.isNotBlank()) Text(lesson.unidade)
                             if (lesson.pendenteTriagem) Text("Aguardando classificacao na CENTRAL")
@@ -184,6 +185,25 @@ fun LessonHistoryScreen(onBack: () -> Unit) {
             }
         }
     }
+}
+
+internal fun lessonStatusText(
+    status: String,
+    position: Int?,
+    stage: String?,
+    progress: Int?,
+    reason: String?,
+): String = when (status) {
+    "esperando_escolha" -> "Esperando escolha no Life SO"
+    "na_fila" -> "Na fila${position?.let { " · posição $it" }.orEmpty()}"
+    "produzindo", "publicando" -> buildString {
+        append(if (status == "publicando") "Publicando" else "Produzindo")
+        if (!stage.isNullOrBlank()) append(" · $stage")
+        if (progress != null) append(" · ${progress.coerceIn(0, 100)}%")
+    }
+    "pronta", "concluida" -> "Pronta"
+    "falhou" -> "Falhou${reason?.let { " · $it" }.orEmpty()}"
+    else -> "Enviada"
 }
 
 /** "A aula ocorreu no dia 17/08/2026" -- a informacao que ordena o estudo. */

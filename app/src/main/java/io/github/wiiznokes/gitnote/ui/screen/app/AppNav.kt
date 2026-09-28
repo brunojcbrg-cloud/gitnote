@@ -3,6 +3,7 @@ package io.github.wiiznokes.gitnote.ui.screen.app
 import android.util.Log
 import androidx.compose.animation.ContentTransform
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import dev.olshevski.navigation.reimagined.AnimatedNavHost
 import dev.olshevski.navigation.reimagined.NavAction
@@ -26,6 +27,7 @@ import io.github.wiiznokes.gitnote.ui.screen.app.home.HomeScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.aulas.SendLessonScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.aulas.LessonHistoryScreen
 import io.github.wiiznokes.gitnote.ui.screen.app.triade.TriadeScreen
+import io.github.wiiznokes.gitnote.ui.screen.app.materials.MaterialsScreen
 import io.github.wiiznokes.gitnote.ui.screen.settings.SettingsNav
 import io.github.wiiznokes.gitnote.ui.utils.crossFade
 import io.github.wiiznokes.gitnote.ui.utils.slide
@@ -36,6 +38,8 @@ private const val TAG = "AppScreen"
 @Composable
 fun AppScreen(
     appDestination: AppDestination,
+    openMaterialId: String? = null,
+    onMaterialOpened: () -> Unit = {},
     onCloseRepo: () -> Unit,
     runtimeReadOnly: Boolean = false,
     syncRevision: Long = 0L,
@@ -77,6 +81,13 @@ fun AppScreen(
     val navController =
         rememberNavController(initialBackstack)
 
+    LaunchedEffect(openMaterialId) {
+        if (openMaterialId != null) {
+            navController.navigate(AppDestination.Materials(openMaterialId))
+            onMaterialOpened()
+        }
+    }
+
     NavBackHandler(navController)
 
     AnimatedNavHost(
@@ -109,6 +120,9 @@ fun AppScreen(
                     onTriadeClick = {
                         navController.navigate(AppDestination.Triade)
                     },
+                    onMaterialsClick = {
+                        navController.navigate(AppDestination.Materials())
+                    },
                 )
             }
 
@@ -117,6 +131,11 @@ fun AppScreen(
             is AppDestination.LessonHistory -> LessonHistoryScreen(onBack = { navController.pop() })
 
             is AppDestination.Triade -> TriadeScreen(onBack = { navController.pop() })
+
+            is AppDestination.Materials -> MaterialsScreen(
+                onBack = { navController.pop() },
+                initialMaterialId = it.initialMaterialId,
+            )
 
             is AppDestination.Grid -> {
                 GridScreen(
@@ -195,6 +214,7 @@ private object AppNavTransitionSpec : NavTransitionSpec<AppDestination> {
             AppDestination.SendLesson,
             AppDestination.LessonHistory,
             AppDestination.Triade -> crossFade()
+            is AppDestination.Materials -> crossFade()
             is AppDestination.Edit -> crossFade()
             AppDestination.Grid -> {
                 if (to is AppDestination.Settings) {
