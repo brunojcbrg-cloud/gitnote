@@ -136,6 +136,35 @@ class CalloutETamanhoUiTest {
     }
 
     @Test
+    fun alertaDoGithubSemTituloMostraONomeDoTipoEOCorpo() {
+        compor("> [!note]\n> corpo da nota\n")
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("corpo da nota", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(
+            composeRule.onAllNodesWithText("Note").fetchSemanticsNodes().isNotEmpty(),
+            "o titulo do alerta sumiu",
+        )
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithText("[!note]", substring = true)
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun noDesconhecidoContinuaDesenhandoOsFilhos() {
+        // A definicao de link e no desconhecido para a biblioteca e agora passa
+        // pelo gancho `custom`; o resto da nota tem de continuar aparecendo.
+        compor("[ref]: https://exemplo.com\n\ntexto depois\n")
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("texto depois", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
     fun citacaoComumContinuaComoEstava() {
         compor("> uma citacao [!success] no meio\n")
         composeRule.waitUntil(timeoutMillis = 5_000) {

@@ -45,9 +45,28 @@ class CalloutsTest {
 
     @Test
     fun marcadorSemTituloMarcaTituloVazio() {
-        val fonte = "> [!note]\n> corpo da nota\n"
+        // `success` nao e tipo do GitHub: continua citacao comum para o parser.
+        val fonte = "> [!success]\n> corpo da nota\n"
         val callout = assertNotNull(detectarCallout(fonte, primeiraCitacao(fonte)))
         assertTrue(callout.tituloVazio)
+        assertTrue(fonte.substring(callout.fimDoMarcador).contains("corpo da nota"))
+    }
+
+    @Test
+    fun tipoDoGithubSemTituloViraNoAlertEEhReconhecido() {
+        // Medido no CI em 06/10: o parser gera ALERT > ALERT_TITLE, sem BLOCK_QUOTE.
+        val fonte = "> [!note]\n> corpo da nota\n"
+        val alerta = parse(fonte).children.first { it.type.name == "ALERT" }
+        val callout = assertNotNull(detectarAlerta(fonte, alerta))
+        assertEquals("note", callout.tipo)
+        assertEquals(FamiliaDeCallout.NOTA, callout.familia)
+        assertTrue(callout.tituloVazio)
+    }
+
+    @Test
+    fun noQueNaoEhAlertNaoViraAlerta() {
+        val fonte = "> [!success] titulo\n"
+        assertNull(detectarAlerta(fonte, primeiraCitacao(fonte)))
     }
 
     @Test

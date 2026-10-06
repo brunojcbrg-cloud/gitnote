@@ -54,6 +54,7 @@ import com.mikepenz.markdown.model.markdownExtendedSpans
 import com.mikepenz.markdown.model.markdownInlineContent
 import com.mikepenz.markdown.model.markdownPadding
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
+import io.github.wiiznokes.gitnote.ui.component.markdown.alertaOuFilhos
 import io.github.wiiznokes.gitnote.ui.component.markdown.calloutOuCitacao
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
 import org.intellij.markdown.MarkdownTokenTypes
@@ -157,6 +158,7 @@ private fun markdownComponentsWithHeadingPositions(
         unorderedList = positionedBlock(CurrentComponentsBridge.unorderedList, onBlockPositioned),
         table = positionedBlock(CurrentComponentsBridge.table, onBlockPositioned),
         checkbox = positionedBlock(checkbox, onBlockPositioned),
+        custom = alertaOuFilhos,
     )
 }
 

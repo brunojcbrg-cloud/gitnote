@@ -40,8 +40,10 @@ import com.mikepenz.markdown.compose.LocalMarkdownComponents
 import com.mikepenz.markdown.compose.LocalMarkdownTypography
 import com.mikepenz.markdown.compose.MarkdownElement
 import com.mikepenz.markdown.compose.components.MarkdownComponent
+import com.mikepenz.markdown.compose.components.CustomMarkdownComponent
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
 import com.mikepenz.markdown.compose.elements.MarkdownParagraph
+import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.ASTNode
@@ -156,6 +158,28 @@ private fun iconeDoCallout(familia: FamiliaDeCallout): ImageVector = when (famil
     FamiliaDeCallout.CITACAO -> Icons.Default.FormatQuote
 }
 
+/**
+ * `> [!NOTE]` sozinho na linha nao chega como citacao: a partir da 0.7.x o
+ * parser GFM gera um no proprio, `ALERT`, com um filho `ALERT_TITLE` -- mas so
+ * para os cinco tipos do GitHub (NOTE, TIP, IMPORTANT, WARNING, CAUTION). A
+ * biblioteca de desenho nao conhece esse no e o titulo sumia. Comparado pelo
+ * nome do tipo para nao depender da constante existir na versao do parser.
+ */
+fun detectarAlerta(content: CharSequence, node: ASTNode): Callout? {
+    if (node.type.name != "ALERT") return null
+    val titulo = node.children.firstOrNull { it.type.name == "ALERT_TITLE" } ?: return null
+    val marcador = content.subSequence(titulo.startOffset, titulo.endOffset).toString()
+    val tipo = marcador.trim().removePrefix("[!").removeSuffix("]").lowercase()
+    if (tipo.isBlank()) return null
+    return Callout(
+        tipo = tipo,
+        familia = familiaDoTipo(tipo),
+        inicioDoParagrafo = titulo.startOffset,
+        fimDoMarcador = titulo.endOffset,
+        tituloVazio = true,
+    )
+}
+
 /** Envolve o componente de citacao: callout vira caixa, citacao comum segue igual. */
 fun calloutOuCitacao(citacao: MarkdownComponent): MarkdownComponent = { model ->
     val callout = detectarCallout(model.content, model.node)
@@ -166,12 +190,45 @@ fun calloutOuCitacao(citacao: MarkdownComponent): MarkdownComponent = { model ->
     }
 }
 
+/**
+ * Gancho `custom` da biblioteca, chamado para todo tipo de no que ela nao
+ * conhece. So o `ALERT` ganha desenho proprio; o resto repete o que a
+ * biblioteca faz quando `custom` e nulo -- desenhar os filhos --, porque
+ * qualquer `custom` nao nulo marca o no como tratado e os filhos sumiriam.
+ */
+val alertaOuFilhos: CustomMarkdownComponent = { _: IElementType, model ->
+    val alerta = detectarAlerta(model.content, model.node)
+    if (alerta != null) {
+        MarkdownCallout(model.content, model.node, alerta)
+    } else {
+        val components = LocalMarkdownComponents.current
+        model.node.children.forEach { child ->
+            MarkdownElement(child, components, model.content)
+        }
+    }
+}
+
 @Composable
 fun MarkdownCallout(content: String, node: ASTNode, callout: Callout) {
     val cor = corDoCallout(callout.familia)
     val components = LocalMarkdownComponents.current
     val typography = LocalMarkdownTypography.current
     val estiloDoTitulo = typography.paragraph.copy(color = cor, fontWeight = FontWeight.SemiBold)
+    val nomeDoTipo = callout.tipo.replaceFirstChar { it.uppercase() }
+
+    @Composable
+    fun LinhaDoTitulo(titulo: @Composable () -> Unit) {
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(
+                imageVector = iconeDoCallout(callout.familia),
+                contentDescription = callout.tipo,
+                tint = cor,
+                modifier = Modifier.padding(top = 2.dp).size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            titulo()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -185,21 +242,15 @@ fun MarkdownCallout(content: String, node: ASTNode, callout: Callout) {
     ) {
         node.children.forEach { child ->
             when {
+                // Formato ALERT: o titulo e um no proprio, sem texto alem do tipo.
+                child.type.name == "ALERT_TITLE" ->
+                    LinhaDoTitulo { Text(text = nomeDoTipo, style = estiloDoTitulo) }
+
                 child.startOffset == callout.inicioDoParagrafo &&
                     child.type == MarkdownElementTypes.PARAGRAPH -> {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Icon(
-                            imageVector = iconeDoCallout(callout.familia),
-                            contentDescription = callout.tipo,
-                            tint = cor,
-                            modifier = Modifier.padding(top = 2.dp).size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
+                    LinhaDoTitulo {
                         if (callout.tituloVazio) {
-                            Text(
-                                text = callout.tipo.replaceFirstChar { it.uppercase() },
-                                style = estiloDoTitulo,
-                            )
+                            Text(text = nomeDoTipo, style = estiloDoTitulo)
                         } else {
                             MarkdownParagraph(content, child, style = estiloDoTitulo)
                         }
