@@ -29,6 +29,9 @@ internal fun obsidianLineBreaksAnnotator(
 ) { content, child ->
     if (child.isCarriageReturnBeforeLineFeed(content)) {
         true
+    } else if (ehMarcadorDeCallout(content, child)) {
+        // O `[!tipo]` vira a caixa do callout (Callouts.kt); escrito, apareceria cru.
+        true
     } else {
         annotate.invoke(this, content, child)
     }

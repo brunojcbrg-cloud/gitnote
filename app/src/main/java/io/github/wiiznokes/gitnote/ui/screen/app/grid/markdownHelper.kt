@@ -54,6 +54,7 @@ import com.mikepenz.markdown.model.markdownExtendedSpans
 import com.mikepenz.markdown.model.markdownInlineContent
 import com.mikepenz.markdown.model.markdownPadding
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
+import io.github.wiiznokes.gitnote.ui.component.markdown.calloutOuCitacao
 import io.github.wiiznokes.gitnote.ui.theme.MarkdownColorScheme
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
@@ -150,7 +151,7 @@ private fun markdownComponentsWithHeadingPositions(
         heading4 = heading(CurrentComponentsBridge.heading4),
         heading5 = heading(CurrentComponentsBridge.heading5),
         heading6 = heading(CurrentComponentsBridge.heading6),
-        blockQuote = positionedBlock(CurrentComponentsBridge.blockQuote, onBlockPositioned),
+        blockQuote = positionedBlock(calloutOuCitacao(CurrentComponentsBridge.blockQuote), onBlockPositioned),
         paragraph = positionedBlock(CurrentComponentsBridge.paragraph, onBlockPositioned),
         orderedList = positionedBlock(CurrentComponentsBridge.orderedList, onBlockPositioned),
         unorderedList = positionedBlock(CurrentComponentsBridge.unorderedList, onBlockPositioned),

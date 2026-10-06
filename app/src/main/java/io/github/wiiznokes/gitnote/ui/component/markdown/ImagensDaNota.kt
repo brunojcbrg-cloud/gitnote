@@ -3,7 +3,7 @@ package io.github.wiiznokes.gitnote.ui.component.markdown
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -155,14 +155,20 @@ class TransformadorDeImagemDaNota(
         }
         val bitmap = imagem ?: return null
 
-        val larguraModifier = if (pedido.largura != null) {
-            Modifier.width(pedido.largura.dp)
-        } else {
-            Modifier.fillMaxWidth()
-        }
+        // So a largura nao basta: com a altura livre, o `ContentScale.Fit` toma a
+        // altura natural do bitmap como teto e nunca amplia -- uma foto de 279 px
+        // saia com 279 px de tela (~100 dp) qualquer que fosse o `|largura` da nota.
+        // A proporcao fixa a altura e deixa o Fit ampliar ate a largura pedida.
+        // Sem `|largura`, vale a natural em px tratada como dp (o px de CSS do
+        // Obsidian), limitada pela tela -- o `max-width: 100%` da web.
+        val larguraDp = pedido.largura ?: bitmap.width
+        val proporcao = bitmap.width.toFloat() / bitmap.height.toFloat()
         return ImageData(
             painter = BitmapPainter(bitmap),
-            modifier = larguraModifier.clickable { aoAbrirImagem(caminho) },
+            modifier = Modifier
+                .width(larguraDp.dp)
+                .aspectRatio(proporcao)
+                .clickable { aoAbrirImagem(caminho) },
             contentScale = ContentScale.Fit,
         )
     }
@@ -191,10 +197,11 @@ class TransformadorDeImagemDaNota(
         } else {
             with(density) { containerSize.width.toDp().value }
         }
+        // Mesma regra do [transform]: px natural lido como dp, nao dividido pela densidade.
         val naturalDp = if (imageSize.isUnspecified || imageSize.width <= 0f) {
             null
         } else {
-            with(density) { imageSize.width.toDp().value }
+            imageSize.width
         }
         val proporcao = if (imageSize.isUnspecified || imageSize.width <= 0f) {
             PROPORCAO_PROVISORIA
