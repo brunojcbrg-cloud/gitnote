@@ -85,8 +85,22 @@ class CalloutsTest {
         assertTrue(paragrafo.children.none { ehMarcadorDeCallout(fonte, it) })
     }
 
-    private fun primeiraCitacao(fonte: String): ASTNode =
-        parse(fonte).children.first { it.type == MarkdownElementTypes.BLOCK_QUOTE }
+    private fun primeiraCitacao(fonte: String): ASTNode {
+        val raiz = parse(fonte)
+        return raiz.descendentes().firstOrNull { it.type == MarkdownElementTypes.BLOCK_QUOTE }
+            ?: error("sem BLOCK_QUOTE em ${fonte.trim()}:\n${raiz.arvore(fonte)}")
+    }
+
+    private fun ASTNode.descendentes(): Sequence<ASTNode> = sequence {
+        yield(this@descendentes)
+        children.forEach { yieldAll(it.descendentes()) }
+    }
+
+    private fun ASTNode.arvore(fonte: String, nivel: Int = 0): String = buildString {
+        append("  ".repeat(nivel)).append(type).append(" '")
+        append(fonte.substring(startOffset, endOffset).replace("\n", "\\n")).append("'\n")
+        children.forEach { append(it.arvore(fonte, nivel + 1)) }
+    }
 
     private fun parse(fonte: String): ASTNode =
         MarkdownParser(GFMFlavourDescriptor()).buildMarkdownTreeFromString(fonte)
