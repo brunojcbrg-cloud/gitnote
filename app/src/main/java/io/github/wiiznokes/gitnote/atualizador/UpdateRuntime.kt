@@ -1,6 +1,7 @@
 package io.github.wiiznokes.gitnote.atualizador
 
 import android.Manifest
+import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -28,6 +30,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.wiiznokes.gitnote.BuildConfig
+import io.github.wiiznokes.gitnote.MainActivity
 import io.github.wiiznokes.gitnote.MyApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,11 +45,50 @@ private const val UPDATE_OPEN_WORK = "life-so-update-on-open"
 private const val UPDATE_DOWNLOAD_WORK = "life-so-update-download"
 private const val UPDATE_CHANNEL = "atualizacoes"
 private const val UPDATE_NOTIFICATION_ID = 8700
-private const val ACTION_DOWNLOAD = "io.github.wiiznokes.gitnote.UPDATE_DOWNLOAD"
+private const val UPDATE_INSTALL_NOTIFICATION_ID = 8701
 private const val ACTION_INSTALL_RESULT = "io.github.wiiznokes.gitnote.UPDATE_INSTALL_RESULT"
 private const val EXTRA_APK_PATH = "apk_path"
 
+/** Extra da MainActivity: "o Bruno tocou em Atualizar" (notificação). */
+const val EXTRA_UPDATE_NOW = "io.github.wiiznokes.gitnote.UPDATE_NOW"
+
 object UpdateCoordinator {
+    /**
+     * Ponto único do "Atualizar", chamado pela Activity em primeiro plano
+     * (toque na notificação ou em Configurações > Atualizações).
+     *
+     * Tem de ser uma Activity: desde o Android 12 um BroadcastReceiver
+     * disparado por notificação não pode abrir tela nenhuma (trampolim de
+     * notificação), então a tela de permissão de fontes desconhecidas era
+     * bloqueada em silêncio — e era isso o "toco e não acontece nada".
+     *
+     * Devolve true quando mandou o Bruno para a tela de permissão; a
+     * Activity retoma o download sozinha quando ele volta.
+     */
+    fun iniciarPelaTela(activity: Activity): Boolean {
+        if (BuildConfig.BUILD_TYPE != "nightly") return false
+        val prefs = MyApp.appModule.appPreferences
+        if (!activity.packageManager.canRequestPackageInstalls()) {
+            updateStatusAsync(prefs, "Permita instalar apps desta fonte; o download começa ao voltar")
+            Toast.makeText(
+                activity,
+                "Permita \"instalar apps desta fonte\" e volte ao Life SO",
+                Toast.LENGTH_LONG,
+            ).show()
+            activity.startActivity(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}")),
+            )
+            return true
+        }
+        Toast.makeText(
+            activity,
+            "Baixando atualização — acompanhe pela notificação",
+            Toast.LENGTH_SHORT,
+        ).show()
+        enqueueDownload(activity)
+        return false
+    }
+
     fun schedule(context: Context, lastCheckEpochSeconds: Int, automatic: Boolean) {
         val workManager = WorkManager.getInstance(context)
         if (!automatic || BuildConfig.BUILD_TYPE != "nightly") {
@@ -161,7 +203,10 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
             installedVersionCode(applicationContext),
             BuildConfig.BUILD_TYPE,
         )
-        val release = (evaluation as? UpdateEvaluation.Available)?.release ?: return Result.success()
+        val release = (evaluation as? UpdateEvaluation.Available)?.release ?: run {
+            prefs.lastUpdateStatus.update("Nenhuma atualização pendente; toque em Verificar agora")
+            return Result.success()
+        }
         if (!applicationContext.packageManager.canRequestPackageInstalls()) {
             prefs.lastUpdateStatus.update("Permita instalar apps desta fonte e toque em Atualizar novamente")
             return Result.failure()
@@ -170,7 +215,11 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
         val apk = File(directory, release.asset.name)
         return withContext(Dispatchers.IO) {
             try {
-                setForeground(updateForeground("Baixando ${release.tag}", 0))
+                // Sem foreground o download segue do mesmo jeito (só fica mais
+                // sujeito a ser interrompido); um "não pode iniciar serviço em
+                // segundo plano" aqui não pode virar "Atualização falhou".
+                runCatching { setForeground(updateForeground("Baixando ${release.tag}", 0)) }
+                    .onFailure { Log.w("UpdateDownloadWorker", "sem foreground", it) }
                 prefs.lastUpdateStatus.update(textoProgressoDownload(release.tag, 0, 0, release.asset.size))
                 val connection = (URI(release.asset.downloadUrl).toURL().openConnection() as HttpURLConnection).apply {
                     connectTimeout = 30_000
@@ -181,6 +230,7 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
                 require(connection.responseCode in 200..299) { "download HTTP ${connection.responseCode}" }
                 var copied = 0L
                 var ultimoPercentGravado = -1
+                var ultimoPercentNotificado = 0
                 connection.inputStream.use { input ->
                     apk.outputStream().use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -192,7 +242,12 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
                             val percent = if (release.asset.size > 0) {
                                 (copied * 100L / release.asset.size).toInt().coerceIn(0, 100)
                             } else 0
-                            setForegroundAsync(updateForeground("Baixando ${release.tag}", percent))
+                            // Só quando o número muda: a cada 8 KB eram milhares de
+                            // atualizações da notificação, que o Android descarta.
+                            if (percent != ultimoPercentNotificado) {
+                                ultimoPercentNotificado = percent
+                                runCatching { setForegroundAsync(updateForeground("Baixando ${release.tag}", percent)) }
+                            }
                             // A notificação de progresso some se o Bruno não estiver
                             // olhando o painel de notificações nesse instante; a tela
                             // Configurações > Atualizações precisa mostrar o mesmo
@@ -222,60 +277,6 @@ class UpdateDownloadWorker(context: Context, params: WorkerParameters) : Corouti
     }
 }
 
-class UpdateActionReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        // Um receiver que lança sem capturar derruba o app inteiro (a tela que
-        // o Bruno via fecha na hora) — nunca deixar nada escapar daqui, nem um
-        // erro que eu não previ. Mesma cautela do setForeground em
-        // LessonWorkers.kt (§1.3 do handoff-mãe).
-        try {
-            onReceiveInterno(context, intent)
-        } catch (error: Exception) {
-            Log.e("UpdateActionReceiver", "falha ao processar Atualizar", error)
-            runCatching {
-                Toast.makeText(
-                    context.applicationContext,
-                    "Não consegui iniciar a atualização (${error.message ?: "erro desconhecido"})",
-                    Toast.LENGTH_LONG,
-                ).show()
-            }
-            updateStatusAsync(
-                MyApp.appModule.appPreferences,
-                "Atualização falhou ao iniciar: ${error.message ?: "erro desconhecido"}",
-            )
-        }
-    }
-
-    private fun onReceiveInterno(context: Context, intent: Intent) {
-        if (intent.action != ACTION_DOWNLOAD || BuildConfig.BUILD_TYPE != "nightly") return
-        if (!context.packageManager.canRequestPackageInstalls()) {
-            updateStatusAsync(
-                MyApp.appModule.appPreferences,
-                "Permita instalar apps desta fonte e toque em Atualizar novamente",
-            )
-            Toast.makeText(
-                context.applicationContext,
-                "Permita instalar apps desta fonte e toque em Atualizar de novo",
-                Toast.LENGTH_LONG,
-            ).show()
-            context.startActivity(
-                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-            return
-        }
-        // Tocar em "Atualizar" não abre o app (é uma ação de notificação), então
-        // sem isto o Bruno não tem nenhum sinal de que algo aconteceu — daí ele
-        // tocar de novo achando que não funcionou.
-        Toast.makeText(
-            context.applicationContext,
-            "Baixando atualização — acompanhe pela notificação",
-            Toast.LENGTH_SHORT,
-        ).show()
-        UpdateCoordinator.enqueueDownload(context)
-    }
-}
-
 class UpdateInstallReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_INSTALL_RESULT) return
@@ -289,8 +290,20 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                     @Suppress("DEPRECATION")
                     intent.getParcelableExtra(Intent.EXTRA_INTENT)
                 }
-                confirmation?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (confirmation != null) context.startActivity(confirmation)
+                if (confirmation == null) {
+                    updateStatusAsync(prefs, "Instalação falhou: o Android não mandou a tela de confirmação")
+                    apk?.delete()
+                    return
+                }
+                // Com o app fora da tela o Android bloqueia, em silêncio, abrir a
+                // confirmação daqui (restrição de abrir Activity em segundo
+                // plano) — o download terminava e nada aparecia. A notificação
+                // é o caminho que sempre funciona; a tentativa direta só serve
+                // quando o Life SO está aberto.
+                showInstallNotification(context, confirmation)
+                updateStatusAsync(prefs, "Pronto para instalar — toque na notificação \"Instalar\"")
+                runCatching { context.startActivity(Intent(confirmation).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    .onFailure { Log.w("UpdateInstallReceiver", "confirmação direta bloqueada", it) }
                 return
             }
             PackageInstaller.STATUS_SUCCESS -> updateStatusAsync(prefs, "Atualização instalada")
@@ -299,6 +312,7 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 "Instalação falhou ($status): ${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()}",
             )
         }
+        NotificationManagerCompat.from(context).cancel(UPDATE_INSTALL_NOTIFICATION_ID)
         apk?.delete()
     }
 }
@@ -316,20 +330,48 @@ private fun showAvailableNotification(context: Context, release: UpdateRelease) 
     if (Build.VERSION.SDK_INT >= 33 &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
     ) return
-    val action = PendingIntent.getBroadcast(
+    // Abre a Activity, nunca um receiver (ver UpdateCoordinator.iniciarPelaTela).
+    // Vale para o corpo da notificação também: antes só o botão fazia algo, e
+    // o botão fica escondido com a notificação recolhida.
+    val action = PendingIntent.getActivity(
         context,
         release.buildNumber,
-        Intent(context, UpdateActionReceiver::class.java).setAction(ACTION_DOWNLOAD),
+        Intent(context, MainActivity::class.java)
+            .putExtra(EXTRA_UPDATE_NOW, true)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
     val notification = NotificationCompat.Builder(context, UPDATE_CHANNEL)
         .setSmallIcon(android.R.drawable.stat_sys_download_done)
         .setContentTitle("Life SO ${release.tag} disponível")
-        .setContentText("Toque em Atualizar para baixar e instalar")
+        .setContentText("Toque para baixar e instalar")
+        .setContentIntent(action)
         .addAction(0, "Atualizar", action)
         .setAutoCancel(true)
         .build()
     NotificationManagerCompat.from(context).notify(UPDATE_NOTIFICATION_ID, notification)
+}
+
+private fun showInstallNotification(context: Context, confirmation: Intent) {
+    ensureUpdateChannel(context)
+    if (Build.VERSION.SDK_INT >= 33 &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) return
+    val abrir = PendingIntent.getActivity(
+        context,
+        UPDATE_INSTALL_NOTIFICATION_ID,
+        Intent(confirmation).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    val notification = NotificationCompat.Builder(context, UPDATE_CHANNEL)
+        .setSmallIcon(android.R.drawable.stat_sys_download_done)
+        .setContentTitle("Atualização do Life SO baixada")
+        .setContentText("Toque para instalar")
+        .setContentIntent(abrir)
+        .addAction(0, "Instalar", abrir)
+        .setAutoCancel(true)
+        .build()
+    NotificationManagerCompat.from(context).notify(UPDATE_INSTALL_NOTIFICATION_ID, notification)
 }
 
 private fun updateForeground(text: String, percent: Int): ForegroundInfo {
@@ -343,7 +385,9 @@ private fun updateForeground(text: String, percent: Int): ForegroundInfo {
         .setOnlyAlertOnce(true)
         .setOngoing(true)
         .build()
-    return ForegroundInfo(UPDATE_NOTIFICATION_ID, notification)
+    // Tipo explícito, como em LessonWorkers.kt: com targetSdk 34+ o serviço
+    // em primeiro plano precisa declarar o tipo também na chamada.
+    return ForegroundInfo(UPDATE_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
 }
 
 private fun ensureUpdateChannel(context: Context) {

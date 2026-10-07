@@ -56,9 +56,6 @@
             tools:node="merge" />
 
         <receiver
-            android:name=".atualizador.UpdateActionReceiver"
-            android:exported="false" />
-        <receiver
             android:name=".atualizador.UpdateInstallReceiver"
             android:exported="false" />
 

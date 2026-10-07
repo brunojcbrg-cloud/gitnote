@@ -63,6 +63,7 @@ import io.github.wiiznokes.gitnote.data.InitializationState
 import io.github.wiiznokes.gitnote.data.StartupSyncState
 import io.github.wiiznokes.gitnote.data.SyncPresentationMode
 import io.github.wiiznokes.gitnote.data.syncPresentationMode
+import io.github.wiiznokes.gitnote.atualizador.EXTRA_UPDATE_NOW
 import io.github.wiiznokes.gitnote.atualizador.UpdateCoordinator
 import io.github.wiiznokes.gitnote.atualizador.shouldRequestUpdateNotificationPermission
 import io.github.wiiznokes.gitnote.aulas.EXTRA_OPEN_MATERIAL_ID
@@ -92,6 +93,7 @@ class MainActivity : FragmentActivity() {
     private var pendente: ((Boolean) -> Unit)? = null
     private var mainViewModel: MainViewModel? = null
     private var pendingMaterialId by mutableStateOf<String?>(null)
+    private var aguardandoPermissaoDeInstalar = false
     private val autenticadores = BiometricManager.Authenticators.BIOMETRIC_STRONG or
         BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
@@ -163,6 +165,11 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
         pendingMaterialId = intent.getStringExtra(EXTRA_OPEN_MATERIAL_ID)
+        // Recriação (girar a tela) e abertura pelos recentes trazem o mesmo
+        // intent de volta; só o toque de verdade na notificação conta.
+        if (savedInstanceState == null &&
+            (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0
+        ) tratarPedidoDeAtualizacao(intent)
 
         // Apply before the first frame, including the recents thumbnail.
         setScreenCaptureBlocked(runBlocking {
@@ -440,6 +447,27 @@ class MainActivity : FragmentActivity() {
         super.onStop()
     }
 
+    /** "Atualizar" tocado na notificação; devolve true se o intent era isso. */
+    private fun tratarPedidoDeAtualizacao(intent: Intent?): Boolean {
+        if (intent?.getBooleanExtra(EXTRA_UPDATE_NOW, false) != true) return false
+        iniciarAtualizacao()
+        return true
+    }
+
+    /** Também chamado por Configurações > Atualizações. */
+    fun iniciarAtualizacao() {
+        aguardandoPermissaoDeInstalar = UpdateCoordinator.iniciarPelaTela(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Voltou da tela "instalar apps desta fonte": segue o download sem
+        // pedir um segundo toque.
+        if (aguardandoPermissaoDeInstalar && packageManager.canRequestPackageInstalls()) {
+            iniciarAtualizacao()
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         if (!aberto || promptEmCurso) return
@@ -461,6 +489,8 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         Log.d(TAG, "onNewIntent $intent")
+
+        if (tratarPedidoDeAtualizacao(intent)) return
 
         intent.getStringExtra(EXTRA_OPEN_MATERIAL_ID)?.let {
             pendingMaterialId = it

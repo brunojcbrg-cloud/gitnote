@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -31,6 +32,8 @@ import io.github.wiiznokes.gitnote.MainActivity
 import io.github.wiiznokes.gitnote.R
 import io.github.wiiznokes.gitnote.data.PrazoDaTrava
 import io.github.wiiznokes.gitnote.atualizador.UpdateCoordinator
+import io.github.wiiznokes.gitnote.atualizador.UpdateEvaluation
+import io.github.wiiznokes.gitnote.atualizador.evaluateUpdate
 import io.github.wiiznokes.gitnote.ui.component.AppPage
 import io.github.wiiznokes.gitnote.ui.component.DefaultSettingsRow
 import io.github.wiiznokes.gitnote.ui.component.MultipleChoiceSettings
@@ -388,6 +391,24 @@ fun SettingsScreen(
                 title = "Última verificação",
                 subTitle = if (BuildConfig.BUILD_TYPE == "nightly") lastStatus else "Desligado neste build",
             )
+            // Antes o único jeito de atualizar era o botão da notificação; se
+            // ela sumisse (ou o toque falhasse), não havia como.
+            val availableJson by vm.prefs.availableUpdateJson.getAsState()
+            val disponivel = remember(availableJson) {
+                (evaluateUpdate(
+                    availableJson,
+                    BuildConfig.VERSION_CODE.toLong(),
+                    BuildConfig.BUILD_TYPE,
+                ) as? UpdateEvaluation.Available)?.release
+            }
+            if (disponivel != null) {
+                DefaultSettingsRow(
+                    title = "Atualizar para ${disponivel.tag}",
+                    subTitle = "Baixar e instalar agora",
+                    startIcon = Icons.Default.Refresh,
+                    onClick = { (context as? MainActivity)?.iniciarAtualizacao() },
+                )
+            }
             DefaultSettingsRow(
                 title = "Verificar agora",
                 startIcon = Icons.Default.Refresh,
