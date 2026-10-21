@@ -26,6 +26,7 @@ class MyApp : Application() {
 
         scope.launch {
             appModule.appPreferences.preload()
+            UpdateCoordinator.limparAvisoVencido(this@MyApp)
             UpdateCoordinator.schedule(
                 this@MyApp,
                 appModule.appPreferences.lastUpdateCheckEpochSeconds.get(),

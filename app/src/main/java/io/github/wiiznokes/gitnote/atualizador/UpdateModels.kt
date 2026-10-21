@@ -100,6 +100,18 @@ fun evaluateUpdate(
 }
 
 /**
+ * O aviso guardado ficou para trás: a versão que ele oferece já está
+ * instalada. Sem limpar, a notificação "bN disponível" sobrevivia à própria
+ * atualização e parecia pedir para instalar o que já estava instalado.
+ */
+fun avisoDeAtualizacaoVencido(
+    availableJson: String,
+    installedVersionCode: Long,
+    buildType: String,
+): Boolean = availableJson.isNotBlank() &&
+    evaluateUpdate(availableJson, installedVersionCode, buildType) == UpdateEvaluation.Current
+
+/**
  * Buckets por 10% (e sempre em 100%) para não regravar a preferência a cada
  * pedaço de 8 KB lido — writes de DataStore custam I/O de disco.
  */

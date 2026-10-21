@@ -42,6 +42,16 @@ class UpdateModelsTest {
     }
 
     @Test
+    fun `aviso guardado vence quando a versao dele ja esta instalada`() {
+        // fixture = b86 (versionCode 106)
+        assertTrue(avisoDeAtualizacaoVencido(fixture, 106, "nightly"))
+        assertTrue(avisoDeAtualizacaoVencido(fixture, 107, "nightly"))
+        assertFalse(avisoDeAtualizacaoVencido(fixture, 105, "nightly"))
+        assertFalse(avisoDeAtualizacaoVencido("", 106, "nightly"))
+        assertFalse(avisoDeAtualizacaoVencido(fixture, 106, "debug"))
+    }
+
+    @Test
     fun `build debug fica desligado`() {
         assertEquals(UpdateEvaluation.DisabledBuild, evaluateUpdate(fixture, 1, "debug"))
     }

@@ -89,6 +89,28 @@ object UpdateCoordinator {
         return false
     }
 
+    /**
+     * Na abertura do app: se a versão do aviso guardado já está instalada,
+     * apaga o aviso, a notificação e o APK que sobrou. A verificação só roda
+     * de hora em hora; até lá a notificação da versão anterior ficava na
+     * bandeja oferecendo a versão que já estava instalada.
+     */
+    suspend fun limparAvisoVencido(context: Context) {
+        val prefs = MyApp.appModule.appPreferences
+        if (!avisoDeAtualizacaoVencido(
+                prefs.availableUpdateJson.get(),
+                installedVersionCode(context),
+                BuildConfig.BUILD_TYPE,
+            )
+        ) return
+        prefs.availableUpdateJson.update("")
+        prefs.lastUpdateStatus.update("Atualizado")
+        cancelarAvisosDeAtualizacao(context)
+        // A troca do APK mata o processo antes de o UpdateInstallReceiver
+        // receber STATUS_SUCCESS, então o arquivo baixado (~25 MB) ficava.
+        withContext(Dispatchers.IO) { File(context.cacheDir, "atualizacao").deleteRecursively() }
+    }
+
     fun schedule(context: Context, lastCheckEpochSeconds: Int, automatic: Boolean) {
         val workManager = WorkManager.getInstance(context)
         if (!automatic || BuildConfig.BUILD_TYPE != "nightly") {
@@ -176,6 +198,7 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : CoroutineW
                         UpdateEvaluation.Current -> {
                             prefs.availableUpdateJson.update("")
                             prefs.lastUpdateStatus.update("Atualizado")
+                            cancelarAvisosDeAtualizacao(applicationContext)
                         }
                         is UpdateEvaluation.Rejected -> {
                             prefs.availableUpdateJson.update("")
@@ -350,6 +373,18 @@ private fun showAvailableNotification(context: Context, release: UpdateRelease) 
         .setAutoCancel(true)
         .build()
     NotificationManagerCompat.from(context).notify(UPDATE_NOTIFICATION_ID, notification)
+}
+
+/**
+ * "Disponível" e "Instalar" de uma versão já instalada. O id do "disponível"
+ * é o mesmo da notificação de progresso do download, mas nos dois chamadores
+ * não há download em curso: ele só roda quando há versão mais nova.
+ */
+private fun cancelarAvisosDeAtualizacao(context: Context) {
+    NotificationManagerCompat.from(context).apply {
+        cancel(UPDATE_NOTIFICATION_ID)
+        cancel(UPDATE_INSTALL_NOTIFICATION_ID)
+    }
 }
 
 private fun showInstallNotification(context: Context, confirmation: Intent) {
