@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
@@ -31,6 +32,9 @@ import com.mikepenz.markdown.compose.components.CurrentComponentsBridge
 import com.mikepenz.markdown.compose.components.MarkdownComponent
 import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.elements.MarkdownCheckBox
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
@@ -128,6 +132,40 @@ fun MarkdownCustomInner(
     error = error,
 )
 
+/**
+ * A tabela padrao da biblioteca limita cada celula a 1 linha com reticencias, e no celular
+ * quase todo texto de celula era cortado. Aqui a celula quebra linha e alinha pelo topo.
+ */
+private val tabelaQuebrandoLinha: MarkdownComponent = {
+    MarkdownTable(
+        content = it.content,
+        node = it.node,
+        style = it.typography.table,
+        headerBlock = { content, header, tableWidth, style ->
+            MarkdownTableHeader(
+                content = content,
+                header = header,
+                tableWidth = tableWidth,
+                style = style,
+                verticalAlignment = Alignment.Top,
+                maxLines = Int.MAX_VALUE,
+                overflow = TextOverflow.Clip,
+            )
+        },
+        rowBlock = { content, row, tableWidth, style ->
+            MarkdownTableRow(
+                content = content,
+                header = row,
+                tableWidth = tableWidth,
+                style = style,
+                verticalAlignment = Alignment.Top,
+                maxLines = Int.MAX_VALUE,
+                overflow = TextOverflow.Clip,
+            )
+        },
+    )
+}
+
 private fun markdownComponentsWithHeadingPositions(
     onHeadingPositioned: ((String, Int, LayoutCoordinates) -> Unit)?,
     onBlockPositioned: ((Int, LayoutCoordinates) -> Unit)?,
@@ -156,7 +194,7 @@ private fun markdownComponentsWithHeadingPositions(
         paragraph = positionedBlock(CurrentComponentsBridge.paragraph, onBlockPositioned),
         orderedList = positionedBlock(CurrentComponentsBridge.orderedList, onBlockPositioned),
         unorderedList = positionedBlock(CurrentComponentsBridge.unorderedList, onBlockPositioned),
-        table = positionedBlock(CurrentComponentsBridge.table, onBlockPositioned),
+        table = positionedBlock(tabelaQuebrandoLinha, onBlockPositioned),
         checkbox = positionedBlock(checkbox, onBlockPositioned),
         custom = alertaOuFilhos,
     )
