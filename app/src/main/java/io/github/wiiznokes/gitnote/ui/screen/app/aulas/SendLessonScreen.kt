@@ -26,6 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -86,6 +87,7 @@ fun SendLessonScreen(onBack: () -> Unit) {
     var pendingJob by remember { mutableStateOf<LessonUploadJob?>(null) }
     val jobStore = remember { LessonJobStore(context) }
     var currentJob by remember { mutableStateOf(jobStore.latest()) }
+    var sentJobs by remember { mutableStateOf(jobStore.all()) }
     var workInfos by remember { mutableStateOf(emptyList<WorkInfo>()) }
 
     val observedWorkName = currentJob?.let { lessonWorkName(it.idAula) }
@@ -112,6 +114,7 @@ fun SendLessonScreen(onBack: () -> Unit) {
         LessonHistoryWorker.schedule(context)
         requestNotificationPermission()
         currentJob = job
+        sentJobs = jobStore.all()
         pendingJob = null
         draft.clear()
         files = emptyList()
@@ -179,12 +182,22 @@ fun SendLessonScreen(onBack: () -> Unit) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(message)
-            if (currentJob != null && uploadStatus != null) {
+            val activeJob = currentJob
+            if (activeJob != null && uploadStatus != null) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(
                         Modifier.fillMaxWidth().padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        // O nome do que acabou de subir, para o Bruno nao ficar no escuro
+                        // depois de confirmar o envio.
+                        Text(
+                            lessonTitle(activeJob),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        activeJob.arquivos.forEach { arquivo ->
+                            Text("• ${arquivo.nome}", style = MaterialTheme.typography.bodySmall)
+                        }
                         Text(uploadStatus.text)
                         uploadStatus.percent?.let { percent ->
                             LinearProgressIndicator(
@@ -194,7 +207,7 @@ fun SendLessonScreen(onBack: () -> Unit) {
                         }
                         if (uploadStatus.canRetry) {
                             Button(onClick = {
-                                currentJob?.let { authorizeAndEnqueue(it, replace = true) }
+                                authorizeAndEnqueue(activeJob, replace = true)
                             }) { Text("Tentar de novo") }
                         }
                     }
@@ -202,6 +215,29 @@ fun SendLessonScreen(onBack: () -> Unit) {
             }
             if (files.isEmpty()) {
                 Button(onClick = { picker.launch(arrayOf("audio/*", "video/*")) }) { Text("Selecionar arquivos") }
+                if (sentJobs.isNotEmpty()) {
+                    Text(
+                        "Enviadas deste celular",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(sentJobs, key = { it.idAula }) { job ->
+                            Card(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(lessonTitle(job))
+                                    Text(
+                                        job.arquivos.joinToString { it.nome },
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                    Text(
+                                        "Enviada ${formatSentAt(job.criadoEm)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
                 Text("Selecionou todos os arquivos desta aula?")
                 OutlinedTextField(
@@ -245,6 +281,15 @@ internal fun safeShortName(value: String): String {
     val normalized = Normalizer.normalize(value, Normalizer.Form.NFKD).replace(Regex("\\p{M}+"), "")
     return normalized.replace(Regex("[^A-Za-z0-9 _-]"), " ").replace(Regex("\\s+"), " ").trim().take(48).ifBlank { "aula" }
 }
+
+/** Nome legivel de um envio: o apelido que o Bruno deu, senao o primeiro arquivo. */
+internal fun lessonTitle(job: LessonUploadJob): String =
+    job.nomeSugerido.ifBlank { job.arquivos.firstOrNull()?.nome ?: "Aula" }
+
+/** "12/11 as 10:14" a partir do carimbo ISO do envio. */
+internal fun formatSentAt(iso: String): String = runCatching {
+    ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("dd/MM 'as' HH:mm"))
+}.getOrDefault(iso)
 
 internal fun workInfoToUploadStatus(info: WorkInfo): LessonUploadUiStatus {
     val phase = when (info.state) {

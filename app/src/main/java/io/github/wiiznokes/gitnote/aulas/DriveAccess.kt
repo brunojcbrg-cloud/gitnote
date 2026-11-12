@@ -88,6 +88,13 @@ class LessonJobStore(private val context: Context) {
         ?.filter { it.isFile && it.extension == "json" }
         ?.maxByOrNull { it.lastModified() }
         ?.let { runCatching { read(it.absolutePath) }.getOrNull() }
+
+    /** Tudo que este celular ja colocou para enviar, do mais recente para o mais antigo. */
+    fun all(): List<LessonUploadJob> = directory.listFiles()
+        ?.filter { it.isFile && it.extension == "json" }
+        ?.sortedByDescending { it.lastModified() }
+        ?.mapNotNull { runCatching { read(it.absolutePath) }.getOrNull() }
+        ?: emptyList()
 }
 
 data class LessonUploadProgress(
@@ -108,8 +115,12 @@ class DriveRestClient(
     private val uploadUrl = "https://www.googleapis.com/upload/drive/v3/files"
 
     fun ensureRootAndStateFile(): String {
-        val root = findFirst("name = '${escapeQuery(LIFE_SO_AULAS_FOLDER)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
-            ?: createFolder(LIFE_SO_AULAS_FOLDER, null, null)
+        // 'root' in parents prende a pasta ao My Drive. Sem isso, o drive.file reaproveitava
+        // por File ID uma pasta LifeSO_Aulas que vivia no espaco "Computadores" (backup): os
+        // envios caiam la e a reconciliacao do backup os APAGAVA, e o PC (que le o My Drive)
+        // nunca os via. Ancorando no My Drive, celular e PC usam a mesma pasta.
+        val root = findFirst("name = '${escapeQuery(LIFE_SO_AULAS_FOLDER)}' and mimeType = 'application/vnd.google-apps.folder' and 'root' in parents and trashed = false")
+            ?: createFolder(LIFE_SO_AULAS_FOLDER, "root", null)
         val state = findFirst("name = 'estado_aulas.json' and '$root' in parents and trashed = false")
         if (state == null) {
             uploadBytes(
